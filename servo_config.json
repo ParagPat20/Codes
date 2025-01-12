@@ -10,7 +10,7 @@
                     "offset": 0
                 },
                 "L3": {
-                    "angle": 56,
+                    "angle": 70,
                     "inverted": false,
                     "offset": 0
                 },
@@ -22,22 +22,22 @@
             },
             "MID": {
                 "L8": {
-                    "angle": 89,
+                    "angle": 90,
                     "inverted": false,
                     "offset": 0
                 },
                 "L6": {
-                    "angle": 180,
+                    "angle": 160,
                     "inverted": false,
                     "offset": 0
                 },
                 "L7": {
-                    "angle": 114,
+                    "angle": 100,
                     "inverted": false,
                     "offset": 0
                 },
                 "L5": {
-                    "angle": 14,
+                    "angle": 0,
                     "inverted": false,
                     "offset": 0
                 }
@@ -49,7 +49,7 @@
                     "offset": -20
                 },
                 "L10": {
-                    "angle": 50,
+                    "angle": 70,
                     "inverted": true,
                     "offset": 0
                 },
@@ -68,7 +68,7 @@
                     "offset": 0
                 },
                 "R2": {
-                    "angle": 58,
+                    "angle": 70,
                     "inverted": false,
                     "offset": 0
                 },
@@ -85,12 +85,12 @@
                     "offset": 0
                 },
                 "R7": {
-                    "angle": 180,
+                    "angle": 160,
                     "inverted": true,
                     "offset": 0
                 },
                 "R6": {
-                    "angle": 114,
+                    "angle": 100,
                     "inverted": false,
                     "offset": 0
                 },
@@ -107,7 +107,7 @@
                     "offset": 0
                 },
                 "R11": {
-                    "angle": 73,
+                    "angle": 70,
                     "inverted": false,
                     "offset": 0
                 },
