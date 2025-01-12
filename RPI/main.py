@@ -112,7 +112,7 @@ def stand_sequence(hexapod, standing_position):
 def main():
     try:
         # Initialize the hexapod controller with the first available port
-        available_ports = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0"]
+        available_ports = [f"/dev/ttyUSB{i}" for i in range(4)] + [f"/dev/ttyACM{i}" for i in range(1, 4)]
         hexapod = None
         
         for port in available_ports:
