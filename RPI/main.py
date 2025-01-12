@@ -68,7 +68,6 @@ def load_standing_position():
 def apply_leg_config(hexapod, config, side, section):
     """Apply configuration for a specific leg"""
     print(f"Configuring {side} {section} leg...")
-    success = True
     
     for servo_id, servo_config in config[side][section].items():
         try:
@@ -77,25 +76,21 @@ def apply_leg_config(hexapod, config, side, section):
                 angle = 180 - angle
             angle += servo_config["offset"]
             angle = max(0, min(180, angle))
-            print(f"Setting {servo_id} to {angle}")
             
-            # Send command and wait for response
-            hexapod.forward_command(f"{servo_id}:{angle}")
-            time.sleep(0.2)  # Increased delay between commands
+            # Send simple command format
+            command = f"{servo_id}:{angle}"
+            hexapod.forward_command(command)
+            time.sleep(0.1)  # Shorter delay between servos
         except Exception as e:
             print(f"Error configuring {servo_id}: {e}")
-            success = False
+            return False
     
-    if success:
-        print(f"Successfully configured {side} {section} leg")
-    else:
-        print(f"Some errors occurred while configuring {side} {section} leg")
-    
-    return success
+    time.sleep(0.2)  # Short delay after configuring all servos in a leg
+    return True
 
 def stand_sequence(hexapod, standing_position):
     """Execute standing sequence in specific order"""
-    print("\nStarting stand sequence...")
+    print("Starting stand sequence...")
     
     sequence = [
         ("LEFT", "FRONT"),
@@ -107,13 +102,11 @@ def stand_sequence(hexapod, standing_position):
     ]
     
     for side, section in sequence:
-        print(f"\nConfiguring {side} {section} leg...")
         if not apply_leg_config(hexapod, standing_position, side, section):
-            print(f"Error in {side} {section} leg configuration, stopping sequence")
+            print(f"Error in {side} {section} leg configuration")
             return False
-        time.sleep(0.5)  # Increased delay between legs
+        time.sleep(0.2)  # Shorter delay between legs
     
-    print("\nStand sequence completed successfully")
     return True
 
 def main():

@@ -15,35 +15,30 @@ class HexapodController:
 
     def send_command(self, command: str, wait_for_response=False):
         try:
-            print(f"Sending command: {command}")
+            # Clean up command to ensure it's just in format "L1:180"
+            if ":" in command:
+                parts = command.split(":")
+                servo_id = parts[0].strip()
+                angle = int(float(parts[1].strip()))
+                command = f"{servo_id}:{angle}"
+                
+            print(f"Sending: {command}")
             self.serial.write(f"{command}\n".encode())
-            self.serial.flush()  # Ensure command is sent
+            self.serial.flush()
             
             if wait_for_response:
-                # Wait for response with timeout
-                response = self.serial.readline().decode().strip()
-                print(f"ESP32 response: {response}")
-                return response
+                time.sleep(0.05)  # Small delay to wait for response
+                if self.serial.in_waiting:
+                    response = self.serial.readline().decode().strip()
+                    print(f"Response: {response}")
+                    return response
             return None
-        except serial.SerialTimeoutException:
-            print(f"Timeout sending command: {command}")
         except Exception as e:
-            print(f"Error sending command: {command}, Error: {e}")
+            print(f"Error: {e}")
+            return None
 
     def forward_command(self, command: str):
-        print(f"Forwarding command to ESP32: {command}")
-        response = self.send_command(command, wait_for_response=True)
-        
-        # Update config if it's a servo command and we got a response
-        if response and ":" in command:
-            try:
-                parts = command.split(",")
-                for part in parts:
-                    servo_id, angle = part.split(":")
-                    if not servo_id.endswith("DC"):  # Skip DC motor commands
-                        self.config.update_servo(servo_id, float(angle))
-            except Exception as e:
-                print(f"Error updating config: {e}")
+        self.send_command(command, wait_for_response=False)  # Don't wait for response
 
     def get_current_config(self):
         return self.config.get_current_config()
