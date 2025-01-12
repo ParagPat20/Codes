@@ -3,6 +3,8 @@ from tkinter import ttk
 import zmq
 import json
 from config import Config
+import threading
+import time
 
 class HexapodGUI:
     def __init__(self, master):
@@ -15,10 +17,36 @@ class HexapodGUI:
 
         # ZMQ Setup
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.PUB)
-        self.socket.connect(f"tcp://{self.config.config['ip']}:{self.config.config['port']}")
+        
+        # Socket for sending commands (PUB)
+        self.command_socket = self.context.socket(zmq.PUB)
+        self.command_socket.connect(f"tcp://{self.config.config['ip']}:5000")
+        
+        # Socket for receiving responses (DEALER)
+        self.response_socket = self.context.socket(zmq.DEALER)
+        self.response_socket.connect(f"tcp://{self.config.config['ip']}:5001")
+        
+        # Start response polling thread
+        self.running = True
+        self.poll_thread = threading.Thread(target=self.poll_responses)
+        self.poll_thread.daemon = True
+        self.poll_thread.start()
 
         self.create_widgets()
+
+    def poll_responses(self):
+        """Poll for responses from the server"""
+        while self.running:
+            try:
+                response = self.response_socket.recv_json(flags=zmq.NOBLOCK)
+                if response.get("type") == "current_values":
+                    self.master.after(0, self.update_from_values, response["values"])
+            except zmq.Again:
+                # No message received, continue loop
+                pass
+            except Exception as e:
+                print(f"Error polling responses: {e}")
+            time.sleep(0.1)
 
     def create_widgets(self):
         # Create main container
@@ -208,13 +236,15 @@ class HexapodGUI:
                 angle = max(0, min(180, angle))
                 
                 command = {servo_id: angle}
-                self.socket.send_json(command)
+                self.command_socket.send_json(command)
                 print(f"Sent command: {command}")
         except Exception as e:
             print(f"Error sending command: {e}")
 
     def close(self):
-        self.socket.close()
+        self.running = False
+        self.command_socket.close()
+        self.response_socket.close()
         self.context.term()
         self.master.destroy()
 
@@ -222,7 +252,7 @@ class HexapodGUI:
         """Request current servo values from RPI"""
         try:
             command = {"command": "get_values"}
-            self.socket.send_json(command)
+            self.command_socket.send_json(command)
             print("Requested current values")
         except Exception as e:
             print(f"Error requesting values: {e}")
@@ -231,7 +261,7 @@ class HexapodGUI:
         """Send command to make hexapod stand"""
         try:
             command = {"command": "stand"}
-            self.socket.send_json(command)
+            self.command_socket.send_json(command)
             print("Sent stand command")
         except Exception as e:
             print(f"Error sending stand command: {e}")

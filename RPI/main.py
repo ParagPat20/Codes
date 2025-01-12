@@ -121,33 +121,43 @@ def main():
 
         # ZMQ Server setup
         context = zmq.Context()
-        socket = context.socket(zmq.SUB)
-        socket.bind("tcp://*:5000")
-        socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        print("ZMQ server listening on port 5000")
+        
+        # Socket for receiving commands (SUB)
+        command_socket = context.socket(zmq.SUB)
+        command_socket.bind("tcp://*:5000")
+        command_socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        
+        # Socket for sending responses (ROUTER)
+        response_socket = context.socket(zmq.ROUTER)
+        response_socket.bind("tcp://*:5001")
+        
+        print("ZMQ server listening on ports 5000 (commands) and 5001 (responses)")
         
         # Load standing position
         standing_position = load_standing_position()
         
         while True:
             try:
-                command_dict = socket.recv_json()
+                command_dict = command_socket.recv_json(flags=zmq.NOBLOCK)
                 print(f"Received command: {command_dict}")
                 
                 if isinstance(command_dict, dict):
                     if "command" in command_dict:
                         if command_dict["command"] == "get_values":
-                            # Send current configuration back to GUI
                             current_config = hexapod.get_current_config()
-                            socket.send_json({"type": "current_values", "values": current_config})
+                            response_socket.send_json({"type": "current_values", "values": current_config})
                         elif command_dict["command"] == "stand":
-                            # Execute standing sequence in specific order
+                            print("Starting stand sequence...")
                             stand_sequence(hexapod, standing_position)
+                            print("Stand sequence completed")
                     else:
                         # Handle regular servo commands
                         command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
                         command = ",".join(command_parts)
                         hexapod.forward_command(command)
+            except zmq.Again:
+                # No message received, continue loop
+                pass
             except Exception as e:
                 print(f"Error: {e}")
             
@@ -155,14 +165,16 @@ def main():
 
     except KeyboardInterrupt:
         print("\nShutting down...")
-        socket.close()
+        command_socket.close()
+        response_socket.close()
         context.term()
         if hexapod:
             hexapod.shutdown()
     except Exception as e:
         print(f"Error: {e}")
         try:
-            socket.close()
+            command_socket.close()
+            response_socket.close()
             context.term()
             if hexapod:
                 hexapod.shutdown()
