@@ -1,12 +1,12 @@
 from hexapod_controller import HexapodController
-import socket
+import zmq
 import json
 import time
+import os
 
 def main():
     try:
         # Initialize the hexapod controller with the first available port
-        import os
         available_ports = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0"]
         hexapod = None
         
@@ -24,43 +24,40 @@ def main():
             print("No valid port found for hexapod controller")
             return
 
-        # UDP Server setup
-        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_socket.bind(('0.0.0.0', 5000))  # Listen on all interfaces
-        udp_socket.settimeout(0.1)  # Non-blocking socket
-        print("UDP server listening on port 5000")
+        # ZMQ Server setup
+        context = zmq.Context()
+        socket = context.socket(zmq.SUB)
+        socket.bind("tcp://*:5000")
+        socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        print("ZMQ server listening on port 5000")
         
         while True:
             try:
-                # Check for UDP commands from PC
-                data, addr = udp_socket.recvfrom(1024)
-                if data:
-                    command_dict = json.loads(data.decode())
-                    print(f"Received command from {addr}: {command_dict}")
-                    
-                    # Convert dict to command string
-                    command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
-                    command = ",".join(command_parts)
-                    
-                    # Forward to ESP32
-                    hexapod.forward_command(command)
-            except socket.timeout:
-                # No UDP data received, continue loop
-                pass
-            except json.JSONDecodeError as e:
-                print(f"Invalid JSON received: {e}")
+                command_dict = socket.recv_json()
+                print(f"Received command: {command_dict}")
+                
+                # Convert dict to command string
+                command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
+                command = ",".join(command_parts)
+                
+                # Forward to ESP32
+                hexapod.forward_command(command)
+            except Exception as e:
+                print(f"Error: {e}")
             
             time.sleep(0.01)
 
     except KeyboardInterrupt:
         print("\nShutting down...")
-        udp_socket.close()
+        socket.close()
+        context.term()
         if hexapod:
             hexapod.shutdown()
     except Exception as e:
         print(f"Error: {e}")
         try:
-            udp_socket.close()
+            socket.close()
+            context.term()
             if hexapod:
                 hexapod.shutdown()
         except:
