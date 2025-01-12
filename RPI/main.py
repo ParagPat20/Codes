@@ -47,7 +47,7 @@ def main():
                     if "command" in command_dict:
                         if command_dict["command"] == "get_values":
                             # Send current configuration back to GUI
-                            current_config = hexapod.config.config
+                            current_config = hexapod.get_current_config()
                             socket.send_json({"type": "current_values", "values": current_config})
                         elif command_dict["command"] == "stand":
                             # Apply standing position

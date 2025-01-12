@@ -6,7 +6,7 @@ from hexapod_config import HexapodConfig
 class HexapodController:
     def __init__(self, port="/dev/ttyUSB0", baudrate=115200):
         self.serial = serial.Serial(port, baudrate)
-        self.config = HexapodConfig.load_default()
+        self.config = HexapodConfig()
         time.sleep(2)  # Wait for ESP32 to initialize
 
     def send_command(self, command: str):
@@ -18,22 +18,20 @@ class HexapodController:
     def forward_command(self, command: str):
         print(f"Forwarding command to ESP32: {command}")
         self.send_command(command)
-
-    def set_servo_positions(self, positions: Dict[str, float]):
-        command_parts = []
-        for servo_id, angle in positions.items():
-            if servo_id in self.config.inverted_motors:
-                if self.config.inverted_motors[servo_id]:
-                    angle = 180 - angle
-            angle = max(0, min(180, angle + self.config.offsets.get(servo_id, 0)))
-            command_parts.append(f"{servo_id}:{angle}")
         
-        command = ",".join(command_parts)
-        self.send_command(command)
+        # Update config if it's a servo command
+        try:
+            if ":" in command:
+                parts = command.split(",")
+                for part in parts:
+                    servo_id, angle = part.split(":")
+                    if not servo_id.endswith("DC"):  # Skip DC motor commands
+                        self.config.update_servo(servo_id, float(angle))
+        except Exception as e:
+            print(f"Error updating config: {e}")
 
-    def set_dc_motors(self, left_speed: int, right_speed: int):
-        command = f"LDC:{left_speed},RDC:{right_speed}"
-        self.send_command(command)
+    def get_current_config(self):
+        return self.config.get_current_config()
 
     def shutdown(self):
         self.serial.close() 
