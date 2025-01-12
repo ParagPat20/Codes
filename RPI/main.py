@@ -69,24 +69,30 @@ def apply_leg_config(hexapod, config, side, section):
     """Apply configuration for a specific leg"""
     print(f"Configuring {side} {section} leg...")
     
-    for servo_id, servo_config in config[side][section].items():
-        try:
-            angle = servo_config["angle"]
-            if servo_config["inverted"]:
-                angle = 180 - angle
-            angle += servo_config["offset"]
-            angle = max(0, min(180, angle))
-            
-            # Send simple command format
-            command = f"{servo_id}:{angle}"
-            hexapod.forward_command(command)
-            time.sleep(0.1)  # Shorter delay between servos
-        except Exception as e:
-            print(f"Error configuring {servo_id}: {e}")
-            return False
-    
-    time.sleep(0.2)  # Short delay after configuring all servos in a leg
-    return True
+    try:
+        servos = config["servos"][side][section]  # Access the servos part of config
+        for servo_id, servo_config in servos.items():
+            try:
+                angle = servo_config["angle"]
+                if servo_config["inverted"]:
+                    angle = 180 - angle
+                angle += servo_config["offset"]
+                angle = max(0, min(180, angle))
+                
+                # Send simple command format
+                command = f"{servo_id}:{angle}"
+                print(f"Sending command: {command}")  # Debug print
+                hexapod.forward_command(command)
+                time.sleep(0.1)  # Shorter delay between servos
+            except Exception as e:
+                print(f"Error configuring {servo_id}: {e}")
+                return False
+        
+        time.sleep(0.2)  # Short delay after configuring all servos in a leg
+        return True
+    except Exception as e:
+        print(f"Error in apply_leg_config: {e}")
+        return False
 
 def stand_sequence(hexapod, standing_position):
     """Execute standing sequence in specific order"""

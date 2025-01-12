@@ -11,10 +11,14 @@ class HexapodConfig:
     def load_config(self):
         try:
             with open(self.config_file, 'r') as f:
-                return json.load(f)
+                data = json.load(f)
+                # We only need the servos part for the controller
+                return data.get("servos", {
+                    "LEFT": {"FRONT": {}, "MID": {}, "BACK": {}},
+                    "RIGHT": {"FRONT": {}, "MID": {}, "BACK": {}}
+                })
         except FileNotFoundError:
             print(f"Config file {self.config_file} not found")
-            # Return empty structure matching the expected format
             return {
                 "LEFT": {"FRONT": {}, "MID": {}, "BACK": {}},
                 "RIGHT": {"FRONT": {}, "MID": {}, "BACK": {}}
@@ -27,8 +31,18 @@ class HexapodConfig:
             }
 
     def save_config(self):
-        with open(self.config_file, 'w') as f:
-            json.dump(self.config, f, indent=4)
+        try:
+            # Load existing config to preserve other settings
+            with open(self.config_file, 'r') as f:
+                full_config = json.load(f)
+            
+            # Update only the servos part
+            full_config["servos"] = self.config
+            
+            with open(self.config_file, 'w') as f:
+                json.dump(full_config, f, indent=4)
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
     def update_servo(self, servo_id: str, angle: float):
         # Find and update the servo in the config
@@ -40,4 +54,4 @@ class HexapodConfig:
         return False
 
     def get_current_config(self):
-        return self.config 
+        return {"servos": self.config}  # Match the expected structure 
