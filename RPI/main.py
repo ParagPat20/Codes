@@ -15,40 +15,44 @@ def load_standing_position():
     # If file doesn't exist, create it with default values
     if not config_path.exists():
         default_config = {
-            "LEFT": {
-                "FRONT": {
-                    "L2": {"angle": 90, "inverted": False, "offset": 0},
-                    "L3": {"angle": 90, "inverted": False, "offset": 0},
-                    "L1": {"angle": 90, "inverted": False, "offset": 0}
+            "ip": "192.168.8.39",
+            "port": 5000,
+            "servos": {
+                "LEFT": {
+                    "FRONT": {
+                        "LFC": {"angle": 0, "inverted": False, "offset": 0, "old_id": "L2"},
+                        "LFT": {"angle": 70, "inverted": False, "offset": 0, "old_id": "L3"},
+                        "LFB": {"angle": 180, "inverted": False, "offset": 0, "old_id": "L1"}
+                    },
+                    "MID": {
+                        "LMC": {"angle": 90, "inverted": False, "offset": 0, "old_id": "L8"},
+                        "LMT": {"angle": 160, "inverted": False, "offset": 0, "old_id": "L6"},
+                        "LMB": {"angle": 100, "inverted": False, "offset": 0, "old_id": "L7"},
+                        "LMF": {"angle": 0, "inverted": False, "offset": 33, "old_id": "L5"}
+                    },
+                    "BACK": {
+                        "LBC": {"angle": 0, "inverted": True, "offset": -20, "old_id": "L11"},
+                        "LBT": {"angle": 70, "inverted": True, "offset": 20, "old_id": "L10"},
+                        "LBB": {"angle": 180, "inverted": True, "offset": 0, "old_id": "L9"}
+                    }
                 },
-                "MID": {
-                    "L8": {"angle": 90, "inverted": False, "offset": 0},
-                    "L6": {"angle": 90, "inverted": False, "offset": 0},
-                    "L7": {"angle": 90, "inverted": False, "offset": 0},
-                    "L5": {"angle": 90, "inverted": False, "offset": 0}
-                },
-                "BACK": {
-                    "L11": {"angle": 90, "inverted": False, "offset": 0},
-                    "L10": {"angle": 90, "inverted": False, "offset": 0},
-                    "L9": {"angle": 90, "inverted": False, "offset": 0}
-                }
-            },
-            "RIGHT": {
-                "FRONT": {
-                    "R3": {"angle": 90, "inverted": False, "offset": 0},
-                    "R2": {"angle": 90, "inverted": False, "offset": 0},
-                    "R1": {"angle": 90, "inverted": False, "offset": 0}
-                },
-                "MID": {
-                    "R8": {"angle": 90, "inverted": False, "offset": 0},
-                    "R7": {"angle": 90, "inverted": False, "offset": 0},
-                    "R6": {"angle": 90, "inverted": False, "offset": 0},
-                    "R5": {"angle": 90, "inverted": False, "offset": 0}
-                },
-                "BACK": {
-                    "R9": {"angle": 90, "inverted": False, "offset": 0},
-                    "R11": {"angle": 90, "inverted": False, "offset": 0},
-                    "R10": {"angle": 90, "inverted": False, "offset": 0}
+                "RIGHT": {
+                    "FRONT": {
+                        "RFC": {"angle": 0, "inverted": True, "offset": 0, "old_id": "R3"},
+                        "RFT": {"angle": 70, "inverted": False, "offset": 0, "old_id": "R2"},
+                        "RFB": {"angle": 180, "inverted": True, "offset": 0, "old_id": "R1"}
+                    },
+                    "MID": {
+                        "RMC": {"angle": 90, "inverted": False, "offset": 0, "old_id": "R8"},
+                        "RMT": {"angle": 160, "inverted": True, "offset": 0, "old_id": "R7"},
+                        "RMB": {"angle": 100, "inverted": False, "offset": 0, "old_id": "R6"},
+                        "RMF": {"angle": 0, "inverted": False, "offset": 0, "old_id": "R5"}
+                    },
+                    "BACK": {
+                        "RBC": {"angle": 0, "inverted": False, "offset": 0, "old_id": "R9"},
+                        "RBT": {"angle": 70, "inverted": False, "offset": 0, "old_id": "R11"},
+                        "RBB": {"angle": 180, "inverted": True, "offset": 0, "old_id": "R10"}
+                    }
                 }
             }
         }
@@ -70,7 +74,7 @@ def apply_leg_config(hexapod, config, side, section):
     print(f"Configuring {side} {section} leg...")
     
     try:
-        servos = config["servos"][side][section]  # Access the servos part of config
+        servos = config["servos"][side][section]
         for servo_id, servo_config in servos.items():
             try:
                 angle = servo_config["angle"]
@@ -79,16 +83,15 @@ def apply_leg_config(hexapod, config, side, section):
                 angle += servo_config["offset"]
                 angle = max(0, min(180, angle))
                 
-                # Send simple command format
                 command = f"{servo_id}:{angle}"
-                print(f"Sending command: {command}")  # Debug print
+                print(f"Sending command: {command}")
                 hexapod.forward_command(command)
-                time.sleep(0.1)  # Shorter delay between servos
+                time.sleep(0.1)
             except Exception as e:
                 print(f"Error configuring {servo_id}: {e}")
                 return False
         
-        time.sleep(0.2)  # Short delay after configuring all servos in a leg
+        time.sleep(0.2)
         return True
     except Exception as e:
         print(f"Error in apply_leg_config: {e}")
@@ -111,9 +114,28 @@ def stand_sequence(hexapod, standing_position):
         if not apply_leg_config(hexapod, standing_position, side, section):
             print(f"Error in {side} {section} leg configuration")
             return False
-        time.sleep(0.05)  # Shorter delay between legs
+        time.sleep(0.05)
     
     return True
+
+def handle_motion_command(hexapod, command):
+    """Handle motion commands from the GUI"""
+    try:
+        if command == "forward":
+            hexapod.forward_command("forward")
+        elif command == "backward":
+            hexapod.forward_command("backward")
+        elif command == "turn_left":
+            hexapod.forward_command("turn_left")
+        elif command == "turn_right":
+            hexapod.forward_command("turn_right")
+        elif command == "standby":
+            hexapod.forward_command("standby")
+        print(f"Sent motion command: {command}")
+        return True
+    except Exception as e:
+        print(f"Error sending motion command: {e}")
+        return False
 
 def main():
     try:
@@ -137,12 +159,8 @@ def main():
 
         # ZMQ Server setup
         context = zmq.Context()
-        
-        # Socket for receiving commands (PULL)
         command_socket = context.socket(zmq.PULL)
         command_socket.bind("tcp://*:5000")
-        
-        # Socket for sending responses (PUSH)
         response_socket = context.socket(zmq.PUSH)
         response_socket.bind("tcp://*:5001")
         
@@ -150,25 +168,24 @@ def main():
         
         # Load standing position
         standing_position = load_standing_position()
-        
-        # Stand sequence
-        stand_sequence(hexapod, standing_position)
-        
 
         while True:
             try:
-                command_dict = command_socket.recv_json()  # Remove NOBLOCK flag
+                command_dict = command_socket.recv_json()
                 print(f"Received command: {command_dict}")
                 
                 if isinstance(command_dict, dict):
                     if "command" in command_dict:
-                        if command_dict["command"] == "get_values":
+                        command = command_dict["command"]
+                        if command == "get_values":
                             current_config = hexapod.get_current_config()
                             response_socket.send_json({"type": "current_values", "values": current_config})
-                        elif command_dict["command"] == "stand":
+                        elif command == "stand":
                             print("Starting stand sequence...")
                             stand_sequence(hexapod, standing_position)
                             print("Stand sequence completed")
+                        elif command in ["forward", "backward", "turn_left", "turn_right", "standby"]:
+                            handle_motion_command(hexapod, command)
                     else:
                         # Handle regular servo commands
                         command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]

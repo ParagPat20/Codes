@@ -4,117 +4,137 @@
     "servos": {
         "LEFT": {
             "FRONT": {
-                "L2": {
+                "LFC": {
                     "angle": 0,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L2"
                 },
-                "L3": {
+                "LFT": {
                     "angle": 70,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L3"
                 },
-                "L1": {
+                "LFB": {
                     "angle": 180,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L1"
                 }
             },
             "MID": {
-                "L8": {
+                "LMC": {
                     "angle": 90,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L8"
                 },
-                "L6": {
+                "LMT": {
                     "angle": 160,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L6"
                 },
-                "L7": {
+                "LMB": {
                     "angle": 100,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L7"
                 },
-                "L5": {
+                "LMF": {
                     "angle": 0,
                     "inverted": false,
-                    "offset": 33
+                    "offset": 33,
+                    "old_id": "L5"
                 }
             },
             "BACK": {
-                "L11": {
+                "LBC": {
                     "angle": 0,
                     "inverted": true,
-                    "offset": -20
+                    "offset": -20,
+                    "old_id": "L11"
                 },
-                "L10": {
+                "LBT": {
                     "angle": 70,
                     "inverted": true,
-                    "offset": 20
+                    "offset": 20,
+                    "old_id": "L10"
                 },
-                "L9": {
+                "LBB": {
                     "angle": 180,
                     "inverted": true,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "L9"
                 }
             }
         },
         "RIGHT": {
             "FRONT": {
-                "R3": {
+                "RFC": {
                     "angle": 0,
                     "inverted": true,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R3"
                 },
-                "R2": {
+                "RFT": {
                     "angle": 70,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R2"
                 },
-                "R1": {
+                "RFB": {
                     "angle": 180,
                     "inverted": true,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R1"
                 }
             },
             "MID": {
-                "R8": {
+                "RMC": {
                     "angle": 90,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R8"
                 },
-                "R7": {
+                "RMT": {
                     "angle": 160,
                     "inverted": true,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R7"
                 },
-                "R6": {
+                "RMB": {
                     "angle": 100,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R6"
                 },
-                "R5": {
+                "RMF": {
                     "angle": 0,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R5"
                 }
             },
             "BACK": {
-                "R9": {
+                "RBC": {
                     "angle": 0,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R9"
                 },
-                "R11": {
+                "RBT": {
                     "angle": 70,
                     "inverted": false,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R11"
                 },
-                "R10": {
+                "RBB": {
                     "angle": 180,
                     "inverted": true,
-                    "offset": 0
+                    "offset": 0,
+                    "old_id": "R10"
                 }
             }
         }

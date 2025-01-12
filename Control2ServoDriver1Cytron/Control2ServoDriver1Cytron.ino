@@ -1,11 +1,12 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+#include "config.h"
+#include "motion.h"
 
 // Create two PCA9685 instances
-Adafruit_PWMServoDriver pca1 = Adafruit_PWMServoDriver(0x40);  // Default I2C address for PCA9685
-Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x42);  // Second PCA9685 with alternate address
+Adafruit_PWMServoDriver pca1 = Adafruit_PWMServoDriver(0x40);  // Default I2C address
+Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x42);  // Second PCA9685
 
-// Servo settings
 #define SERVO_FREQ 50  // 50 Hz update rate for servos
 
 // Cytron Motor Control Pins
@@ -14,150 +15,239 @@ Adafruit_PWMServoDriver pca2 = Adafruit_PWMServoDriver(0x42);  // Second PCA9685
 #define DIR1_PIN 19
 #define DIR2_PIN 32
 
+// Current motion state
+MotionMode currentMode = MODE_STANDBY;
+int currentPhase = 0;
+unsigned long lastMotionUpdate = 0;
+
+// Helper function to find servo config by ID
+const ServoConfig* findServoConfig(const char* id) {
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        if (strcmp(SERVO_CONFIG[i].id, id) == 0) {
+            return &SERVO_CONFIG[i];
+        }
+    }
+    return nullptr;
+}
+
+void setServoAngle(const char* id, int angle) {
+    const ServoConfig* config = findServoConfig(id);
+    if (!config) {
+        Serial.print("Invalid servo ID: ");
+        Serial.println(id);
+        return;
+    }
+
+    // Apply inversion and offset
+    if (config->inverted) {
+        angle = 180 - angle;
+    }
+    angle += config->offset;
+    angle = constrain(angle, 0, 180);
+
+    // Convert angle to pulse length
+    int pulseLength = map(angle, 0, 180, 102, 512);
+
+    // Determine which PCA9685 to use based on channel
+    if (config->channel < 16) {
+        pca1.setPWM(config->channel, 0, pulseLength);
+    } else {
+        pca2.setPWM(config->channel - 16, 0, pulseLength);
+    }
+}
+
+void moveToStandby() {
+    Serial.println("Moving to standby position...");
+    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+        setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
+        delay(100);  // Small delay between servo movements
+    }
+    currentMode = MODE_STANDBY;
+    Serial.println("Standby position reached");
+}
+
+void updateForwardMotion() {
+    if (millis() - lastMotionUpdate < MOTION_DELAY) {
+        return;
+    }
+
+    // Update all servos for current phase
+    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+        setServoAngle(FORWARD_SEQUENCE[currentPhase][i].id, 
+                     FORWARD_SEQUENCE[currentPhase][i].angle);
+    }
+
+    // Move to next phase
+    currentPhase = (currentPhase + 1) % NUM_FORWARD_PHASES;
+    lastMotionUpdate = millis();
+}
+
+void updateBackwardMotion() {
+    if (millis() - lastMotionUpdate < MOTION_DELAY) {
+        return;
+    }
+
+    // Update all servos for current phase
+    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+        setServoAngle(BACKWARD_SEQUENCE[currentPhase][i].id, 
+                     BACKWARD_SEQUENCE[currentPhase][i].angle);
+    }
+
+    // Move to next phase
+    currentPhase = (currentPhase + 1) % NUM_BACKWARD_PHASES;
+    lastMotionUpdate = millis();
+}
+
+void updateTurnLeftMotion() {
+    if (millis() - lastMotionUpdate < MOTION_DELAY) {
+        return;
+    }
+
+    // Update all servos for current phase
+    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+        setServoAngle(TURN_LEFT_SEQUENCE[currentPhase][i].id, 
+                     TURN_LEFT_SEQUENCE[currentPhase][i].angle);
+    }
+
+    // Move to next phase
+    currentPhase = (currentPhase + 1) % NUM_TURN_LEFT_PHASES;
+    lastMotionUpdate = millis();
+}
+
+void updateTurnRightMotion() {
+    if (millis() - lastMotionUpdate < MOTION_DELAY) {
+        return;
+    }
+
+    // Update all servos for current phase
+    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+        setServoAngle(TURN_RIGHT_SEQUENCE[currentPhase][i].id, 
+                     TURN_RIGHT_SEQUENCE[currentPhase][i].angle);
+    }
+
+    // Move to next phase
+    currentPhase = (currentPhase + 1) % NUM_TURN_RIGHT_PHASES;
+    lastMotionUpdate = millis();
+}
+
+void setMotionMode(MotionMode mode) {
+    if (mode != currentMode) {
+        currentMode = mode;
+        currentPhase = 0;
+        lastMotionUpdate = 0;
+        
+        if (mode == MODE_STANDBY) {
+            moveToStandby();
+        }
+    }
+}
+
 void setup() {
-  Serial.begin(115200);
-  Wire.begin();
+    Serial.begin(115200);
+    Wire.begin();
 
-  // Initialize PCA9685 instances
-  pca1.begin();
-  pca1.setPWMFreq(SERVO_FREQ);  // 50 Hz for servos
-  pca2.begin();
-  pca2.setPWMFreq(SERVO_FREQ);  // 50 Hz for servos
+    // Initialize PCA9685 instances
+    pca1.begin();
+    pca1.setPWMFreq(SERVO_FREQ);
+    pca2.begin();
+    pca2.setPWMFreq(SERVO_FREQ);
 
-  // Initialize Cytron motor control pins
-  pinMode(PWM1_PIN, OUTPUT);
-  pinMode(PWM2_PIN, OUTPUT);
-  pinMode(DIR1_PIN, OUTPUT);
-  pinMode(DIR2_PIN, OUTPUT);
+    // Initialize Cytron motor control pins
+    pinMode(PWM1_PIN, OUTPUT);
+    pinMode(PWM2_PIN, OUTPUT);
+    pinMode(DIR1_PIN, OUTPUT);
+    pinMode(DIR2_PIN, OUTPUT);
 
-  // Initialize motors to stop
-  analogWrite(PWM1_PIN, 0);
-  analogWrite(PWM2_PIN, 0);
-  digitalWrite(DIR1_PIN, LOW);
-  digitalWrite(DIR2_PIN, LOW);
+    // Initialize motors to stop
+    analogWrite(PWM1_PIN, 0);
+    analogWrite(PWM2_PIN, 0);
+    digitalWrite(DIR1_PIN, LOW);
+    digitalWrite(DIR2_PIN, LOW);
 
-  Serial.println("PCA9685 Servo Controller and Cytron Motor Controller Ready");
+    Serial.println("Initialization complete");
+    
+    // Move to standby position on startup
+    moveToStandby();
 }
 
 void loop() {
-  // Check for incoming serial data
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
-    Serial.print("Received input: ");
-    Serial.println(input);
+    // Handle serial commands
+    if (Serial.available() > 0) {
+        String input = Serial.readStringUntil('\n');
+        if (input == "forward") {
+            setMotionMode(MODE_FORWARD);
+        } else if (input == "backward") {
+            setMotionMode(MODE_BACKWARD);
+        } else if (input == "turn_left") {
+            setMotionMode(MODE_TURN_LEFT);
+        } else if (input == "turn_right") {
+            setMotionMode(MODE_TURN_RIGHT);
+        } else if (input == "standby") {
+            setMotionMode(MODE_STANDBY);
+        } else {
+            parseAndSetServos(input);
+        }
+    }
 
-    parseAndSetServos(input);
-  }
+    // Update motion if needed
+    switch (currentMode) {
+        case MODE_FORWARD:
+            updateForwardMotion();
+            break;
+        case MODE_BACKWARD:
+            updateBackwardMotion();
+            break;
+        case MODE_TURN_LEFT:
+            updateTurnLeftMotion();
+            break;
+        case MODE_TURN_RIGHT:
+            updateTurnRightMotion();
+            break;
+        case MODE_STANDBY:
+            // Do nothing, stay in position
+            break;
+        default:
+            break;
+    }
 }
 
 void parseAndSetServos(String input) {
-  // Example input: "L1:45,R1:90,L2:180,R2:181,LDC:100,RDC:-100"
-  input.trim();
-
-  if (input.length() == 0) {
-    Serial.println("No input received.");
-    return;
-  }
-
-  String pairs[32];
-  int pairCount = 0;
-
-  // Split input by commas
-  int startIdx = 0;
-  for (int i = 0; i < input.length(); i++) {
-    if (input[i] == ',') {
-      pairs[pairCount++] = input.substring(startIdx, i);
-      startIdx = i + 1;
-    }
-  }
-  pairs[pairCount++] = input.substring(startIdx);
-
-  // Parse each key:value pair
-  for (int i = 0; i < pairCount; i++) {
-    int colonIdx = pairs[i].indexOf(':');
-    if (colonIdx == -1) {
-      Serial.print("Invalid pair: ");
-      Serial.println(pairs[i]);
-      continue;  // Skip invalid pairs
+    input.trim();
+    if (input.length() == 0) {
+        return;
     }
 
-    String key = pairs[i].substring(0, colonIdx);
-    int value = pairs[i].substring(colonIdx + 1).toInt();
-
-    Serial.print("Processing: ");
-    Serial.print(key);
-    Serial.print(" -> ");
-    Serial.println(value);
-
-    if (key == "LDC" || key == "RDC") {
-      setMotorSpeed(key, value);
-    } else {
-      setServoPosition(key, value);
+    // Split input by commas
+    int startIdx = 0;
+    while (startIdx < input.length()) {
+        int endIdx = input.indexOf(',', startIdx);
+        if (endIdx == -1) endIdx = input.length();
+        
+        String pair = input.substring(startIdx, endIdx);
+        int colonIdx = pair.indexOf(':');
+        
+        if (colonIdx != -1) {
+            String id = pair.substring(0, colonIdx);
+            int angle = pair.substring(colonIdx + 1).toInt();
+            
+            if (id == "LDC" || id == "RDC") {
+                setMotorSpeed(id, angle);
+            } else {
+                setServoAngle(id.c_str(), angle);
+            }
+        }
+        
+        startIdx = endIdx + 1;
     }
-  }
-}
-
-void setServoPosition(String key, int degrees) {
-  // Map degrees to PCA9685 ticks (calculated based on pulse lengths for 0 to 180 degrees)
-  int pulseLength = map(degrees, 0, 180, 102, 512);  // Adjust range as needed for your servos
-
-  if (key.startsWith("L")) {
-    int servoNum = key.substring(1).toInt() - 1;  // Extract servo number for left PCA
-    if (servoNum >= 0 && servoNum < 16) {
-      if (degrees == 181) {
-        // Free the servo by turning off the PWM signal
-        Serial.print("Freeing PCA1 servo ");
-        Serial.println(servoNum);
-        pca1.setPin(servoNum, 0, false);
-      } else {
-        Serial.print("Setting PCA1 servo ");
-        Serial.print(servoNum);
-        Serial.print(" to ");
-        Serial.println(degrees);
-        pca1.setPWM(servoNum, 0, pulseLength);
-      }
-    } else {
-      Serial.print("Invalid left servo number: ");
-      Serial.println(servoNum);
-    }
-  } else if (key.startsWith("R")) {
-    int servoNum = key.substring(1).toInt() - 1;  // Extract servo number for right PCA
-    if (servoNum >= 0 && servoNum < 16) {
-      if (degrees == 181) {
-        // Free the servo by turning off the PWM signal
-        Serial.print("Freeing PCA2 servo ");
-        Serial.println(servoNum);
-        pca2.setPin(servoNum, 0, false);
-      } else {
-        Serial.print("Setting PCA2 servo ");
-        Serial.print(servoNum);
-        Serial.print(" to ");
-        Serial.println(degrees);
-        pca2.setPWM(servoNum, 0, pulseLength);
-      }
-    } else {
-      Serial.print("Invalid right servo number: ");
-      Serial.println(servoNum);
-    }
-  } else {
-    Serial.print("Invalid key: ");
-    Serial.println(key);
-  }
 }
 
 void setMotorSpeed(String motor, int speed) {
-  // Speed range: -255 to 255
-  speed = constrain(speed, -255, 255);
-
-  if (motor == "LDC") {
-    digitalWrite(DIR1_PIN, speed >= 0 ? HIGH : LOW);
-    analogWrite(PWM1_PIN, abs(speed));
-    Serial.print("Left Motor Speed: ");
-    Serial.println(speed);
-  } else if (motor == "RDC") {
-    digitalWrite(DIR2_PIN, speed >= 0 ? HIGH : LOW);
-    analogWrite(PWM2_PIN, abs(speed));
-    Serial.print("Right Motor Speed: ");
-    Serial.println(speed);
-  }
+    speed = constrain(speed, -255, 255);
+    if (motor == "LDC") {
+        digitalWrite(DIR1_PIN, speed >= 0 ? HIGH : LOW);
+        analogWrite(PWM1_PIN, abs(speed));
+    } else if (motor == "RDC") {
+        digitalWrite(DIR2_PIN, speed >= 0 ? HIGH : LOW);
+        analogWrite(PWM2_PIN, abs(speed));
+    }
 }

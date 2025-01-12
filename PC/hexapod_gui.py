@@ -9,7 +9,7 @@ import time
 class HexapodGUI:
     def __init__(self, master):
         self.master = master
-        self.master.title("Hexapod Motor Control")
+        self.master.title("Hexapod Control Panel")
         self.master.minsize(1200, 800)
 
         # Load configuration
@@ -53,12 +53,23 @@ class HexapodGUI:
         main_container = ttk.Frame(self.master)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # Connection status frame
-        status_frame = ttk.LabelFrame(main_container, text="Connection Status")
-        status_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Create top frame for status and motion controls
+        top_frame = ttk.Frame(main_container)
+        top_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Connection status frame (left side of top frame)
+        status_frame = ttk.LabelFrame(top_frame, text="Connection Status")
+        status_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5, pady=5)
         
         self.status_label = ttk.Label(status_frame, text=f"Connected to: {self.config.config['ip']}:{self.config.config['port']}")
         self.status_label.pack(padx=5, pady=5)
+
+        # Motion control frame (right side of top frame)
+        motion_frame = ttk.LabelFrame(top_frame, text="Motion Controls")
+        motion_frame.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=5, pady=5)
+
+        # Add motion control buttons
+        self.create_motion_controls(motion_frame)
 
         # Create notebook for LEFT and RIGHT sides
         notebook = ttk.Notebook(main_container)
@@ -94,6 +105,51 @@ class HexapodGUI:
         )
         self.stand_button.pack(side=tk.LEFT, padx=5)
 
+    def create_motion_controls(self, parent):
+        # Create grid of motion control buttons
+        button_frame = ttk.Frame(parent)
+        button_frame.pack(padx=5, pady=5)
+
+        # Forward button
+        self.forward_btn = ttk.Button(
+            button_frame,
+            text="↑ Forward",
+            command=lambda: self.send_motion_command("forward")
+        )
+        self.forward_btn.grid(row=0, column=1, padx=2, pady=2)
+
+        # Left button
+        self.left_btn = ttk.Button(
+            button_frame,
+            text="← Left",
+            command=lambda: self.send_motion_command("turn_left")
+        )
+        self.left_btn.grid(row=1, column=0, padx=2, pady=2)
+
+        # Stop button
+        self.stop_btn = ttk.Button(
+            button_frame,
+            text="■ Stop",
+            command=lambda: self.send_motion_command("standby")
+        )
+        self.stop_btn.grid(row=1, column=1, padx=2, pady=2)
+
+        # Right button
+        self.right_btn = ttk.Button(
+            button_frame,
+            text="→ Right",
+            command=lambda: self.send_motion_command("turn_right")
+        )
+        self.right_btn.grid(row=1, column=2, padx=2, pady=2)
+
+        # Backward button
+        self.backward_btn = ttk.Button(
+            button_frame,
+            text="↓ Backward",
+            command=lambda: self.send_motion_command("backward")
+        )
+        self.backward_btn.grid(row=2, column=1, padx=2, pady=2)
+
     def create_side_controls(self, parent, side):
         sections = ["FRONT", "MID", "BACK"]
         
@@ -104,24 +160,22 @@ class HexapodGUI:
             # Add a description label for the section
             description = {
                 "FRONT": {
-                    "COXA": "L2" if side == "LEFT" else "R3",
-                    "FEMUR": "L3" if side == "LEFT" else "R2",
-                    "TIBIA": "L1" if side == "LEFT" else "R1"
+                    "COXA": "LFC" if side == "LEFT" else "RFC",
+                    "FEMUR": "LFT" if side == "LEFT" else "RFT",
+                    "TIBIA": "LFB" if side == "LEFT" else "RFB"
                 },
                 "MID": {
-                    "COXA": "L8" if side == "LEFT" else "R8",
-                    "FEMUR1": "L6" if side == "LEFT" else "R7",
-                    "FEMUR2": "L7" if side == "LEFT" else "R6",
-                    "TIBIA": "L5" if side == "LEFT" else "R5"
+                    "COXA": "LMC" if side == "LEFT" else "RMC",
+                    "FEMUR1": "LMT" if side == "LEFT" else "RMT",
+                    "FEMUR2": "LMB" if side == "LEFT" else "RMB",
+                    "TIBIA": "LMF" if side == "LEFT" else "RMF"
                 },
                 "BACK": {
-                    "COXA": "L11" if side == "LEFT" else "R9",
-                    "FEMUR": "L10" if side == "LEFT" else "R11",
-                    "TIBIA": "L9" if side == "LEFT" else "R10"
+                    "COXA": "LBC" if side == "LEFT" else "RBC",
+                    "FEMUR": "LBT" if side == "LEFT" else "RBT",
+                    "TIBIA": "LBB" if side == "LEFT" else "RBB"
                 }
             }
-
-            
 
             servos = self.config.config["servos"][side][section]
             for servo_id, servo_config in servos.items():
@@ -279,6 +333,15 @@ class HexapodGUI:
                     )
                     # Update GUI elements
                     # (This would require storing references to GUI elements)
+
+    def send_motion_command(self, mode):
+        """Send motion command to the hexapod"""
+        try:
+            command = {"command": mode}
+            self.command_socket.send_json(command)
+            print(f"Sent motion command: {mode}")
+        except Exception as e:
+            print(f"Error sending motion command: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()

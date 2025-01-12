@@ -10,38 +10,38 @@ class Config:
             "servos": {
                 "LEFT": {
                     "FRONT": {
-                        "L2": {"angle": 90, "inverted": False, "offset": 0},  # COXA
-                        "L3": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR
-                        "L1": {"angle": 90, "inverted": False, "offset": 0}   # TIBIA
+                        "LFC": {"angle": 0, "inverted": False, "offset": 0},   # COXA (L2)
+                        "LFT": {"angle": 70, "inverted": False, "offset": 0},  # FEMUR (L3)
+                        "LFB": {"angle": 180, "inverted": False, "offset": 0}  # TIBIA (L1)
                     },
                     "MID": {
-                        "L8": {"angle": 90, "inverted": False, "offset": 0},  # COXA
-                        "L6": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR1
-                        "L7": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR2
-                        "L5": {"angle": 90, "inverted": False, "offset": 0}   # TIBIA
+                        "LMC": {"angle": 90, "inverted": False, "offset": 0},   # COXA (L8)
+                        "LMT": {"angle": 160, "inverted": False, "offset": 0},  # FEMUR1 (L6)
+                        "LMB": {"angle": 100, "inverted": False, "offset": 0},  # FEMUR2 (L7)
+                        "LMF": {"angle": 0, "inverted": False, "offset": 33}    # TIBIA (L5)
                     },
                     "BACK": {
-                        "L11": {"angle": 90, "inverted": False, "offset": 0}, # COXA
-                        "L10": {"angle": 90, "inverted": False, "offset": 0}, # FEMUR
-                        "L9": {"angle": 90, "inverted": False, "offset": 0}   # TIBIA
+                        "LBC": {"angle": 0, "inverted": True, "offset": -20},   # COXA (L11)
+                        "LBT": {"angle": 70, "inverted": True, "offset": 20},   # FEMUR (L10)
+                        "LBB": {"angle": 180, "inverted": True, "offset": 0}    # TIBIA (L9)
                     }
                 },
                 "RIGHT": {
                     "FRONT": {
-                        "R3": {"angle": 90, "inverted": False, "offset": 0},  # COXA
-                        "R2": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR
-                        "R1": {"angle": 90, "inverted": False, "offset": 0}   # TIBIA
+                        "RFC": {"angle": 0, "inverted": True, "offset": 0},    # COXA (R3)
+                        "RFT": {"angle": 70, "inverted": False, "offset": 0},  # FEMUR (R2)
+                        "RFB": {"angle": 180, "inverted": True, "offset": 0}   # TIBIA (R1)
                     },
                     "MID": {
-                        "R8": {"angle": 90, "inverted": False, "offset": 0},  # COXA
-                        "R7": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR1
-                        "R6": {"angle": 90, "inverted": False, "offset": 0},  # FEMUR2
-                        "R5": {"angle": 90, "inverted": False, "offset": 0}   # TIBIA
+                        "RMC": {"angle": 90, "inverted": False, "offset": 0},   # COXA (R8)
+                        "RMT": {"angle": 160, "inverted": True, "offset": 0},   # FEMUR1 (R7)
+                        "RMB": {"angle": 100, "inverted": False, "offset": 0},  # FEMUR2 (R6)
+                        "RMF": {"angle": 0, "inverted": False, "offset": 0}     # TIBIA (R5)
                     },
                     "BACK": {
-                        "R9": {"angle": 90, "inverted": False, "offset": 0},  # COXA
-                        "R11": {"angle": 90, "inverted": False, "offset": 0}, # FEMUR
-                        "R10": {"angle": 90, "inverted": False, "offset": 0}  # TIBIA
+                        "RBC": {"angle": 0, "inverted": False, "offset": 0},    # COXA (R9)
+                        "RBT": {"angle": 70, "inverted": False, "offset": 0},   # FEMUR (R11)
+                        "RBB": {"angle": 180, "inverted": True, "offset": 0}    # TIBIA (R10)
                     }
                 }
             }
@@ -68,4 +68,12 @@ class Config:
             self.config["servos"][side][section][servo_id]["inverted"] = inverted
         if offset is not None:
             self.config["servos"][side][section][servo_id]["offset"] = offset
-        self.save_config() 
+        self.save_config()
+
+    def get_all_servos(self):
+        servos = []
+        for side in ["LEFT", "RIGHT"]:
+            for section in ["FRONT", "MID", "BACK"]:
+                for servo_id in self.config["servos"][side][section]:
+                    servos.append(servo_id)
+        return servos 
