@@ -3,10 +3,67 @@ import zmq
 import json
 import time
 import os
+from pathlib import Path
+
+# Get the directory where the script is located
+SCRIPT_DIR = Path(__file__).parent.absolute()
 
 def load_standing_position():
-    with open('standing_position.json', 'r') as f:
-        return json.load(f)
+    """Load standing position with proper error handling"""
+    config_path = SCRIPT_DIR / 'standing_position.json'
+    
+    # If file doesn't exist, create it with default values
+    if not config_path.exists():
+        default_config = {
+            "LEFT": {
+                "FRONT": {
+                    "L2": {"angle": 90, "inverted": False, "offset": 0},
+                    "L3": {"angle": 90, "inverted": False, "offset": 0},
+                    "L1": {"angle": 90, "inverted": False, "offset": 0}
+                },
+                "MID": {
+                    "L8": {"angle": 90, "inverted": False, "offset": 0},
+                    "L6": {"angle": 90, "inverted": False, "offset": 0},
+                    "L7": {"angle": 90, "inverted": False, "offset": 0},
+                    "L5": {"angle": 90, "inverted": False, "offset": 0}
+                },
+                "BACK": {
+                    "L11": {"angle": 90, "inverted": False, "offset": 0},
+                    "L10": {"angle": 90, "inverted": False, "offset": 0},
+                    "L9": {"angle": 90, "inverted": False, "offset": 0}
+                }
+            },
+            "RIGHT": {
+                "FRONT": {
+                    "R3": {"angle": 90, "inverted": False, "offset": 0},
+                    "R2": {"angle": 90, "inverted": False, "offset": 0},
+                    "R1": {"angle": 90, "inverted": False, "offset": 0}
+                },
+                "MID": {
+                    "R8": {"angle": 90, "inverted": False, "offset": 0},
+                    "R7": {"angle": 90, "inverted": False, "offset": 0},
+                    "R6": {"angle": 90, "inverted": False, "offset": 0},
+                    "R5": {"angle": 90, "inverted": False, "offset": 0}
+                },
+                "BACK": {
+                    "R9": {"angle": 90, "inverted": False, "offset": 0},
+                    "R11": {"angle": 90, "inverted": False, "offset": 0},
+                    "R10": {"angle": 90, "inverted": False, "offset": 0}
+                }
+            }
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(default_config, f, indent=4)
+        print(f"Created default standing_position.json at {config_path}")
+        return default_config
+    
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing standing_position.json: {e}")
+        raise
 
 def apply_leg_config(hexapod, config, side, section):
     """Apply configuration for a specific leg"""

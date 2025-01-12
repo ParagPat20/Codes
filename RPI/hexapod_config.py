@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 import json
+from pathlib import Path
 
 class HexapodConfig:
     def __init__(self):
-        self.config_file = 'standing_position.json'
+        self.config_file = Path(__file__).parent / 'standing_position.json'
         self.config = self.load_config()
 
     def load_config(self):
@@ -13,10 +14,17 @@ class HexapodConfig:
                 return json.load(f)
         except FileNotFoundError:
             print(f"Config file {self.config_file} not found")
-            return {}
+            # Return empty structure matching the expected format
+            return {
+                "LEFT": {"FRONT": {}, "MID": {}, "BACK": {}},
+                "RIGHT": {"FRONT": {}, "MID": {}, "BACK": {}}
+            }
         except json.JSONDecodeError:
             print(f"Error parsing {self.config_file}")
-            return {}
+            return {
+                "LEFT": {"FRONT": {}, "MID": {}, "BACK": {}},
+                "RIGHT": {"FRONT": {}, "MID": {}, "BACK": {}}
+            }
 
     def save_config(self):
         with open(self.config_file, 'w') as f:
