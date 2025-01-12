@@ -68,46 +68,53 @@ def load_standing_position():
 def apply_leg_config(hexapod, config, side, section):
     """Apply configuration for a specific leg"""
     print(f"Configuring {side} {section} leg...")
+    success = True
+    
     for servo_id, servo_config in config[side][section].items():
-        angle = servo_config["angle"]
-        if servo_config["inverted"]:
-            angle = 180 - angle
-        angle += servo_config["offset"]
-        angle = max(0, min(180, angle))
-        print(f"Setting {servo_id} to {angle}")
-        hexapod.forward_command(f"{servo_id}:{angle}")
-        time.sleep(0.1)  # Small delay between commands
-    print(f"Finished configuring {side} {section} leg")
+        try:
+            angle = servo_config["angle"]
+            if servo_config["inverted"]:
+                angle = 180 - angle
+            angle += servo_config["offset"]
+            angle = max(0, min(180, angle))
+            print(f"Setting {servo_id} to {angle}")
+            
+            # Send command and wait for response
+            hexapod.forward_command(f"{servo_id}:{angle}")
+            time.sleep(0.2)  # Increased delay between commands
+        except Exception as e:
+            print(f"Error configuring {servo_id}: {e}")
+            success = False
+    
+    if success:
+        print(f"Successfully configured {side} {section} leg")
+    else:
+        print(f"Some errors occurred while configuring {side} {section} leg")
+    
+    return success
 
 def stand_sequence(hexapod, standing_position):
     """Execute standing sequence in specific order"""
     print("\nStarting stand sequence...")
     
-    # Front legs
-    print("\nConfiguring front legs...")
-    apply_leg_config(hexapod, standing_position, "LEFT", "FRONT")
-    time.sleep(0.3)
+    sequence = [
+        ("LEFT", "FRONT"),
+        ("RIGHT", "FRONT"),
+        ("LEFT", "BACK"),
+        ("RIGHT", "BACK"),
+        ("LEFT", "MID"),
+        ("RIGHT", "MID")
+    ]
     
-    apply_leg_config(hexapod, standing_position, "RIGHT", "FRONT")
-    time.sleep(0.3)
+    for side, section in sequence:
+        print(f"\nConfiguring {side} {section} leg...")
+        if not apply_leg_config(hexapod, standing_position, side, section):
+            print(f"Error in {side} {section} leg configuration, stopping sequence")
+            return False
+        time.sleep(0.5)  # Increased delay between legs
     
-    # Back legs
-    print("\nConfiguring back legs...")
-    apply_leg_config(hexapod, standing_position, "LEFT", "BACK")
-    time.sleep(0.3)
-    
-    apply_leg_config(hexapod, standing_position, "RIGHT", "BACK")
-    time.sleep(0.3)
-    
-    # Mid legs
-    print("\nConfiguring mid legs...")
-    apply_leg_config(hexapod, standing_position, "LEFT", "MID")
-    time.sleep(0.3)
-    
-    apply_leg_config(hexapod, standing_position, "RIGHT", "MID")
-    time.sleep(0.3)
-    
-    print("\nStand sequence completed")
+    print("\nStand sequence completed successfully")
+    return True
 
 def main():
     try:
