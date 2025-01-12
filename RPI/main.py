@@ -4,6 +4,10 @@ import json
 import time
 import os
 
+def load_standing_position():
+    with open('standing_position.json', 'r') as f:
+        return json.load(f)
+
 def main():
     try:
         # Initialize the hexapod controller with the first available port
@@ -31,17 +35,37 @@ def main():
         socket.setsockopt_string(zmq.SUBSCRIBE, "")
         print("ZMQ server listening on port 5000")
         
+        # Load standing position
+        standing_position = load_standing_position()
+        
         while True:
             try:
                 command_dict = socket.recv_json()
                 print(f"Received command: {command_dict}")
                 
-                # Convert dict to command string
-                command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
-                command = ",".join(command_parts)
-                
-                # Forward to ESP32
-                hexapod.forward_command(command)
+                if isinstance(command_dict, dict):
+                    if "command" in command_dict:
+                        if command_dict["command"] == "get_values":
+                            # Send current configuration back to GUI
+                            current_config = hexapod.config.config
+                            socket.send_json({"type": "current_values", "values": current_config})
+                        elif command_dict["command"] == "stand":
+                            # Apply standing position
+                            for side in ["LEFT", "RIGHT"]:
+                                for section in ["FRONT", "MID", "BACK"]:
+                                    for servo_id, config in standing_position[side][section].items():
+                                        angle = config["angle"]
+                                        if config["inverted"]:
+                                            angle = 180 - angle
+                                        angle += config["offset"]
+                                        angle = max(0, min(180, angle))
+                                        hexapod.forward_command(f"{servo_id}:{angle}")
+                                        time.sleep(0.1)  # Small delay between commands
+                    else:
+                        # Handle regular servo commands
+                        command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
+                        command = ",".join(command_parts)
+                        hexapod.forward_command(command)
             except Exception as e:
                 print(f"Error: {e}")
             

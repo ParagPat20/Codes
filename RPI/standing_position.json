@@ -1,0 +1,38 @@
+{
+    "LEFT": {
+        "FRONT": {
+            "L2": {"angle": 0, "inverted": false, "offset": 0},
+            "L3": {"angle": 56, "inverted": false, "offset": 0},
+            "L1": {"angle": 180, "inverted": false, "offset": 0}
+        },
+        "MID": {
+            "L8": {"angle": 89, "inverted": false, "offset": 0},
+            "L6": {"angle": 180, "inverted": false, "offset": 0},
+            "L7": {"angle": 114, "inverted": false, "offset": 0},
+            "L5": {"angle": 14, "inverted": false, "offset": 0}
+        },
+        "BACK": {
+            "L11": {"angle": 0, "inverted": true, "offset": -20},
+            "L10": {"angle": 50, "inverted": true, "offset": 0},
+            "L9": {"angle": 180, "inverted": true, "offset": 0}
+        }
+    },
+    "RIGHT": {
+        "FRONT": {
+            "R3": {"angle": 0, "inverted": true, "offset": 0},
+            "R2": {"angle": 58, "inverted": false, "offset": 0},
+            "R1": {"angle": 180, "inverted": true, "offset": 0}
+        },
+        "MID": {
+            "R8": {"angle": 90, "inverted": false, "offset": 0},
+            "R7": {"angle": 180, "inverted": true, "offset": 0},
+            "R6": {"angle": 114, "inverted": false, "offset": 0},
+            "R5": {"angle": 0, "inverted": false, "offset": 0}
+        },
+        "BACK": {
+            "R9": {"angle": 0, "inverted": false, "offset": 0},
+            "R11": {"angle": 73, "inverted": false, "offset": 0},
+            "R10": {"angle": 180, "inverted": true, "offset": 0}
+        }
+    }
+} 
