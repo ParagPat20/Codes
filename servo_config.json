@@ -22,7 +22,7 @@
             },
             "MID": {
                 "L8": {
-                    "angle": 90,
+                    "angle": 89,
                     "inverted": false,
                     "offset": 0
                 },
@@ -37,14 +37,14 @@
                     "offset": 0
                 },
                 "L5": {
-                    "angle": 26,
+                    "angle": 14,
                     "inverted": false,
                     "offset": 0
                 }
             },
             "BACK": {
                 "L11": {
-                    "angle": 145,
+                    "angle": 0,
                     "inverted": true,
                     "offset": -20
                 },

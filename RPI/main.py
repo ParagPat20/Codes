@@ -105,7 +105,7 @@ def stand_sequence(hexapod, standing_position):
         if not apply_leg_config(hexapod, standing_position, side, section):
             print(f"Error in {side} {section} leg configuration")
             return False
-        time.sleep(0.2)  # Shorter delay between legs
+        time.sleep(0.05)  # Shorter delay between legs
     
     return True
 
@@ -145,6 +145,10 @@ def main():
         # Load standing position
         standing_position = load_standing_position()
         
+        # Stand sequence
+        stand_sequence(hexapod, standing_position)
+        
+
         while True:
             try:
                 command_dict = command_socket.recv_json()  # Remove NOBLOCK flag
