@@ -3,7 +3,13 @@ import time
 import zmq
 
 # Serial connection to Arduino
-ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+ports = [f'/dev/ttyUSB{i}' for i in range(0,10)] + [f'/dev/ttyACM{i}' for i in range(0,10)]
+for port in ports:
+    try:
+        ser = serial.Serial(port, 115200, timeout=1)
+        break
+    except serial.SerialException:
+        pass
 time.sleep(2)  # Wait for Arduino to reset
 
 # ZMQ setup for receiving commands from PC
