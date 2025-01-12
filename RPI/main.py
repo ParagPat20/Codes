@@ -8,6 +8,40 @@ def load_standing_position():
     with open('standing_position.json', 'r') as f:
         return json.load(f)
 
+def apply_leg_config(hexapod, config, side, section):
+    """Apply configuration for a specific leg"""
+    for servo_id, servo_config in config[side][section].items():
+        angle = servo_config["angle"]
+        if servo_config["inverted"]:
+            angle = 180 - angle
+        angle += servo_config["offset"]
+        angle = max(0, min(180, angle))
+        hexapod.forward_command(f"{servo_id}:{angle}")
+        time.sleep(0.1)  # Small delay between commands
+
+def stand_sequence(hexapod, standing_position):
+    """Execute standing sequence in specific order"""
+    # Front legs
+    apply_leg_config(hexapod, standing_position, "LEFT", "FRONT")
+    time.sleep(0.3)  # Longer delay between legs
+    
+    apply_leg_config(hexapod, standing_position, "RIGHT", "FRONT")
+    time.sleep(0.3)
+    
+    # Back legs
+    apply_leg_config(hexapod, standing_position, "LEFT", "BACK")
+    time.sleep(0.3)
+    
+    apply_leg_config(hexapod, standing_position, "RIGHT", "BACK")
+    time.sleep(0.3)
+    
+    # Mid legs
+    apply_leg_config(hexapod, standing_position, "LEFT", "MID")
+    time.sleep(0.3)
+    
+    apply_leg_config(hexapod, standing_position, "RIGHT", "MID")
+    time.sleep(0.3)
+
 def main():
     try:
         # Initialize the hexapod controller with the first available port
@@ -50,17 +84,8 @@ def main():
                             current_config = hexapod.get_current_config()
                             socket.send_json({"type": "current_values", "values": current_config})
                         elif command_dict["command"] == "stand":
-                            # Apply standing position
-                            for side in ["LEFT", "RIGHT"]:
-                                for section in ["FRONT", "MID", "BACK"]:
-                                    for servo_id, config in standing_position[side][section].items():
-                                        angle = config["angle"]
-                                        if config["inverted"]:
-                                            angle = 180 - angle
-                                        angle += config["offset"]
-                                        angle = max(0, min(180, angle))
-                                        hexapod.forward_command(f"{servo_id}:{angle}")
-                                        time.sleep(0.1)  # Small delay between commands
+                            # Execute standing sequence in specific order
+                            stand_sequence(hexapod, standing_position)
                     else:
                         # Handle regular servo commands
                         command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
