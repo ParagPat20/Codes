@@ -5,9 +5,18 @@ import time
 
 def main():
     try:
-        # Initialize the hexapod controller
-        hexapod = HexapodController()
-        print("Hexapod controller initialized")
+        # Initialize the hexapod controller with the first available port
+        import os
+        available_ports = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0"]
+        for port in available_ports:
+            if os.path.exists(port):
+                try:
+                    hexapod = HexapodController(port=port)
+                    print(f"Hexapod controller initialized on port {port}")
+                    break
+                except Exception as e:
+                    print(f"Failed to initialize hexapod controller on port {port}: {e}")
+                    continue
 
         # UDP Server setup
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
