@@ -67,25 +67,32 @@ def load_standing_position():
 
 def apply_leg_config(hexapod, config, side, section):
     """Apply configuration for a specific leg"""
+    print(f"Configuring {side} {section} leg...")
     for servo_id, servo_config in config[side][section].items():
         angle = servo_config["angle"]
         if servo_config["inverted"]:
             angle = 180 - angle
         angle += servo_config["offset"]
         angle = max(0, min(180, angle))
+        print(f"Setting {servo_id} to {angle}")
         hexapod.forward_command(f"{servo_id}:{angle}")
         time.sleep(0.1)  # Small delay between commands
+    print(f"Finished configuring {side} {section} leg")
 
 def stand_sequence(hexapod, standing_position):
     """Execute standing sequence in specific order"""
+    print("\nStarting stand sequence...")
+    
     # Front legs
+    print("\nConfiguring front legs...")
     apply_leg_config(hexapod, standing_position, "LEFT", "FRONT")
-    time.sleep(0.3)  # Longer delay between legs
+    time.sleep(0.3)
     
     apply_leg_config(hexapod, standing_position, "RIGHT", "FRONT")
     time.sleep(0.3)
     
     # Back legs
+    print("\nConfiguring back legs...")
     apply_leg_config(hexapod, standing_position, "LEFT", "BACK")
     time.sleep(0.3)
     
@@ -93,11 +100,14 @@ def stand_sequence(hexapod, standing_position):
     time.sleep(0.3)
     
     # Mid legs
+    print("\nConfiguring mid legs...")
     apply_leg_config(hexapod, standing_position, "LEFT", "MID")
     time.sleep(0.3)
     
     apply_leg_config(hexapod, standing_position, "RIGHT", "MID")
     time.sleep(0.3)
+    
+    print("\nStand sequence completed")
 
 def main():
     try:
@@ -122,13 +132,12 @@ def main():
         # ZMQ Server setup
         context = zmq.Context()
         
-        # Socket for receiving commands (SUB)
-        command_socket = context.socket(zmq.SUB)
+        # Socket for receiving commands (PULL)
+        command_socket = context.socket(zmq.PULL)
         command_socket.bind("tcp://*:5000")
-        command_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         
-        # Socket for sending responses (ROUTER)
-        response_socket = context.socket(zmq.ROUTER)
+        # Socket for sending responses (PUSH)
+        response_socket = context.socket(zmq.PUSH)
         response_socket.bind("tcp://*:5001")
         
         print("ZMQ server listening on ports 5000 (commands) and 5001 (responses)")
@@ -138,7 +147,7 @@ def main():
         
         while True:
             try:
-                command_dict = command_socket.recv_json(flags=zmq.NOBLOCK)
+                command_dict = command_socket.recv_json()  # Remove NOBLOCK flag
                 print(f"Received command: {command_dict}")
                 
                 if isinstance(command_dict, dict):
@@ -155,9 +164,6 @@ def main():
                         command_parts = [f"{motor}:{angle}" for motor, angle in command_dict.items()]
                         command = ",".join(command_parts)
                         hexapod.forward_command(command)
-            except zmq.Again:
-                # No message received, continue loop
-                pass
             except Exception as e:
                 print(f"Error: {e}")
             

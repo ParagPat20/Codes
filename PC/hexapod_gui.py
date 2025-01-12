@@ -18,12 +18,12 @@ class HexapodGUI:
         # ZMQ Setup
         self.context = zmq.Context()
         
-        # Socket for sending commands (PUB)
-        self.command_socket = self.context.socket(zmq.PUB)
+        # Socket for sending commands (PUSH)
+        self.command_socket = self.context.socket(zmq.PUSH)
         self.command_socket.connect(f"tcp://{self.config.config['ip']}:5000")
         
-        # Socket for receiving responses (DEALER)
-        self.response_socket = self.context.socket(zmq.DEALER)
+        # Socket for receiving responses (PULL)
+        self.response_socket = self.context.socket(zmq.PULL)
         self.response_socket.connect(f"tcp://{self.config.config['ip']}:5001")
         
         # Start response polling thread
