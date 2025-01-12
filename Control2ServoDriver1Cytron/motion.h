@@ -5,6 +5,9 @@
 #ifndef MOTION_H
 #define MOTION_H
 
+#include "config.h"
+#include <Arduino.h>
+
 // Standby position for all servos
 struct ServoPosition {
     const char* id;
@@ -14,57 +17,57 @@ struct ServoPosition {
 #define NUM_STANDBY_POSITIONS 20
 const ServoPosition STANDBY_POSITION[NUM_STANDBY_POSITIONS] = {
     // LEFT FRONT
-    {"LFC", 0},   // COXA (L2)
-    {"LFT", 70},  // FEMUR (L3)
-    {"LFB", 180}, // TIBIA (L1)
+    {"LFC", 0},    // Front Coxa (L2)
+    {"LFT", 70},   // Front Femur (L3)
+    {"LFB", 180},  // Front Tibia (L1)
     
-    // LEFT MID (4 servos)
-    {"LMC", 90},  // COXA (L8)
-    {"LMT", 160}, // FEMUR1 (L6)
-    {"LMB", 100}, // FEMUR2 (L7)
-    {"LMF", 0},   // TIBIA (L5)
+    // LEFT MID
+    {"LMC", 90},   // Mid Coxa (L8)
+    {"LMT", 160},  // Mid Femur1 (L6)
+    {"LMB", 100},  // Mid Femur2 (L7)
+    {"LMF", 0},    // Mid Tibia (L5)
     
     // LEFT BACK
-    {"LBC", 0},   // COXA (L11)
-    {"LBT", 70},  // FEMUR (L10)
-    {"LBB", 180}, // TIBIA (L9)
+    {"LBC", 0},    // Back Coxa (L11)
+    {"LBT", 70},   // Back Femur (L10)
+    {"LBB", 180},  // Back Tibia (L9)
     
     // RIGHT FRONT
-    {"RFC", 0},   // COXA (R3)
-    {"RFT", 70},  // FEMUR (R2)
-    {"RFB", 180}, // TIBIA (R1)
+    {"RFC", 0},    // Front Coxa (R3)
+    {"RFT", 70},   // Front Femur (R2)
+    {"RFB", 180},  // Front Tibia (R1)
     
-    // RIGHT MID (4 servos)
-    {"RMC", 90},  // COXA (R8)
-    {"RMT", 160}, // FEMUR1 (R7)
-    {"RMB", 100}, // FEMUR2 (R6)
-    {"RMF", 0},   // TIBIA (R5)
+    // RIGHT MID
+    {"RMC", 90},   // Mid Coxa (R8)
+    {"RMT", 160},  // Mid Femur1 (R7)
+    {"RMB", 100},  // Mid Femur2 (R6)
+    {"RMF", 0},    // Mid Tibia (R5)
     
     // RIGHT BACK
-    {"RBC", 0},   // COXA (R9)
-    {"RBT", 70},  // FEMUR (R11)
-    {"RBB", 180}  // TIBIA (R10)
+    {"RBC", 0},    // Back Coxa (R9)
+    {"RBT", 70},   // Back Femur (R11)
+    {"RBB", 180}   // Back Tibia (R10)
 };
 
 // Forward walking sequence
 #define NUM_FORWARD_PHASES 4
 const ServoPosition FORWARD_SEQUENCE[NUM_FORWARD_PHASES][20] = {
-    // Phase 1: Lift and move forward group 1 (RF, LM, RB)
+    // Phase 1: Lift and move forward group 1
     {
-        // LEFT FRONT - maintain standby
-        {"LFC", 0}, {"LFT", 70}, {"LFB", 180},
+        // LEFT FRONT
+        {"LFC", 20}, {"LFT", 40}, {"LFB", 150},
         // LEFT MID - lift and move
         {"LMC", 110}, {"LMT", 130}, {"LMB", 130}, {"LMF", 30},
-        // LEFT BACK - maintain standby
-        {"LBC", 0}, {"LBT", 70}, {"LBB", 180},
-        // RIGHT FRONT - lift and move
+        // LEFT BACK
+        {"LBC", 20}, {"LBT", 40}, {"LBB", 150},
+        // RIGHT FRONT
         {"RFC", 20}, {"RFT", 40}, {"RFB", 150},
-        // RIGHT MID - maintain standby
-        {"RMC", 90}, {"RMT", 160}, {"RMB", 100}, {"RMF", 0},
-        // RIGHT BACK - lift and move
+        // RIGHT MID
+        {"RMC", 90}, {"RMT", 130}, {"RMB", 100}, {"RMF", 0},
+        // RIGHT BACK
         {"RBC", 20}, {"RBT", 40}, {"RBB", 150}
     },
-    // Phase 2: Lower group 1, lift and move forward group 2 (LF, RM, LB)
+    // Phase 2: Lower group 1, lift and move forward group 2
     {
         // LEFT FRONT - lift and move
         {"LFC", 20}, {"LFT", 40}, {"LFB", 150},

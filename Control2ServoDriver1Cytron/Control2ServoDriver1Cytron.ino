@@ -22,232 +22,246 @@ unsigned long lastMotionUpdate = 0;
 
 // Helper function to find servo config by ID
 const ServoConfig* findServoConfig(const char* id) {
-    for (int i = 0; i < NUM_SERVOS; i++) {
-        if (strcmp(SERVO_CONFIG[i].id, id) == 0) {
-            return &SERVO_CONFIG[i];
-        }
+  for (int i = 0; i < NUM_SERVOS; i++) {
+    if (strcmp(SERVO_CONFIG[i].id, id) == 0) {  // Use strcmp for string comparison
+      return &SERVO_CONFIG[i];
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 void setServoAngle(const char* id, int angle) {
-    const ServoConfig* config = findServoConfig(id);
-    if (!config) {
-        Serial.print("Invalid servo ID: ");
-        Serial.println(id);
-        return;
-    }
+  const ServoConfig* config = findServoConfig(id);
+  if (!config) {
+    Serial.print("Invalid servo ID: ");
+    Serial.println(id);
+    return;
+  }
 
-    // Apply inversion and offset
-    if (config->inverted) {
-        angle = 180 - angle;
-    }
-    angle += config->offset;
-    angle = constrain(angle, 0, 180);
+  // Print original values
+  Serial.print(id);
+  Serial.print(" (");
+  Serial.print(config->old_id);
+  Serial.print("): Raw=");
+  Serial.print(angle);
 
-    // Convert angle to pulse length
-    int pulseLength = map(angle, 0, 180, 102, 512);
+  // Apply inversion and offset
+  if (config->inverted) {
+    angle = 180 - angle;
+    Serial.print(", Inverted=");
+    Serial.print(angle);
+  }
+  angle += config->offset;
+  if (config->offset != 0) {
+    Serial.print(", Offset=");
+    Serial.print(angle);
+  }
+  angle = constrain(angle, 0, 180);
+  Serial.print(", Final=");
+  Serial.println(angle);
 
-    // Determine which PCA9685 to use based on channel
-    if (config->channel < 16) {
-        pca1.setPWM(config->channel, 0, pulseLength);
-    } else {
-        pca2.setPWM(config->channel - 16, 0, pulseLength);
-    }
+  // Convert angle to pulse length
+  int pulseLength = map(angle, 0, 180, 102, 512);
+
+  // Determine which PCA9685 to use based on old_id
+  if (config->old_id[0] == 'L') {  // Left side servos on PCA1
+    pca1.setPWM(config->channel, 0, pulseLength);
+  } else {  // Right side servos on PCA2
+    pca2.setPWM(config->channel, 0, pulseLength);
+  }
 }
 
 void moveToStandby() {
-    Serial.println("Moving to standby position...");
-    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
-        setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
-        delay(100);  // Small delay between servo movements
-    }
-    currentMode = MODE_STANDBY;
-    Serial.println("Standby position reached");
+  Serial.println("Moving to standby position...");
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
+    delay(100);  // Small delay between servo movements
+  }
+  currentMode = MODE_STANDBY;
+  Serial.println("Standby position reached");
 }
 
 void updateForwardMotion() {
-    if (millis() - lastMotionUpdate < MOTION_DELAY) {
-        return;
-    }
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
 
-    // Update all servos for current phase
-    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
-        setServoAngle(FORWARD_SEQUENCE[currentPhase][i].id, 
-                     FORWARD_SEQUENCE[currentPhase][i].angle);
-    }
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(FORWARD_SEQUENCE[currentPhase][i].id,
+                  FORWARD_SEQUENCE[currentPhase][i].angle);
+  }
 
-    // Move to next phase
-    currentPhase = (currentPhase + 1) % NUM_FORWARD_PHASES;
-    lastMotionUpdate = millis();
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_FORWARD_PHASES;
+  lastMotionUpdate = millis();
 }
 
 void updateBackwardMotion() {
-    if (millis() - lastMotionUpdate < MOTION_DELAY) {
-        return;
-    }
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
 
-    // Update all servos for current phase
-    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
-        setServoAngle(BACKWARD_SEQUENCE[currentPhase][i].id, 
-                     BACKWARD_SEQUENCE[currentPhase][i].angle);
-    }
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(BACKWARD_SEQUENCE[currentPhase][i].id,
+                  BACKWARD_SEQUENCE[currentPhase][i].angle);
+  }
 
-    // Move to next phase
-    currentPhase = (currentPhase + 1) % NUM_BACKWARD_PHASES;
-    lastMotionUpdate = millis();
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_BACKWARD_PHASES;
+  lastMotionUpdate = millis();
 }
 
 void updateTurnLeftMotion() {
-    if (millis() - lastMotionUpdate < MOTION_DELAY) {
-        return;
-    }
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
 
-    // Update all servos for current phase
-    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
-        setServoAngle(TURN_LEFT_SEQUENCE[currentPhase][i].id, 
-                     TURN_LEFT_SEQUENCE[currentPhase][i].angle);
-    }
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(TURN_LEFT_SEQUENCE[currentPhase][i].id,
+                  TURN_LEFT_SEQUENCE[currentPhase][i].angle);
+  }
 
-    // Move to next phase
-    currentPhase = (currentPhase + 1) % NUM_TURN_LEFT_PHASES;
-    lastMotionUpdate = millis();
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_TURN_LEFT_PHASES;
+  lastMotionUpdate = millis();
 }
 
 void updateTurnRightMotion() {
-    if (millis() - lastMotionUpdate < MOTION_DELAY) {
-        return;
-    }
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
 
-    // Update all servos for current phase
-    for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
-        setServoAngle(TURN_RIGHT_SEQUENCE[currentPhase][i].id, 
-                     TURN_RIGHT_SEQUENCE[currentPhase][i].angle);
-    }
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(TURN_RIGHT_SEQUENCE[currentPhase][i].id,
+                  TURN_RIGHT_SEQUENCE[currentPhase][i].angle);
+  }
 
-    // Move to next phase
-    currentPhase = (currentPhase + 1) % NUM_TURN_RIGHT_PHASES;
-    lastMotionUpdate = millis();
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_TURN_RIGHT_PHASES;
+  lastMotionUpdate = millis();
 }
 
 void setMotionMode(MotionMode mode) {
-    if (mode != currentMode) {
-        currentMode = mode;
-        currentPhase = 0;
-        lastMotionUpdate = 0;
-        
-        if (mode == MODE_STANDBY) {
-            moveToStandby();
-        }
+  if (mode != currentMode) {
+    currentMode = mode;
+    currentPhase = 0;
+    lastMotionUpdate = 0;
+
+    if (mode == MODE_STANDBY) {
+      moveToStandby();
     }
+  }
 }
 
 void setup() {
-    Serial.begin(115200);
-    Wire.begin();
+  Serial.begin(115200);
+  Wire.begin();
 
-    // Initialize PCA9685 instances
-    pca1.begin();
-    pca1.setPWMFreq(SERVO_FREQ);
-    pca2.begin();
-    pca2.setPWMFreq(SERVO_FREQ);
+  // Initialize PCA9685 instances
+  pca1.begin();
+  pca1.setPWMFreq(SERVO_FREQ);
+  pca2.begin();
+  pca2.setPWMFreq(SERVO_FREQ);
 
-    // Initialize Cytron motor control pins
-    pinMode(PWM1_PIN, OUTPUT);
-    pinMode(PWM2_PIN, OUTPUT);
-    pinMode(DIR1_PIN, OUTPUT);
-    pinMode(DIR2_PIN, OUTPUT);
+  // Initialize Cytron motor control pins
+  pinMode(PWM1_PIN, OUTPUT);
+  pinMode(PWM2_PIN, OUTPUT);
+  pinMode(DIR1_PIN, OUTPUT);
+  pinMode(DIR2_PIN, OUTPUT);
 
-    // Initialize motors to stop
-    analogWrite(PWM1_PIN, 0);
-    analogWrite(PWM2_PIN, 0);
-    digitalWrite(DIR1_PIN, LOW);
-    digitalWrite(DIR2_PIN, LOW);
+  // Initialize motors to stop
+  analogWrite(PWM1_PIN, 0);
+  analogWrite(PWM2_PIN, 0);
+  digitalWrite(DIR1_PIN, LOW);
+  digitalWrite(DIR2_PIN, LOW);
 
-    Serial.println("Initialization complete");
-    
-    // Move to standby position on startup
-    moveToStandby();
+
+  Serial.println("Initialization complete");
+  Serial.println("Send servo commands (format: LFC:90,LFT:70,...) or type 'standby' to move to standby position");
 }
 
 void loop() {
-    // Handle serial commands
-    if (Serial.available() > 0) {
-        String input = Serial.readStringUntil('\n');
-        if (input == "forward") {
-            setMotionMode(MODE_FORWARD);
-        } else if (input == "backward") {
-            setMotionMode(MODE_BACKWARD);
-        } else if (input == "turn_left") {
-            setMotionMode(MODE_TURN_LEFT);
-        } else if (input == "turn_right") {
-            setMotionMode(MODE_TURN_RIGHT);
-        } else if (input == "standby") {
-            setMotionMode(MODE_STANDBY);
-        } else {
-            parseAndSetServos(input);
-        }
+  // Handle serial commands
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    if (input == "forward") {
+      setMotionMode(MODE_FORWARD);
+    } else if (input == "backward") {
+      setMotionMode(MODE_BACKWARD);
+    } else if (input == "turn_left") {
+      setMotionMode(MODE_TURN_LEFT);
+    } else if (input == "turn_right") {
+      setMotionMode(MODE_TURN_RIGHT);
+    } else if (input == "standby") {
+      setMotionMode(MODE_STANDBY);
+    } else {
+      parseAndSetServos(input);
     }
+  }
 
-    // Update motion if needed
-    switch (currentMode) {
-        case MODE_FORWARD:
-            updateForwardMotion();
-            break;
-        case MODE_BACKWARD:
-            updateBackwardMotion();
-            break;
-        case MODE_TURN_LEFT:
-            updateTurnLeftMotion();
-            break;
-        case MODE_TURN_RIGHT:
-            updateTurnRightMotion();
-            break;
-        case MODE_STANDBY:
-            // Do nothing, stay in position
-            break;
-        default:
-            break;
-    }
+  // Update motion if needed
+  switch (currentMode) {
+    case MODE_FORWARD:
+      updateForwardMotion();
+      break;
+    case MODE_BACKWARD:
+      updateBackwardMotion();
+      break;
+    case MODE_TURN_LEFT:
+      updateTurnLeftMotion();
+      break;
+    case MODE_TURN_RIGHT:
+      updateTurnRightMotion();
+      break;
+    case MODE_STANDBY:
+      moveToStandby();
+      break;
+    default:
+      break;
+  }
 }
 
 void parseAndSetServos(String input) {
-    input.trim();
-    if (input.length() == 0) {
-        return;
+  input.trim();
+  if (input.length() == 0) {
+    return;
+  }
+
+  // Split input by commas
+  int startIdx = 0;
+  while (startIdx < input.length()) {
+    int endIdx = input.indexOf(',', startIdx);
+    if (endIdx == -1) endIdx = input.length();
+
+    String pair = input.substring(startIdx, endIdx);
+    int colonIdx = pair.indexOf(':');
+
+    if (colonIdx != -1) {
+      String id = pair.substring(0, colonIdx);
+      int angle = pair.substring(colonIdx + 1).toInt();
+
+      if (id == "LDC" || id == "RDC") {
+        setMotorSpeed(id, angle);
+      } else {
+        setServoAngle(id.c_str(), angle);
+      }
     }
 
-    // Split input by commas
-    int startIdx = 0;
-    while (startIdx < input.length()) {
-        int endIdx = input.indexOf(',', startIdx);
-        if (endIdx == -1) endIdx = input.length();
-        
-        String pair = input.substring(startIdx, endIdx);
-        int colonIdx = pair.indexOf(':');
-        
-        if (colonIdx != -1) {
-            String id = pair.substring(0, colonIdx);
-            int angle = pair.substring(colonIdx + 1).toInt();
-            
-            if (id == "LDC" || id == "RDC") {
-                setMotorSpeed(id, angle);
-            } else {
-                setServoAngle(id.c_str(), angle);
-            }
-        }
-        
-        startIdx = endIdx + 1;
-    }
+    startIdx = endIdx + 1;
+  }
 }
 
 void setMotorSpeed(String motor, int speed) {
-    speed = constrain(speed, -255, 255);
-    if (motor == "LDC") {
-        digitalWrite(DIR1_PIN, speed >= 0 ? HIGH : LOW);
-        analogWrite(PWM1_PIN, abs(speed));
-    } else if (motor == "RDC") {
-        digitalWrite(DIR2_PIN, speed >= 0 ? HIGH : LOW);
-        analogWrite(PWM2_PIN, abs(speed));
-    }
+  speed = constrain(speed, -255, 255);
+  if (motor == "LDC") {
+    digitalWrite(DIR1_PIN, speed >= 0 ? HIGH : LOW);
+    analogWrite(PWM1_PIN, abs(speed));
+  } else if (motor == "RDC") {
+    digitalWrite(DIR2_PIN, speed >= 0 ? HIGH : LOW);
+    analogWrite(PWM2_PIN, abs(speed));
+  }
 }

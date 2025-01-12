@@ -10,41 +10,42 @@ struct ServoConfig {
     int channel;
     bool inverted;
     int offset;
+    const char* old_id;  // For reference
 };
 
 // Servo configurations
 const ServoConfig SERVO_CONFIG[NUM_SERVOS] = {
     // Left Front Leg
-    {"LFC", 0, false, 0},  // Coxa
-    {"LFT", 1, false, 0},  // Tibia
-    {"LFB", 2, false, 0},  // Body
+    {"LFC", 1, false, 0, "L2"},   // L2 = channel 1
+    {"LFT", 2, false, 0, "L3"},   // L3 = channel 2
+    {"LFB", 0, false, 0, "L1"},   // L1 = channel 0
     
     // Left Mid Leg (4 servos)
-    {"LMC", 3, false, 0},  // Coxa
-    {"LMT", 4, false, 0},  // Tibia
-    {"LMB", 5, false, 0},  // Body
-    {"LMF", 6, false, 0},  // Fourth servo
+    {"LMC", 7, false, 0, "L8"},   // L8 = channel 7
+    {"LMT", 5, false, 0, "L6"},   // L6 = channel 5
+    {"LMB", 6, false, 0, "L7"},   // L7 = channel 6
+    {"LMF", 4, false, 33, "L5"},  // L5 = channel 4
     
     // Left Back Leg
-    {"LBC", 7, false, 0},  // Coxa
-    {"LBT", 8, false, 0},  // Tibia
-    {"LBB", 9, false, 0},  // Body
+    {"LBC", 10, true, -20, "L11"}, // L11 = channel 10
+    {"LBT", 9, true, 20, "L10"},   // L10 = channel 9
+    {"LBB", 8, true, 0, "L9"},     // L9 = channel 8
     
     // Right Front Leg
-    {"RFC", 16, true, 0},  // Coxa
-    {"RFT", 17, true, 0},  // Tibia
-    {"RFB", 18, true, 0},  // Body
+    {"RFC", 2, true, 0, "R3"},    // R3 = channel 2 (PCA2)
+    {"RFT", 1, false, 0, "R2"},   // R2 = channel 1 (PCA2)
+    {"RFB", 0, true, 0, "R1"},    // R1 = channel 0 (PCA2)
     
     // Right Mid Leg (4 servos)
-    {"RMC", 19, true, 0},  // Coxa
-    {"RMT", 20, true, 0},  // Tibia
-    {"RMB", 21, true, 0},  // Body
-    {"RMF", 22, true, 0},  // Fourth servo
+    {"RMC", 7, false, 0, "R8"},   // R8 = channel 7 (PCA2)
+    {"RMT", 6, true, 0, "R7"},    // R7 = channel 6 (PCA2)
+    {"RMB", 5, false, 0, "R6"},   // R6 = channel 5 (PCA2)
+    {"RMF", 4, false, 0, "R5"},   // R5 = channel 4 (PCA2)
     
     // Right Back Leg
-    {"RBC", 23, true, 0},  // Coxa
-    {"RBT", 24, true, 0},  // Tibia
-    {"RBB", 25, true, 0}   // Body
+    {"RBC", 8, false, 0, "R9"},   // R9 = channel 8 (PCA2)
+    {"RBT", 10, false, 0, "R11"}, // R11 = channel 10 (PCA2)
+    {"RBB", 9, true, 0, "R10"}    // R10 = channel 9 (PCA2)
 };
 
 // Motion modes
@@ -57,7 +58,7 @@ enum MotionMode {
 };
 
 // Motion timing
-#define MOTION_DELAY 50  // Delay between motion phases (ms)
-#define SERVO_MOVE_TIME 150  // Time for servo to reach position (ms)
+#define MOTION_DELAY 500  // Delay between motion phases (ms)
+#define SERVO_MOVE_TIME 400  // Time for servo to reach position (ms)
 
 #endif 
