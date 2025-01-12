@@ -8,6 +8,8 @@ def main():
         # Initialize the hexapod controller with the first available port
         import os
         available_ports = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0"]
+        hexapod = None
+        
         for port in available_ports:
             if os.path.exists(port):
                 try:
@@ -17,15 +19,16 @@ def main():
                 except Exception as e:
                     print(f"Failed to initialize hexapod controller on port {port}: {e}")
                     continue
+        
+        if not hexapod:
+            print("No valid port found for hexapod controller")
+            return
 
         # UDP Server setup
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_socket.bind(('0.0.0.0', 5000))  # Listen on all interfaces
         udp_socket.settimeout(0.1)  # Non-blocking socket
         print("UDP server listening on port 5000")
-
-        # Execute standup sequence
-        hexapod.standup_sequence()
         
         while True:
             try:
@@ -52,12 +55,14 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting down...")
         udp_socket.close()
-        hexapod.shutdown()
+        if hexapod:
+            hexapod.shutdown()
     except Exception as e:
         print(f"Error: {e}")
         try:
             udp_socket.close()
-            hexapod.shutdown()
+            if hexapod:
+                hexapod.shutdown()
         except:
             pass
 

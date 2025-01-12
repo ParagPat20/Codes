@@ -14,36 +14,36 @@ class HexapodConfig:
     def load_default(cls):
         motor_groups = {
             'left_front': {
-                "L1": "Coxa",    # Front Leg
-                "L2": "Femur",   # Front Mid
-                "L3": "Tibia"    # Front Lower
+                "L2": "COXA",    # Front Leg
+                "L3": "FRONT FEMUR",   # Front Mid
+                "L1": "FRONT TIBIA"    # Front Lower
             },
             'left_center': {
-                "L8": "Coxa",      # Center Leg
-                "L5": "Femur2",    # Center Upper
-                "L6": "Femur",     # Center Lower 2
-                "L7": "Tibia"      # Center Lower
+                "L8": "MID COXA",      # Center Leg
+                "L6": "MID FEMUR1",    # Center Upper
+                "L7": "MID FEMUR2",     # Center Lower 2
+                "L5": "MID TIBIA"      # Center Lower
             },
             'left_back': {
-                "L12": "Coxa",   # Back Leg
-                "L9": "Femur",   # Back Mid
-                "L10": "Tibia"   # Back Lower
+                "L11": "BACK COXA",   # Back Leg
+                "L10": "BACK FEMUR",   # Back Mid
+                "L9": "BACK TIBIA"   # Back Lower
             },
             'right_front': {
-                "R16": "Coxa",   # Front Leg
-                "R15": "Femur",  # Front Mid
-                "R14": "Tibia"   # Front Lower
+                "R3": "FRONT COXA",   # Front Leg
+                "R2": "FRONT FEMUR",  # Front Mid
+                "R1": "FRONT TIBIA"   # Front Lower
             },
             'right_center': {
-                "R8": "Coxa",     # Center Leg
-                "R6": "Femur2",   # Center Upper
-                "R10": "Femur",   # Center Lower 2
-                "R12": "Tibia"    # Center Lower
+                "R8": "MID COXA",     # Center Leg
+                "R7": "MID FEMUR1",   # Center Upper
+                "R6": "MID FEMUR2",   # Center Lower 2
+                "R5": "MID TIBIA"    # Center Lower
             },
             'right_back': {
-                "R3": "Coxa",    # Back Leg
-                "R2": "Femur",   # Back Mid
-                "R1": "Tibia"    # Back Lower
+                "R9": "BACK COXA",    # Back Leg
+                "R11": "BACK FEMUR",   # Back Mid
+                "R10": "BACK FIBIA"   # Back Lower
             }
         }
 
