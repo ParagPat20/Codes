@@ -56,7 +56,8 @@ enum MotionMode {
     MODE_TURN_LEFT,
     MODE_TURN_RIGHT,
     MODE_TEST,
-    MODE_TEST_FORWARD
+    MODE_TEST_FORWARD,
+    MODE_TEST_SERVOS  // New mode for testing individual servos
 };
 
 // Motion timing

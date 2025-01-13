@@ -1,148 +1,147 @@
 import tkinter as tk
 from tkinter import ttk
 import zmq
-import threading
-import time
 import logging
-
-# Setup logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('hexapod_gui.log'),
-        logging.StreamHandler()
-    ]
-)
+import time
 
 class HexapodGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Hexapod Control Panel")
-        logging.info("Starting Hexapod GUI")
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Hexapod Control Panel")
         
-        # Communication setup
+        # Create main control frame
+        self.control_frame = ttk.LabelFrame(master, text="Motion Control")
+        self.control_frame.pack(padx=10, pady=5, fill="x")
+        
+        # Motion control buttons
+        self.create_motion_buttons()
+        
+        # Create test servos frame
+        self.test_frame = ttk.LabelFrame(master, text="Test Servos")
+        self.test_frame.pack(padx=10, pady=5, fill="x")
+        
+        # Dictionary to store entry widgets
+        self.servo_entries = {}
+        
+        # Create servo test controls
+        self.create_servo_test_controls()
+        
+        # Initialize ZMQ
         self.setup_communication()
         
-        # Motion state
-        self.current_motion = None
-        self.emergency_stop = False
-        self.last_sent_command = None  # Track last sent command
+    def create_motion_buttons(self):
+        # Forward button
+        self.btn_forward = ttk.Button(self.control_frame, text="Forward", command=lambda: self.send_command("forward"))
+        self.btn_forward.pack(side="left", padx=5, pady=5)
         
-        # Create GUI elements
-        self.create_status_frame()
-        self.create_motion_controls()
-        self.create_servo_controls()
+        # Backward button
+        self.btn_backward = ttk.Button(self.control_frame, text="Backward", command=lambda: self.send_command("backward"))
+        self.btn_backward.pack(side="left", padx=5, pady=5)
         
-        # Bind keyboard events
-        self.root.bind('<KeyPress>', self.on_key_press)
-        self.root.bind('<KeyRelease>', self.on_key_release)
-        logging.info("GUI initialization complete")
+        # Turn Left button
+        self.btn_turn_left = ttk.Button(self.control_frame, text="Turn Left", command=lambda: self.send_command("turn_left"))
+        self.btn_turn_left.pack(side="left", padx=5, pady=5)
+        
+        # Turn Right button
+        self.btn_turn_right = ttk.Button(self.control_frame, text="Turn Right", command=lambda: self.send_command("turn_right"))
+        self.btn_turn_right.pack(side="left", padx=5, pady=5)
+        
+        # Standby button
+        self.btn_standby = ttk.Button(self.control_frame, text="Standby", command=lambda: self.send_command("standby"))
+        self.btn_standby.pack(side="left", padx=5, pady=5)
+        
+    def create_servo_test_controls(self):
+        # Create frames for each leg
+        legs = [
+            ("Left Front", "LF"), ("Left Mid", "LM"), ("Left Back", "LB"),
+            ("Right Front", "RF"), ("Right Mid", "RM"), ("Right Back", "RB")
+        ]
+        
+        # Enter test mode button
+        self.btn_test_mode = ttk.Button(self.test_frame, text="Enter Test Mode", 
+                                      command=lambda: self.send_command("test_servos"))
+        self.btn_test_mode.pack(pady=5)
+        
+        # Create a frame for organizing leg controls
+        legs_frame = ttk.Frame(self.test_frame)
+        legs_frame.pack(fill="x", padx=5, pady=5)
+        
+        # Create controls for each leg
+        for i, (leg_name, leg_prefix) in enumerate(legs):
+            leg_frame = ttk.LabelFrame(legs_frame, text=leg_name)
+            leg_frame.grid(row=i//3, column=i%3, padx=5, pady=5, sticky="nsew")
+            
+            # Coxa controls
+            ttk.Label(leg_frame, text="Coxa:").grid(row=0, column=0, padx=2)
+            entry = ttk.Entry(leg_frame, width=5)
+            entry.grid(row=0, column=1, padx=2)
+            self.servo_entries[f"{leg_prefix}C"] = entry
+            ttk.Button(leg_frame, text="Set", 
+                      command=lambda p=leg_prefix: self.send_servo_command(p+"C")).grid(row=0, column=2, padx=2)
+            
+            # Femur controls
+            ttk.Label(leg_frame, text="Femur:").grid(row=1, column=0, padx=2)
+            entry = ttk.Entry(leg_frame, width=5)
+            entry.grid(row=1, column=1, padx=2)
+            self.servo_entries[f"{leg_prefix}F"] = entry
+            ttk.Button(leg_frame, text="Set",
+                      command=lambda p=leg_prefix: self.send_servo_command(p+"F")).grid(row=1, column=2, padx=2)
+            
+            # Tibia controls
+            ttk.Label(leg_frame, text="Tibia:").grid(row=2, column=0, padx=2)
+            entry = ttk.Entry(leg_frame, width=5)
+            entry.grid(row=2, column=1, padx=2)
+            self.servo_entries[f"{leg_prefix}T"] = entry
+            ttk.Button(leg_frame, text="Set",
+                      command=lambda p=leg_prefix: self.send_servo_command(p+"T")).grid(row=2, column=2, padx=2)
+        
+        # Configure grid weights
+        for i in range(2):
+            legs_frame.grid_rowconfigure(i, weight=1)
+        for i in range(3):
+            legs_frame.grid_columnconfigure(i, weight=1)
+            
+    def send_servo_command(self, servo_id):
+        entry = self.servo_entries.get(servo_id)
+        if entry:
+            try:
+                angle = int(entry.get())
+                if 0 <= angle <= 180:
+                    command = f"{servo_id}:{angle}"
+                    self.send_command(command)
+                else:
+                    print(f"Invalid angle: {angle}. Must be between 0 and 180.")
+            except ValueError:
+                print("Invalid angle value. Please enter a number between 0 and 180.")
     
     def setup_communication(self):
-        """Setup ZMQ communication"""
+        """Initialize ZMQ communication"""
         try:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.PUB)
-            self.socket.connect("tcp://192.168.229.39:5556")  # Using different port for PUB/SUB
-            logging.info("ZMQ Publisher setup complete")
+            self.socket.connect("tcp://localhost:5555")
+            logging.info("ZMQ communication setup complete")
         except Exception as e:
             logging.error(f"Failed to setup ZMQ: {e}")
-    
-    def create_status_frame(self):
-        self.status_frame = ttk.LabelFrame(self.root, text="Status")
-        self.status_frame.pack(padx=5, pady=5, fill="x")
-        
-        self.status_label = ttk.Label(self.status_frame, text="Ready")
-        self.status_label.pack(padx=5, pady=5)
-    
-    def create_motion_controls(self):
-        self.motion_frame = ttk.LabelFrame(self.root, text="Motion Controls")
-        self.motion_frame.pack(padx=5, pady=5, fill="x")
-        
-        controls_text = """
-        Controls:
-        W - Move Forward
-        S - Move Backward
-        A - Turn Left
-        D - Turn Right
-        SPACE - Emergency Stop
-        
-        Current Motion: None
-        """
-        self.controls_label = ttk.Label(self.motion_frame, text=controls_text)
-        self.controls_label.pack(padx=5, pady=5)
-    
-    def create_servo_controls(self):
-        self.servo_frame = ttk.LabelFrame(self.root, text="Servo Controls")
-        self.servo_frame.pack(padx=5, pady=5, fill="both", expand=True)
-        
-        # Add servo control sliders here if needed
-    
+            self.socket = None
+            
     def send_command(self, cmd):
-        """Just send command, no response needed"""
+        """Send command via ZMQ"""
         try:
-            self.socket.send_string(cmd)
-            logging.debug(f"Published command: {cmd}")
+            if self.socket:
+                self.socket.send_string(cmd)
+                logging.info(f"Sent command: {cmd}")
+            else:
+                logging.error("No ZMQ connection available")
         except Exception as e:
             logging.error(f"ZMQ send error: {e}")
-    
-    def on_key_press(self, event):
-        logging.debug(f"Key pressed: {event.keysym}")
-        if event.keysym == 'space':
-            logging.info("Emergency stop triggered")
-            self.emergency_stop = True
-            self.current_motion = None
-            self.send_command('standby')
-            self.update_motion_display()
-            return
             
-        if self.emergency_stop:
-            logging.debug("Key press ignored due to emergency stop")
-            return
-            
-        if event.keysym.lower() in ['w', 's', 'a', 'd']:
-            new_motion = {
-                'w': 'forward',
-                's': 'backward',
-                'a': 'turn_left',
-                'd': 'turn_right'
-            }[event.keysym.lower()]
-            
-            if self.current_motion != new_motion:
-                logging.info(f"Motion changing to {new_motion}")
-                self.current_motion = new_motion
-                self.send_command(new_motion)
-                self.update_motion_display()
-    
-    def on_key_release(self, event):
-        logging.debug(f"Key released: {event.keysym}")
-        if event.keysym.lower() in ['w', 's', 'a', 'd']:
-            if self.current_motion == {
-                'w': 'forward',
-                's': 'backward',
-                'a': 'turn_left',
-                'd': 'turn_right'
-            }[event.keysym.lower()]:
-                logging.info("Stopping motion")
-                self.current_motion = None
-                self.send_command('standby')
-                self.update_motion_display()
-    
-    def update_motion_display(self):
-        controls_text = f"""
-        Controls:
-        W - Move Forward
-        S - Move Backward
-        A - Turn Left
-        D - Turn Right
-        SPACE - Emergency Stop
-        
-        Current Motion: {self.current_motion or 'None'}
-        Emergency Stop: {'Active' if self.emergency_stop else 'Inactive'}
-        """
-        self.controls_label.config(text=controls_text)
-        logging.debug(f"Display updated - Motion: {self.current_motion}, E-Stop: {self.emergency_stop}")
+    def __del__(self):
+        """Cleanup ZMQ resources"""
+        if hasattr(self, 'socket') and self.socket:
+            self.socket.close()
+        if hasattr(self, 'context') and self.context:
+            self.context.term()
     
     def motion_update_loop(self):
         # Remove continuous command sending

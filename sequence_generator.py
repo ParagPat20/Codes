@@ -7,12 +7,19 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from math import cos, sin, radians
+import time
+import zmq
 
 class ServoSequenceGenerator:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Servo Sequence Generator")
         self.root.geometry("1800x1000")  # Increased window size for 3D view
+
+        # Setup ZMQ
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.connect("tcp://localhost:5555")
 
         # Define colors for button states
         self.button_colors = {
@@ -65,6 +72,9 @@ class ServoSequenceGenerator:
         self.setup_gui()
 
     def setup_gui(self):
+        # Add mode controls at the top
+        self.create_mode_controls()
+
         # Main container
         main_container = ttk.Frame(self.root)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -141,8 +151,16 @@ class ServoSequenceGenerator:
                 status_label = ttk.Label(frame, textvariable=status_var, width=10)
                 status_label.pack(side=tk.LEFT, padx=10)
 
+                # Test button
+                test_btn = ttk.Button(frame, text="Test", width=6,
+                        command=lambda s=servo_id: self.test_servo(s))
+                test_btn.pack(side=tk.LEFT, padx=2)
+
                 def create_movement_command(servo_id, movement, buttons_dict):
                     def command():
+                        # First ensure we're in test mode
+                        self.send_command('test_servos')
+                        
                         # Determine base angle based on leg position
                         if servo_id.endswith('C'):  # Coxa - Forward/Backward
                             is_mid_leg = "M" in servo_id
@@ -168,6 +186,9 @@ class ServoSequenceGenerator:
                                 change = changes[movement]
                                 new_value = current + change
                                 new_value = max(0, min(180, new_value))  # Ensure value stays within 0-180
+                            
+                            # Send the command
+                            self.send_command(f"{servo_id}:{new_value}")
                             
                             # Update controls
                             self.servo_controls[servo_id]["scale"].set(new_value)
@@ -521,6 +542,49 @@ class ServoSequenceGenerator:
 
     def run(self):
         self.root.mainloop()
+
+    def test_servo(self, servo_id):
+        """Test a single servo by moving it through its range"""
+        # Switch to test mode
+        self.send_command('test_servos')
+        time.sleep(0.1)  # Small delay to ensure mode switch
+        
+        # Get current value
+        current = int(float(self.servo_controls[servo_id]["scale"].get()))
+        
+        # Move to min, mid, max positions
+        test_positions = [0, 90, 180, current]  # Return to original position
+        for pos in test_positions:
+            self.send_command(f"{servo_id}:{pos}")
+            self.servo_controls[servo_id]["scale"].set(pos)
+            self.servo_controls[servo_id]["entry"].delete(0, tk.END)
+            self.servo_controls[servo_id]["entry"].insert(0, str(pos))
+            self.update_3d_view()
+            time.sleep(0.5)  # Delay between positions
+
+    def create_mode_controls(self):
+        """Create mode control buttons"""
+        mode_frame = ttk.LabelFrame(self.root, text="Mode Controls")
+        mode_frame.pack(padx=5, pady=5, fill="x")
+        
+        ttk.Button(mode_frame, text="Standby Mode", 
+                  command=lambda: self.send_command("standby")).pack(side=tk.LEFT, padx=5)
+        ttk.Button(mode_frame, text="Test Mode", 
+                  command=lambda: self.send_command("test_servos")).pack(side=tk.LEFT, padx=5)
+
+    def send_command(self, cmd):
+        """Send command via ZMQ"""
+        try:
+            self.socket.send_string(cmd)
+            print(f"Sent: {cmd}")
+        except Exception as e:
+            print(f"Error sending command: {e}")
+
+    def __del__(self):
+        if hasattr(self, 'socket'):
+            self.socket.close()
+        if hasattr(self, 'context'):
+            self.context.term()
 
 if __name__ == "__main__":
     app = ServoSequenceGenerator()

@@ -200,6 +200,7 @@ const char* getMotionModeName(MotionMode mode) {
     case MODE_TURN_RIGHT: return "TURN_RIGHT";
     case MODE_TEST: return "TEST";
     case MODE_TEST_FORWARD: return "TEST_FORWARD";
+    case MODE_TEST_SERVOS: return "TEST_SERVOS";
     default: return "UNKNOWN";
   }
 }
@@ -259,6 +260,13 @@ void loop() {
     } else if (input == "test_forward") {
       setMotionMode(MODE_TEST_FORWARD);
       Serial.println("OK");
+    } else if (input == "test_servos") {
+      setMotionMode(MODE_TEST_SERVOS);
+      Serial.println("OK");
+    } else if (currentMode == MODE_TEST_SERVOS) {
+      // In test mode, directly handle servo commands
+      parseAndSetServos(input);
+      Serial.println("OK");
     } else {
       parseAndSetServos(input);
       Serial.println("OK");
@@ -313,38 +321,60 @@ void loop() {
       }
       updateTestForwardMotion();
       break;
+    case MODE_TEST_SERVOS:
+      // Do nothing, just wait for commands
+      break;
     default:
       break;
   }
 }
 
-void parseAndSetServos(String input) {
-  input.trim();
-  if (input.length() == 0) {
+void parseAndSetServos(String command) {
+  // Format: [Leg][Joint]:[Angle]
+  // Example: LFC:90, RFT:145
+  
+  if (command.length() < 5) {
+    Serial.println("Invalid command length");
     return;
   }
 
-  // Split input by commas
-  int startIdx = 0;
-  while (startIdx < input.length()) {
-    int endIdx = input.indexOf(',', startIdx);
-    if (endIdx == -1) endIdx = input.length();
+  String servoId = command.substring(0, 3);
+  int angle = command.substring(4).toInt();
 
-    String pair = input.substring(startIdx, endIdx);
-    int colonIdx = pair.indexOf(':');
+  Serial.print("Setting ");
+  Serial.print(servoId);
+  Serial.print(" to angle: ");
+  Serial.println(angle);
 
-    if (colonIdx != -1) {
-      String id = pair.substring(0, colonIdx);
-      int angle = pair.substring(colonIdx + 1).toInt();
-
-      if (id == "LDC" || id == "RDC") {
-        setMotorSpeed(id, angle);
-      } else {
-        setServoAngle(id.c_str(), angle);
-      }
+  // Find servo config
+  const ServoConfig* config = findServoConfig(servoId.c_str());
+  if (config && angle >= 0 && angle <= 180) {
+    // Apply inversion and offset from config
+    if (config->inverted) {
+      angle = 180 - angle;
+      Serial.print("Inverted angle: ");
+      Serial.println(angle);
     }
-
-    startIdx = endIdx + 1;
+    angle += config->offset;
+    Serial.print("After offset: ");
+    Serial.println(angle);
+    
+    // Constrain final angle
+    angle = constrain(angle, 0, 180);
+    
+    // Determine which PCA9685 to use based on old_id
+    if (config->old_id[0] == 'L') {  // Left side servos on PCA1
+      pca1.setPWM(config->channel, 0, angleToPulse(angle));
+      Serial.print("Set LEFT servo channel ");
+    } else {  // Right side servos on PCA2
+      pca2.setPWM(config->channel, 0, angleToPulse(angle));
+      Serial.print("Set RIGHT servo channel ");
+    }
+    Serial.print(config->channel);
+    Serial.print(" to angle ");
+    Serial.println(angle);
+  } else {
+    Serial.println("Invalid servo ID or angle");
   }
 }
 
