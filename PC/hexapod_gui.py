@@ -43,11 +43,11 @@ class HexapodGUI:
         """Setup ZMQ communication"""
         try:
             self.context = zmq.Context()
-            self.socket = self.context.socket(zmq.REQ)
-            self.socket.connect("tcp://192.168.229.39:5555")
-            logging.info("ZMQ Communication setup complete")
+            self.socket = self.context.socket(zmq.PUB)
+            self.socket.connect("tcp://localhost:5556")  # Using different port for PUB/SUB
+            logging.info("ZMQ Publisher setup complete")
         except Exception as e:
-            logging.error(f"Failed to setup ZMQ communication: {e}")
+            logging.error(f"Failed to setup ZMQ: {e}")
     
     def create_status_frame(self):
         self.status_frame = ttk.LabelFrame(self.root, text="Status")
@@ -80,18 +80,12 @@ class HexapodGUI:
         # Add servo control sliders here if needed
     
     def send_command(self, cmd):
+        """Just send command, no response needed"""
         try:
-            logging.debug(f"Sending ZMQ command: {cmd}")
             self.socket.send_string(cmd)
-            # Don't wait for response, just fire and forget
-            try:
-                # Non-blocking receive with timeout
-                response = self.socket.recv_string(flags=zmq.NOBLOCK)
-                logging.debug(f"Got response: {response}")
-            except zmq.Again:
-                pass  # No response available, continue anyway
+            logging.debug(f"Published command: {cmd}")
         except Exception as e:
-            logging.error(f"ZMQ error: {e}")
+            logging.error(f"ZMQ send error: {e}")
     
     def on_key_press(self, event):
         logging.debug(f"Key pressed: {event.keysym}")

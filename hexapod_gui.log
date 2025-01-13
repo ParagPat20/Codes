@@ -98,3 +98,411 @@
 2025-01-13 13:03:18,226 - DEBUG - Sending ZMQ command: standby
 2025-01-13 13:03:18,226 - ERROR - ZMQ error: Operation cannot be accomplished in current state
 2025-01-13 13:03:18,226 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:01,435 - INFO - Starting Hexapod GUI
+2025-01-13 13:15:01,449 - INFO - ZMQ Communication setup complete
+2025-01-13 13:15:01,451 - INFO - GUI initialization complete
+2025-01-13 13:15:01,451 - INFO - Starting main loop
+2025-01-13 13:15:08,274 - DEBUG - Key pressed: w
+2025-01-13 13:15:08,274 - INFO - Motion changing to forward
+2025-01-13 13:15:08,274 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:15:08,274 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:15:08,487 - DEBUG - Key released: w
+2025-01-13 13:15:08,487 - INFO - Stopping motion
+2025-01-13 13:15:08,487 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:08,503 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:08,503 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:10,862 - DEBUG - Key pressed: s
+2025-01-13 13:15:10,862 - INFO - Motion changing to backward
+2025-01-13 13:15:10,867 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:15:10,867 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:10,867 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:15:11,046 - DEBUG - Key released: s
+2025-01-13 13:15:11,046 - INFO - Stopping motion
+2025-01-13 13:15:11,046 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:11,046 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:11,046 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:11,605 - DEBUG - Key pressed: d
+2025-01-13 13:15:11,605 - INFO - Motion changing to turn_right
+2025-01-13 13:15:11,605 - DEBUG - Sending ZMQ command: turn_right
+2025-01-13 13:15:11,605 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:11,605 - DEBUG - Display updated - Motion: turn_right, E-Stop: False
+2025-01-13 13:15:11,850 - DEBUG - Key released: d
+2025-01-13 13:15:11,859 - INFO - Stopping motion
+2025-01-13 13:15:11,859 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:11,859 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:11,859 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:12,442 - DEBUG - Key pressed: w
+2025-01-13 13:15:12,442 - INFO - Motion changing to forward
+2025-01-13 13:15:12,442 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:15:12,442 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:12,442 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:15:12,944 - DEBUG - Key pressed: w
+2025-01-13 13:15:12,978 - DEBUG - Key pressed: w
+2025-01-13 13:15:13,022 - DEBUG - Key pressed: w
+2025-01-13 13:15:13,048 - DEBUG - Key pressed: w
+2025-01-13 13:15:13,076 - DEBUG - Key pressed: w
+2025-01-13 13:15:13,087 - DEBUG - Key released: w
+2025-01-13 13:15:13,088 - INFO - Stopping motion
+2025-01-13 13:15:13,088 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:13,089 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:13,089 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:13,564 - DEBUG - Key pressed: a
+2025-01-13 13:15:13,564 - INFO - Motion changing to turn_left
+2025-01-13 13:15:13,564 - DEBUG - Sending ZMQ command: turn_left
+2025-01-13 13:15:13,574 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:13,574 - DEBUG - Display updated - Motion: turn_left, E-Stop: False
+2025-01-13 13:15:13,864 - DEBUG - Key released: a
+2025-01-13 13:15:13,864 - INFO - Stopping motion
+2025-01-13 13:15:13,864 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:13,864 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:13,871 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:15:13,875 - DEBUG - Key pressed: s
+2025-01-13 13:15:13,876 - INFO - Motion changing to backward
+2025-01-13 13:15:13,876 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:15:13,876 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:13,878 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:15:14,174 - DEBUG - Key released: s
+2025-01-13 13:15:14,174 - INFO - Stopping motion
+2025-01-13 13:15:14,174 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:15:14,174 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:15:14,174 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:17:05,924 - INFO - Starting Hexapod GUI
+2025-01-13 13:17:05,942 - INFO - ZMQ Communication setup complete
+2025-01-13 13:17:05,944 - INFO - GUI initialization complete
+2025-01-13 13:17:05,944 - INFO - Starting main loop
+2025-01-13 13:17:10,829 - DEBUG - Key pressed: w
+2025-01-13 13:17:10,829 - INFO - Motion changing to forward
+2025-01-13 13:17:10,829 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:17:10,829 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:17:10,937 - DEBUG - Key released: w
+2025-01-13 13:17:10,937 - INFO - Stopping motion
+2025-01-13 13:17:10,937 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:17:10,937 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:10,937 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:17:11,444 - DEBUG - Key pressed: w
+2025-01-13 13:17:11,444 - INFO - Motion changing to forward
+2025-01-13 13:17:11,444 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:17:11,444 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:11,444 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:17:11,682 - DEBUG - Key released: w
+2025-01-13 13:17:11,682 - INFO - Stopping motion
+2025-01-13 13:17:11,682 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:17:11,682 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:11,687 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:17:11,930 - DEBUG - Key pressed: s
+2025-01-13 13:17:11,930 - INFO - Motion changing to backward
+2025-01-13 13:17:11,930 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:17:11,930 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:11,930 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:17:12,108 - DEBUG - Key released: s
+2025-01-13 13:17:12,108 - INFO - Stopping motion
+2025-01-13 13:17:12,110 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:17:12,110 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:12,110 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:17:12,380 - DEBUG - Key pressed: a
+2025-01-13 13:17:12,380 - INFO - Motion changing to turn_left
+2025-01-13 13:17:12,380 - DEBUG - Sending ZMQ command: turn_left
+2025-01-13 13:17:12,380 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:12,380 - DEBUG - Display updated - Motion: turn_left, E-Stop: False
+2025-01-13 13:17:12,604 - DEBUG - Key released: a
+2025-01-13 13:17:12,604 - INFO - Stopping motion
+2025-01-13 13:17:12,604 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:17:12,606 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:12,606 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:17:12,712 - DEBUG - Key pressed: s
+2025-01-13 13:17:12,712 - INFO - Motion changing to backward
+2025-01-13 13:17:12,712 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:17:12,712 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:12,712 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:17:12,820 - DEBUG - Key pressed: d
+2025-01-13 13:17:12,820 - INFO - Motion changing to turn_right
+2025-01-13 13:17:12,820 - DEBUG - Sending ZMQ command: turn_right
+2025-01-13 13:17:12,820 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:12,820 - DEBUG - Display updated - Motion: turn_right, E-Stop: False
+2025-01-13 13:17:12,853 - DEBUG - Key released: s
+2025-01-13 13:17:13,042 - DEBUG - Key pressed: w
+2025-01-13 13:17:13,042 - INFO - Motion changing to forward
+2025-01-13 13:17:13,042 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:17:13,042 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:13,042 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:17:13,056 - DEBUG - Key released: d
+2025-01-13 13:17:13,197 - DEBUG - Key released: w
+2025-01-13 13:17:13,197 - INFO - Stopping motion
+2025-01-13 13:17:13,197 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:17:13,197 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:17:13,197 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:18:17,446 - DEBUG - Key pressed: w
+2025-01-13 13:18:17,446 - INFO - Motion changing to forward
+2025-01-13 13:18:17,446 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:18:17,446 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:17,449 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:18:17,956 - DEBUG - Key pressed: w
+2025-01-13 13:18:17,978 - DEBUG - Key pressed: w
+2025-01-13 13:18:17,988 - DEBUG - Key released: w
+2025-01-13 13:18:17,988 - INFO - Stopping motion
+2025-01-13 13:18:17,988 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:18:17,990 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:17,990 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:18:18,565 - DEBUG - Key pressed: s
+2025-01-13 13:18:18,565 - INFO - Motion changing to backward
+2025-01-13 13:18:18,565 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:18:18,565 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:18,568 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:18:19,076 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,098 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,135 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,167 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,201 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,237 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,265 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,301 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,334 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,366 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,396 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,432 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,465 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,500 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,528 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,571 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,597 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,633 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,661 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,695 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,738 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,764 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,799 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,833 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,861 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,893 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,925 - DEBUG - Key pressed: s
+2025-01-13 13:18:19,965 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,001 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,028 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,057 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,091 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,125 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,160 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,188 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,223 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,257 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,291 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,319 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,359 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,389 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,423 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,454 - DEBUG - Key pressed: s
+2025-01-13 13:18:20,465 - DEBUG - Key released: s
+2025-01-13 13:18:20,465 - INFO - Stopping motion
+2025-01-13 13:18:20,466 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:18:20,466 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:20,466 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:18:25,877 - DEBUG - Key pressed: w
+2025-01-13 13:18:25,877 - INFO - Motion changing to forward
+2025-01-13 13:18:25,877 - DEBUG - Sending ZMQ command: forward
+2025-01-13 13:18:25,877 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:25,877 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:18:26,378 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,415 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,445 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,477 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,514 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,543 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,581 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,612 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,643 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,674 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,716 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,748 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,785 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,817 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,851 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,876 - DEBUG - Key pressed: w
+2025-01-13 13:18:26,878 - DEBUG - Key released: w
+2025-01-13 13:18:26,878 - INFO - Stopping motion
+2025-01-13 13:18:26,878 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:18:26,878 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:26,878 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:18:30,643 - DEBUG - Key pressed: s
+2025-01-13 13:18:30,643 - INFO - Motion changing to backward
+2025-01-13 13:18:30,644 - DEBUG - Sending ZMQ command: backward
+2025-01-13 13:18:30,644 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:30,644 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:18:31,147 - DEBUG - Key pressed: s
+2025-01-13 13:18:31,177 - DEBUG - Key pressed: s
+2025-01-13 13:18:31,209 - DEBUG - Key pressed: s
+2025-01-13 13:18:31,223 - DEBUG - Key released: s
+2025-01-13 13:18:31,223 - INFO - Stopping motion
+2025-01-13 13:18:31,223 - DEBUG - Sending ZMQ command: standby
+2025-01-13 13:18:31,223 - ERROR - ZMQ error: Operation cannot be accomplished in current state
+2025-01-13 13:18:31,223 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:18:56,063 - INFO - Starting Hexapod GUI
+2025-01-13 13:18:56,063 - INFO - ZMQ Publisher setup complete
+2025-01-13 13:18:56,070 - INFO - GUI initialization complete
+2025-01-13 13:18:56,070 - INFO - Starting main loop
+2025-01-13 13:19:23,829 - INFO - Starting Hexapod GUI
+2025-01-13 13:19:23,834 - INFO - ZMQ Publisher setup complete
+2025-01-13 13:19:23,834 - INFO - GUI initialization complete
+2025-01-13 13:19:23,834 - INFO - Starting main loop
+2025-01-13 13:19:27,876 - DEBUG - Key pressed: w
+2025-01-13 13:19:27,882 - INFO - Motion changing to forward
+2025-01-13 13:19:27,882 - DEBUG - Published command: forward
+2025-01-13 13:19:27,882 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:27,974 - DEBUG - Key released: w
+2025-01-13 13:19:27,974 - INFO - Stopping motion
+2025-01-13 13:19:27,974 - DEBUG - Published command: standby
+2025-01-13 13:19:27,974 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:28,675 - DEBUG - Key pressed: w
+2025-01-13 13:19:28,675 - INFO - Motion changing to forward
+2025-01-13 13:19:28,675 - DEBUG - Published command: forward
+2025-01-13 13:19:28,675 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:28,850 - DEBUG - Key released: w
+2025-01-13 13:19:28,850 - INFO - Stopping motion
+2025-01-13 13:19:28,850 - DEBUG - Published command: standby
+2025-01-13 13:19:28,850 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:29,763 - DEBUG - Key pressed: w
+2025-01-13 13:19:29,772 - INFO - Motion changing to forward
+2025-01-13 13:19:29,772 - DEBUG - Published command: forward
+2025-01-13 13:19:29,772 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:30,274 - DEBUG - Key pressed: w
+2025-01-13 13:19:30,306 - DEBUG - Key pressed: w
+2025-01-13 13:19:30,333 - DEBUG - Key pressed: w
+2025-01-13 13:19:30,376 - DEBUG - Key pressed: w
+2025-01-13 13:19:30,403 - DEBUG - Key released: w
+2025-01-13 13:19:30,403 - INFO - Stopping motion
+2025-01-13 13:19:30,403 - DEBUG - Published command: standby
+2025-01-13 13:19:30,403 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:31,122 - DEBUG - Key pressed: w
+2025-01-13 13:19:31,122 - INFO - Motion changing to forward
+2025-01-13 13:19:31,122 - DEBUG - Published command: forward
+2025-01-13 13:19:31,127 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:31,603 - DEBUG - Key released: w
+2025-01-13 13:19:31,603 - INFO - Stopping motion
+2025-01-13 13:19:31,603 - DEBUG - Published command: standby
+2025-01-13 13:19:31,603 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:35,660 - DEBUG - Key pressed: w
+2025-01-13 13:19:35,660 - INFO - Motion changing to forward
+2025-01-13 13:19:35,660 - DEBUG - Published command: forward
+2025-01-13 13:19:35,660 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:35,948 - DEBUG - Key released: w
+2025-01-13 13:19:35,948 - INFO - Stopping motion
+2025-01-13 13:19:35,948 - DEBUG - Published command: standby
+2025-01-13 13:19:35,948 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:40,139 - DEBUG - Key pressed: w
+2025-01-13 13:19:40,139 - INFO - Motion changing to forward
+2025-01-13 13:19:40,139 - DEBUG - Published command: forward
+2025-01-13 13:19:40,139 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:40,450 - DEBUG - Key released: w
+2025-01-13 13:19:40,450 - INFO - Stopping motion
+2025-01-13 13:19:40,450 - DEBUG - Published command: standby
+2025-01-13 13:19:40,450 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:41,655 - DEBUG - Key pressed: a
+2025-01-13 13:19:41,655 - INFO - Motion changing to turn_left
+2025-01-13 13:19:41,655 - DEBUG - Published command: turn_left
+2025-01-13 13:19:41,655 - DEBUG - Display updated - Motion: turn_left, E-Stop: False
+2025-01-13 13:19:41,888 - DEBUG - Key released: a
+2025-01-13 13:19:41,888 - INFO - Stopping motion
+2025-01-13 13:19:41,888 - DEBUG - Published command: standby
+2025-01-13 13:19:41,888 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:42,033 - DEBUG - Key pressed: d
+2025-01-13 13:19:42,033 - INFO - Motion changing to turn_right
+2025-01-13 13:19:42,033 - DEBUG - Published command: turn_right
+2025-01-13 13:19:42,049 - DEBUG - Display updated - Motion: turn_right, E-Stop: False
+2025-01-13 13:19:42,193 - DEBUG - Key pressed: s
+2025-01-13 13:19:42,208 - INFO - Motion changing to backward
+2025-01-13 13:19:42,208 - DEBUG - Published command: backward
+2025-01-13 13:19:42,208 - DEBUG - Display updated - Motion: backward, E-Stop: False
+2025-01-13 13:19:42,273 - DEBUG - Key released: d
+2025-01-13 13:19:42,420 - DEBUG - Key released: s
+2025-01-13 13:19:42,420 - INFO - Stopping motion
+2025-01-13 13:19:42,420 - DEBUG - Published command: standby
+2025-01-13 13:19:42,420 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:42,505 - DEBUG - Key pressed: w
+2025-01-13 13:19:42,505 - INFO - Motion changing to forward
+2025-01-13 13:19:42,505 - DEBUG - Published command: forward
+2025-01-13 13:19:42,505 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:42,698 - DEBUG - Key released: w
+2025-01-13 13:19:42,698 - INFO - Stopping motion
+2025-01-13 13:19:42,698 - DEBUG - Published command: standby
+2025-01-13 13:19:42,698 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:42,744 - DEBUG - Key pressed: d
+2025-01-13 13:19:42,745 - INFO - Motion changing to turn_right
+2025-01-13 13:19:42,745 - DEBUG - Published command: turn_right
+2025-01-13 13:19:42,745 - DEBUG - Display updated - Motion: turn_right, E-Stop: False
+2025-01-13 13:19:42,752 - DEBUG - Key pressed: w
+2025-01-13 13:19:42,752 - INFO - Motion changing to forward
+2025-01-13 13:19:42,752 - DEBUG - Published command: forward
+2025-01-13 13:19:42,752 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:42,990 - DEBUG - Key released: d
+2025-01-13 13:19:43,005 - DEBUG - Key released: w
+2025-01-13 13:19:43,005 - INFO - Stopping motion
+2025-01-13 13:19:43,005 - DEBUG - Published command: standby
+2025-01-13 13:19:43,010 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:43,022 - DEBUG - Key pressed: a
+2025-01-13 13:19:43,022 - INFO - Motion changing to turn_left
+2025-01-13 13:19:43,022 - DEBUG - Published command: turn_left
+2025-01-13 13:19:43,023 - DEBUG - Display updated - Motion: turn_left, E-Stop: False
+2025-01-13 13:19:43,165 - DEBUG - Key released: a
+2025-01-13 13:19:43,165 - INFO - Stopping motion
+2025-01-13 13:19:43,165 - DEBUG - Published command: standby
+2025-01-13 13:19:43,175 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:43,195 - DEBUG - Key pressed: w
+2025-01-13 13:19:43,195 - INFO - Motion changing to forward
+2025-01-13 13:19:43,195 - DEBUG - Published command: forward
+2025-01-13 13:19:43,196 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:43,273 - DEBUG - Key pressed: d
+2025-01-13 13:19:43,273 - INFO - Motion changing to turn_right
+2025-01-13 13:19:43,273 - DEBUG - Published command: turn_right
+2025-01-13 13:19:43,273 - DEBUG - Display updated - Motion: turn_right, E-Stop: False
+2025-01-13 13:19:43,415 - DEBUG - Key released: d
+2025-01-13 13:19:43,415 - INFO - Stopping motion
+2025-01-13 13:19:43,415 - DEBUG - Published command: standby
+2025-01-13 13:19:43,415 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:43,415 - DEBUG - Key released: w
+2025-01-13 13:19:43,879 - DEBUG - Key pressed: w
+2025-01-13 13:19:43,879 - INFO - Motion changing to forward
+2025-01-13 13:19:43,879 - DEBUG - Published command: forward
+2025-01-13 13:19:43,879 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:44,383 - DEBUG - Key released: w
+2025-01-13 13:19:44,383 - INFO - Stopping motion
+2025-01-13 13:19:44,383 - DEBUG - Published command: standby
+2025-01-13 13:19:44,383 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:44,533 - DEBUG - Key pressed: w
+2025-01-13 13:19:44,533 - INFO - Motion changing to forward
+2025-01-13 13:19:44,533 - DEBUG - Published command: forward
+2025-01-13 13:19:44,533 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:44,629 - DEBUG - Key released: w
+2025-01-13 13:19:44,629 - INFO - Stopping motion
+2025-01-13 13:19:44,629 - DEBUG - Published command: standby
+2025-01-13 13:19:44,629 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:44,744 - DEBUG - Key pressed: w
+2025-01-13 13:19:44,744 - INFO - Motion changing to forward
+2025-01-13 13:19:44,744 - DEBUG - Published command: forward
+2025-01-13 13:19:44,744 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:44,808 - DEBUG - Key released: w
+2025-01-13 13:19:44,808 - INFO - Stopping motion
+2025-01-13 13:19:44,808 - DEBUG - Published command: standby
+2025-01-13 13:19:44,808 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:44,908 - DEBUG - Key pressed: w
+2025-01-13 13:19:44,908 - INFO - Motion changing to forward
+2025-01-13 13:19:44,908 - DEBUG - Published command: forward
+2025-01-13 13:19:44,908 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:44,959 - DEBUG - Key released: w
+2025-01-13 13:19:44,959 - INFO - Stopping motion
+2025-01-13 13:19:44,959 - DEBUG - Published command: standby
+2025-01-13 13:19:44,959 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:45,069 - DEBUG - Key pressed: w
+2025-01-13 13:19:45,069 - INFO - Motion changing to forward
+2025-01-13 13:19:45,069 - DEBUG - Published command: forward
+2025-01-13 13:19:45,069 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:45,125 - DEBUG - Key released: w
+2025-01-13 13:19:45,125 - INFO - Stopping motion
+2025-01-13 13:19:45,125 - DEBUG - Published command: standby
+2025-01-13 13:19:45,125 - DEBUG - Display updated - Motion: None, E-Stop: False
+2025-01-13 13:19:45,223 - DEBUG - Key pressed: w
+2025-01-13 13:19:45,223 - INFO - Motion changing to forward
+2025-01-13 13:19:45,223 - DEBUG - Published command: forward
+2025-01-13 13:19:45,223 - DEBUG - Display updated - Motion: forward, E-Stop: False
+2025-01-13 13:19:45,294 - DEBUG - Key released: w
+2025-01-13 13:19:45,294 - INFO - Stopping motion
+2025-01-13 13:19:45,294 - DEBUG - Published command: standby
+2025-01-13 13:19:45,310 - DEBUG - Display updated - Motion: None, E-Stop: False
