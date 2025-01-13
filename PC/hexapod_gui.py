@@ -44,7 +44,7 @@ class HexapodGUI:
         try:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.PUB)
-            self.socket.connect("tcp://localhost:5556")  # Using different port for PUB/SUB
+            self.socket.connect("tcp://192.168.229.39:5556")  # Using different port for PUB/SUB
             logging.info("ZMQ Publisher setup complete")
         except Exception as e:
             logging.error(f"Failed to setup ZMQ: {e}")
