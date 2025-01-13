@@ -119,7 +119,8 @@ class HexapodGUI:
         try:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.PUB)
-            self.socket.connect("tcp://localhost:5555")
+            self.ip = "192.168.229.39"
+            self.socket.connect(f"tcp://{self.ip}:5556")
             logging.info("ZMQ communication setup complete")
         except Exception as e:
             logging.error(f"Failed to setup ZMQ: {e}")
