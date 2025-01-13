@@ -175,6 +175,11 @@ void updateTestForwardMotion() {
 
 void setMotionMode(MotionMode mode) {
   if (mode != currentMode) {
+    Serial.print("Motion mode changing from ");
+    Serial.print(getMotionModeName(currentMode));
+    Serial.print(" to ");
+    Serial.println(getMotionModeName(mode));
+    
     currentMode = mode;
     currentPhase = 0;
     lastMotionUpdate = 0;
@@ -182,6 +187,20 @@ void setMotionMode(MotionMode mode) {
     if (mode == MODE_STANDBY) {
       moveToStandby();
     }
+  }
+}
+
+// Helper function to get mode name
+const char* getMotionModeName(MotionMode mode) {
+  switch(mode) {
+    case MODE_STANDBY: return "STANDBY";
+    case MODE_FORWARD: return "FORWARD";
+    case MODE_BACKWARD: return "BACKWARD";
+    case MODE_TURN_LEFT: return "TURN_LEFT";
+    case MODE_TURN_RIGHT: return "TURN_RIGHT";
+    case MODE_TEST: return "TEST";
+    case MODE_TEST_FORWARD: return "TEST_FORWARD";
+    default: return "UNKNOWN";
   }
 }
 
@@ -216,46 +235,81 @@ void loop() {
   // Handle serial commands
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
+    Serial.print("Received command: ");
+    Serial.println(input);
+    
     if (input == "forward") {
       setMotionMode(MODE_FORWARD);
+      Serial.println("OK");
     } else if (input == "backward") {
       setMotionMode(MODE_BACKWARD);
+      Serial.println("OK");
     } else if (input == "turn_left") {
       setMotionMode(MODE_TURN_LEFT);
+      Serial.println("OK");
     } else if (input == "turn_right") {
       setMotionMode(MODE_TURN_RIGHT);
+      Serial.println("OK");
     } else if (input == "standby") {
       setMotionMode(MODE_STANDBY);
+      Serial.println("OK");
     } else if (input == "test") {
       setMotionMode(MODE_TEST);
+      Serial.println("OK");
     } else if (input == "test_forward") {
       setMotionMode(MODE_TEST_FORWARD);
+      Serial.println("OK");
     } else {
       parseAndSetServos(input);
+      Serial.println("OK");
     }
   }
 
   // Update motion if needed
   switch (currentMode) {
     case MODE_FORWARD:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Forward phase: ");
+        Serial.println(currentPhase);
+      }
       updateForwardMotion();
       break;
     case MODE_BACKWARD:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Backward phase: ");
+        Serial.println(currentPhase);
+      }
       updateBackwardMotion();
       break;
     case MODE_TURN_LEFT:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Turn left phase: ");
+        Serial.println(currentPhase);
+      }
       updateTurnLeftMotion();
       break;
     case MODE_TURN_RIGHT:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Turn right phase: ");
+        Serial.println(currentPhase);
+      }
       updateTurnRightMotion();
       break;
     case MODE_STANDBY:
-      moveToStandby();
+      // Already prints debug in moveToStandby()
       break;
     case MODE_TEST:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Test phase: ");
+        Serial.println(currentPhase);
+      }
       updateTestMotion();
       break;
     case MODE_TEST_FORWARD:
+      if (millis() - lastMotionUpdate >= MOTION_DELAY) {
+        Serial.print("Test forward phase: ");
+        Serial.println(currentPhase);
+      }
       updateTestForwardMotion();
       break;
     default:

@@ -3,11 +3,23 @@ from tkinter import ttk
 import zmq
 import threading
 import time
+import logging
+
+# Setup logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('hexapod_gui.log'),
+        logging.StreamHandler()
+    ]
+)
 
 class HexapodGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Hexapod Control Panel")
+        logging.info("Starting Hexapod GUI")
         
         # Communication setup
         self.setup_communication()
@@ -25,17 +37,17 @@ class HexapodGUI:
         # Bind keyboard events
         self.root.bind('<KeyPress>', self.on_key_press)
         self.root.bind('<KeyRelease>', self.on_key_release)
-        
-        # Start motion update thread
-        self.motion_thread = threading.Thread(target=self.motion_update_loop, daemon=True)
-        self.motion_thread.start()
+        logging.info("GUI initialization complete")
     
     def setup_communication(self):
         """Setup ZMQ communication"""
-        self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect("tcp://192.168.229.39:5555")
-        print("ZMQ Communication setup complete")
+        try:
+            self.context = zmq.Context()
+            self.socket = self.context.socket(zmq.REQ)
+            self.socket.connect("tcp://192.168.8.192:5555")
+            logging.info("ZMQ Communication setup complete")
+        except Exception as e:
+            logging.error(f"Failed to setup ZMQ communication: {e}")
     
     def create_status_frame(self):
         self.status_frame = ttk.LabelFrame(self.root, text="Status")
@@ -69,17 +81,23 @@ class HexapodGUI:
     
     def send_command(self, cmd):
         try:
+            logging.debug(f"Sending command: {cmd}")
             self.socket.send_string(cmd)
             response = self.socket.recv_string()
             if response == "OK":
+                logging.debug(f"Command {cmd} acknowledged")
                 self.status_label.config(text=f"Sent: {cmd}")
             else:
+                logging.warning(f"Command {cmd} failed with response: {response}")
                 self.status_label.config(text=f"Error: {response}")
         except Exception as e:
+            logging.error(f"Communication error: {e}")
             self.status_label.config(text=f"Error: {e}")
     
     def on_key_press(self, event):
+        logging.debug(f"Key pressed: {event.keysym}")
         if event.keysym == 'space':
+            logging.info("Emergency stop triggered")
             self.emergency_stop = True
             self.current_motion = None
             if self.last_sent_command != 'standby':
@@ -89,6 +107,7 @@ class HexapodGUI:
             return
             
         if self.emergency_stop:
+            logging.debug("Key press ignored due to emergency stop")
             return
             
         if event.keysym.lower() in ['w', 's', 'a', 'd']:
@@ -100,12 +119,14 @@ class HexapodGUI:
             }[event.keysym.lower()]
             
             if self.current_motion != new_motion:
+                logging.info(f"Motion changing from {self.current_motion} to {new_motion}")
                 self.current_motion = new_motion
                 self.send_command(new_motion)
                 self.last_sent_command = new_motion
                 self.update_motion_display()
     
     def on_key_release(self, event):
+        logging.debug(f"Key released: {event.keysym}")
         if event.keysym.lower() in ['w', 's', 'a', 'd']:
             if self.current_motion == {
                 'w': 'forward',
@@ -113,6 +134,7 @@ class HexapodGUI:
                 'a': 'turn_left',
                 'd': 'turn_right'
             }[event.keysym.lower()]:
+                logging.info(f"Stopping motion {self.current_motion}")
                 self.current_motion = None
                 if self.last_sent_command != 'standby':
                     self.send_command('standby')
@@ -132,6 +154,7 @@ class HexapodGUI:
         Emergency Stop: {'Active' if self.emergency_stop else 'Inactive'}
         """
         self.controls_label.config(text=controls_text)
+        logging.debug(f"Display updated - Motion: {self.current_motion}, E-Stop: {self.emergency_stop}")
     
     def motion_update_loop(self):
         # Remove continuous command sending
@@ -139,6 +162,10 @@ class HexapodGUI:
             time.sleep(0.1)  # Keep thread alive but don't send commands
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = HexapodGUI(root)
-    root.mainloop() 
+    try:
+        root = tk.Tk()
+        app = HexapodGUI(root)
+        logging.info("Starting main loop")
+        root.mainloop()
+    except Exception as e:
+        logging.error(f"Application error: {e}") 
