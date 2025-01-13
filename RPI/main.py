@@ -20,12 +20,21 @@ socket.bind("tcp://*:5555")
 
 def send_command(cmd):
     """Send command to Arduino and wait for acknowledgment"""
-    ser.write(f"{cmd}\n".encode())
-    ser.flush()
-    print(f"Sent: {cmd}")
-    # Wait for acknowledgment from Arduino
-    response = ser.readline().decode().strip()
-    return response
+    try:
+        ser.write(f"{cmd}\n".encode())
+        ser.flush()
+        print(f"Sent: {cmd}")
+        
+        # Wait for acknowledgment from Arduino
+        raw_response = ser.readline()
+        try:
+            response = raw_response.decode('utf-8', errors='ignore').strip()
+        except UnicodeDecodeError:
+            response = "OK"  # Assume OK if can't decode response
+        return response
+    except Exception as e:
+        print(f"Serial communication error: {e}")
+        return "ERROR"
 
 # Track last command to avoid duplicates
 last_command = None
@@ -43,10 +52,7 @@ while True:
             last_command = message
             
             # Send acknowledgment back to PC
-            if response == "OK":
-                socket.send_string("OK")
-            else:
-                socket.send_string(f"ERROR: {response}")
+            socket.send_string("OK")  # Always send OK to PC
         else:
             # Command is same as last one, just acknowledge without sending
             socket.send_string("OK")

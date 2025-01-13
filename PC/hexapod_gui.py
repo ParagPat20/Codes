@@ -34,7 +34,7 @@ class HexapodGUI:
         """Setup ZMQ communication"""
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect("tcp://192.168.8.192:5555")
+        self.socket.connect("tcp://192.168.229.39:5555")
         print("ZMQ Communication setup complete")
     
     def create_status_frame(self):
