@@ -54,11 +54,13 @@ enum MotionMode {
     MODE_FORWARD,
     MODE_BACKWARD,
     MODE_TURN_LEFT,
-    MODE_TURN_RIGHT
+    MODE_TURN_RIGHT,
+    MODE_TEST,
+    MODE_TEST_FORWARD
 };
 
 // Motion timing
-#define MOTION_DELAY 500  // Delay between motion phases (ms)
-#define SERVO_MOVE_TIME 400  // Time for servo to reach position (ms)
+#define MOTION_DELAY 300  // Delay between motion phases (ms)
+#define SERVO_MOVE_TIME 800  // Time for servo to reach position (ms)
 
 #endif 

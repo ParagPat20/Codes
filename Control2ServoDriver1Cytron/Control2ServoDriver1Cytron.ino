@@ -145,6 +145,34 @@ void updateTurnRightMotion() {
   lastMotionUpdate = millis();
 }
 
+void updateTestMotion() {
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
+
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(TEST_SEQUENCE[currentPhase][i].id,
+                  TEST_SEQUENCE[currentPhase][i].angle);
+  }
+
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_TEST_PHASES;
+  lastMotionUpdate = millis();
+}
+
+void updateTestForwardMotion() {
+  if (millis() - lastMotionUpdate < MOTION_DELAY) {
+    return;
+  }
+
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    setServoAngle(TEST_FORWARD_SEQUENCE[currentPhase][i].id,
+                  TEST_FORWARD_SEQUENCE[currentPhase][i].angle);
+  }
+}
+
 void setMotionMode(MotionMode mode) {
   if (mode != currentMode) {
     currentMode = mode;
@@ -198,6 +226,10 @@ void loop() {
       setMotionMode(MODE_TURN_RIGHT);
     } else if (input == "standby") {
       setMotionMode(MODE_STANDBY);
+    } else if (input == "test") {
+      setMotionMode(MODE_TEST);
+    } else if (input == "test_forward") {
+      setMotionMode(MODE_TEST_FORWARD);
     } else {
       parseAndSetServos(input);
     }
@@ -219,6 +251,12 @@ void loop() {
       break;
     case MODE_STANDBY:
       moveToStandby();
+      break;
+    case MODE_TEST:
+      updateTestMotion();
+      break;
+    case MODE_TEST_FORWARD:
+      updateTestForwardMotion();
       break;
     default:
       break;

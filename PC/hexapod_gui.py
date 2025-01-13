@@ -9,14 +9,13 @@ class HexapodGUI:
         self.root = root
         self.root.title("Hexapod Control Panel")
         
-        # ZMQ setup
-        self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect("tcp://localhost:5555")
+        # Communication setup
+        self.setup_communication()
         
         # Motion state
         self.current_motion = None
         self.emergency_stop = False
+        self.last_sent_command = None  # Track last sent command
         
         # Create GUI elements
         self.create_status_frame()
@@ -30,6 +29,13 @@ class HexapodGUI:
         # Start motion update thread
         self.motion_thread = threading.Thread(target=self.motion_update_loop, daemon=True)
         self.motion_thread.start()
+    
+    def setup_communication(self):
+        """Setup ZMQ communication"""
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REQ)
+        self.socket.connect("tcp://192.168.8.192:5555")
+        print("ZMQ Communication setup complete")
     
     def create_status_frame(self):
         self.status_frame = ttk.LabelFrame(self.root, text="Status")
@@ -76,7 +82,9 @@ class HexapodGUI:
         if event.keysym == 'space':
             self.emergency_stop = True
             self.current_motion = None
-            self.send_command('standby')
+            if self.last_sent_command != 'standby':
+                self.send_command('standby')
+                self.last_sent_command = 'standby'
             self.update_motion_display()
             return
             
@@ -94,6 +102,7 @@ class HexapodGUI:
             if self.current_motion != new_motion:
                 self.current_motion = new_motion
                 self.send_command(new_motion)
+                self.last_sent_command = new_motion
                 self.update_motion_display()
     
     def on_key_release(self, event):
@@ -105,7 +114,9 @@ class HexapodGUI:
                 'd': 'turn_right'
             }[event.keysym.lower()]:
                 self.current_motion = None
-                self.send_command('standby')
+                if self.last_sent_command != 'standby':
+                    self.send_command('standby')
+                    self.last_sent_command = 'standby'
                 self.update_motion_display()
     
     def update_motion_display(self):
@@ -123,10 +134,9 @@ class HexapodGUI:
         self.controls_label.config(text=controls_text)
     
     def motion_update_loop(self):
+        # Remove continuous command sending
         while True:
-            if self.current_motion and not self.emergency_stop:
-                self.send_command(self.current_motion)
-            time.sleep(0.1)
+            time.sleep(0.1)  # Keep thread alive but don't send commands
 
 if __name__ == "__main__":
     root = tk.Tk()
