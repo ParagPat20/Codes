@@ -28,7 +28,7 @@ class ServoSequenceGenerator:
         # Create the matplotlib figure
         self.fig = plt.figure(figsize=(8, 8))
         self.ax = cast(Axes3D, self.fig.add_subplot(111, projection='3d'))
-        
+
         # Servo IDs and their default angles
         self.servo_ids = [
             # Left Front

@@ -44,7 +44,7 @@ class HexapodGUI:
         try:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.REQ)
-            self.socket.connect("tcp://192.168.8.192:5555")
+            self.socket.connect("tcp://192.168.229.39:5555")
             logging.info("ZMQ Communication setup complete")
         except Exception as e:
             logging.error(f"Failed to setup ZMQ communication: {e}")
@@ -81,18 +81,17 @@ class HexapodGUI:
     
     def send_command(self, cmd):
         try:
-            logging.debug(f"Sending command: {cmd}")
+            logging.debug(f"Sending ZMQ command: {cmd}")
             self.socket.send_string(cmd)
-            response = self.socket.recv_string()
-            if response == "OK":
-                logging.debug(f"Command {cmd} acknowledged")
-                self.status_label.config(text=f"Sent: {cmd}")
-            else:
-                logging.warning(f"Command {cmd} failed with response: {response}")
-                self.status_label.config(text=f"Error: {response}")
+            # Don't wait for response, just fire and forget
+            try:
+                # Non-blocking receive with timeout
+                response = self.socket.recv_string(flags=zmq.NOBLOCK)
+                logging.debug(f"Got response: {response}")
+            except zmq.Again:
+                pass  # No response available, continue anyway
         except Exception as e:
-            logging.error(f"Communication error: {e}")
-            self.status_label.config(text=f"Error: {e}")
+            logging.error(f"ZMQ error: {e}")
     
     def on_key_press(self, event):
         logging.debug(f"Key pressed: {event.keysym}")
@@ -100,9 +99,7 @@ class HexapodGUI:
             logging.info("Emergency stop triggered")
             self.emergency_stop = True
             self.current_motion = None
-            if self.last_sent_command != 'standby':
-                self.send_command('standby')
-                self.last_sent_command = 'standby'
+            self.send_command('standby')
             self.update_motion_display()
             return
             
@@ -119,10 +116,9 @@ class HexapodGUI:
             }[event.keysym.lower()]
             
             if self.current_motion != new_motion:
-                logging.info(f"Motion changing from {self.current_motion} to {new_motion}")
+                logging.info(f"Motion changing to {new_motion}")
                 self.current_motion = new_motion
                 self.send_command(new_motion)
-                self.last_sent_command = new_motion
                 self.update_motion_display()
     
     def on_key_release(self, event):
@@ -134,11 +130,9 @@ class HexapodGUI:
                 'a': 'turn_left',
                 'd': 'turn_right'
             }[event.keysym.lower()]:
-                logging.info(f"Stopping motion {self.current_motion}")
+                logging.info("Stopping motion")
                 self.current_motion = None
-                if self.last_sent_command != 'standby':
-                    self.send_command('standby')
-                    self.last_sent_command = 'standby'
+                self.send_command('standby')
                 self.update_motion_display()
     
     def update_motion_display(self):

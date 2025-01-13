@@ -297,6 +297,7 @@ void loop() {
       break;
     case MODE_STANDBY:
       // Already prints debug in moveToStandby()
+      moveToStandby();
       break;
     case MODE_TEST:
       if (millis() - lastMotionUpdate >= MOTION_DELAY) {

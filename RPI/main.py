@@ -31,56 +31,33 @@ socket = zmq.Socket(context, zmq.REP)
 socket.bind("tcp://*:5555")
 logging.info("ZMQ server started on port 5555")
 
-def send_command(cmd):
-    """Send command to Arduino and wait for acknowledgment"""
+def send_to_arduino(cmd):
+    """Send command to Arduino"""
     try:
-        logging.debug(f"Sending command to Arduino: {cmd}")
         ser.write(f"{cmd}\n".encode())
         ser.flush()
-        
-        # Wait for acknowledgment from Arduino
-        raw_response = ser.readline()
-        logging.debug(f"Raw response from Arduino: {raw_response}")
-        
-        try:
-            response = raw_response.decode('utf-8', errors='ignore').strip()
-            logging.debug(f"Decoded response: {response}")
-        except UnicodeDecodeError:
-            logging.warning(f"Failed to decode Arduino response: {raw_response}")
-            response = "OK"  # Assume OK if can't decode response
-        return response
+        logging.debug(f"Sent to Arduino: {cmd}")
     except Exception as e:
-        logging.error(f"Serial communication error: {e}")
-        return "ERROR"
-
-# Track last command to avoid duplicates
-last_command = None
+        logging.error(f"Serial error: {e}")
 
 while True:
     try:
         # Wait for command from PC
         message = socket.recv_string()
-        logging.info(f"Received command from PC: {message}")
+        logging.info(f"Got ZMQ command: {message}")
         
-        # Only send if command is different from last one
-        if message != last_command:
-            logging.debug(f"New command detected (last: {last_command}, new: {message})")
-            # Forward command to Arduino
-            response = send_command(message)
-            last_command = message
-            
-            # Send acknowledgment back to PC
-            socket.send_string("OK")  # Always send OK to PC
-            logging.debug("Sent OK to PC")
-        else:
-            logging.debug(f"Duplicate command ignored: {message}")
-            # Command is same as last one, just acknowledge without sending
+        # Immediately forward to Arduino
+        send_to_arduino(message)
+        
+        # Always acknowledge to PC
+        try:
             socket.send_string("OK")
+        except:
+            pass
         
     except Exception as e:
         logging.error(f"Main loop error: {e}")
         try:
             socket.send_string("ERROR")
         except:
-            logging.error("Failed to send error response to PC")
             pass 
