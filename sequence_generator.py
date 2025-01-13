@@ -1,40 +1,27 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import json
-from typing import Dict, List, cast
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
-from math import cos, sin, radians
-import time
+from typing import Dict, List
 import zmq
+import time
 
 class ServoSequenceGenerator:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Servo Sequence Generator")
-        self.root.geometry("1800x1000")  # Increased window size for 3D view
+        self.root.geometry("800x1000")  # Reduced window size
 
         # Setup ZMQ
+        self.ip = "192.168.229.39"
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
-        self.socket.connect("tcp://localhost:5555")
+        self.socket.connect(f"tcp://{self.ip}:5556")
 
         # Define colors for button states
         self.button_colors = {
             "active": "#4CAF50",  # Green for active state
             "normal": "#f0f0f0"   # Default color
         }
-
-        # Hexapod dimensions
-        self.COXA_LENGTH = 50
-        self.FEMUR_LENGTH = 70
-        self.TIBIA_LENGTH = 120
-
-        # Create the matplotlib figure
-        self.fig = plt.figure(figsize=(8, 8))
-        self.ax = cast(Axes3D, self.fig.add_subplot(111, projection='3d'))
 
         # Servo IDs and their default angles
         self.servo_ids = [
@@ -79,34 +66,23 @@ class ServoSequenceGenerator:
         main_container = ttk.Frame(self.root)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Left panel (controls) - 60% of width
-        left_panel = ttk.Frame(main_container)
-        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Right panel (3D view) - 40% of width
-        right_panel = ttk.Frame(main_container)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        # Setup 3D visualization
-        self.setup_3d_view(right_panel)
-
-        # Create a canvas with scrollbar for left panel
-        left_canvas = tk.Canvas(left_panel)
-        left_scrollbar = ttk.Scrollbar(left_panel, orient="vertical", command=left_canvas.yview)
-        left_scrollable_frame = ttk.Frame(left_canvas)
+        # Create a canvas with scrollbar
+        canvas = tk.Canvas(main_container)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
 
         # Configure the canvas
-        left_scrollable_frame.bind(
+        scrollable_frame.bind(
             "<Configure>",
-            lambda e: left_canvas.configure(scrollregion=left_canvas.bbox("all"))
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
 
-        left_canvas.create_window((0, 0), window=left_scrollable_frame, anchor="nw")
-        left_canvas.configure(yscrollcommand=left_scrollbar.set)
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Pack the left panel elements
-        left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        left_scrollbar.pack(side=tk.LEFT, fill=tk.Y)
+        # Pack the elements
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Create servo control sections
         self.servo_controls = {}
@@ -122,11 +98,8 @@ class ServoSequenceGenerator:
             ("Right Back", ["RBC", "RBT", "RBB"])
         ]
 
-        # Calculate max width needed for the frames
-        max_width = 800  # Base width for the control panel
-
         for group_name, servos in leg_groups:
-            group_frame = ttk.LabelFrame(left_scrollable_frame, text=group_name)
+            group_frame = ttk.LabelFrame(scrollable_frame, text=group_name)
             group_frame.pack(fill=tk.X, padx=5, pady=5)
             
             for servo_id in servos:
@@ -219,9 +192,6 @@ class ServoSequenceGenerator:
                                 else:
                                     btn.configure(style='TButton')
                             
-                            # After updating servo position, update the 3D view
-                            self.update_3d_view()
-                            
                     return command
 
                 # Create custom styles for buttons
@@ -305,12 +275,8 @@ class ServoSequenceGenerator:
                     "status": status_var
                 }
 
-        # Right panel for sequence controls
-        right_panel = ttk.Frame(main_container)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
-
         # Phase controls
-        phase_frame = ttk.LabelFrame(right_panel, text="Phase Controls")
+        phase_frame = ttk.LabelFrame(scrollable_frame, text="Phase Controls")
         phase_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Phase control buttons in a horizontal frame
@@ -322,7 +288,7 @@ class ServoSequenceGenerator:
         ttk.Button(btn_frame, text="Generate Code", command=self.generate_code).pack(side=tk.LEFT, padx=5)
 
         # Create a frame for the text widget and its scrollbar
-        text_frame = ttk.Frame(right_panel)
+        text_frame = ttk.Frame(scrollable_frame)
         text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Add scrollbar to the text widget
@@ -335,131 +301,9 @@ class ServoSequenceGenerator:
 
         # Configure mouse wheel scrolling for the canvas
         def _on_mousewheel(event):
-            left_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
-        left_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        # Configure minimum size for the main container
-        main_container.update_idletasks()
-        self.root.minsize(1200, 800)
-
-    def setup_3d_view(self, parent):
-        """Setup the 3D visualization panel"""
-        # Create matplotlib canvas
-        self.canvas = FigureCanvasTkAgg(self.fig, master=parent)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        # Setup the 3D axes
-        self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Y')
-        self.ax.set_zlabel('Z')
-        self.ax.set_box_aspect([1,1,1])
-        self.ax.set_xlim(-200, 200)
-        self.ax.set_ylim(-200, 200)
-        self.ax.set_zlim(-200, 200)
-        self.ax.grid(True)
-
-    def calculate_leg_points(self, leg_id: str, coxa_angle: float, femur_angle: float, tibia_angle: float):
-        """Calculate the points for a leg given its angles"""
-        # Base positions for each leg
-        base_positions = {
-            'LF': (-100, 100, 0),   # Left Front
-            'LM': (-100, 0, 0),     # Left Middle
-            'LB': (-100, -100, 0),  # Left Back
-            'RF': (100, 100, 0),    # Right Front
-            'RM': (100, 0, 0),      # Right Middle
-            'RB': (100, -100, 0)    # Right Back
-        }
-
-        leg_type = leg_id[:2]  # Get leg position (LF, LM, etc.)
-        base_x, base_y, base_z = base_positions[leg_type]
-
-        # Convert angles to radians
-        coxa_rad = radians(coxa_angle)
-        femur_rad = radians(femur_angle)
-        tibia_rad = radians(tibia_angle)
-
-        # Calculate points
-        coxa_end_x = base_x + self.COXA_LENGTH * cos(coxa_rad)
-        coxa_end_y = base_y + self.COXA_LENGTH * sin(coxa_rad)
-        coxa_end_z = base_z
-
-        femur_end_x = coxa_end_x + self.FEMUR_LENGTH * cos(coxa_rad) * cos(femur_rad)
-        femur_end_y = coxa_end_y + self.FEMUR_LENGTH * sin(coxa_rad) * cos(femur_rad)
-        femur_end_z = coxa_end_z + self.FEMUR_LENGTH * sin(femur_rad)
-
-        tibia_end_x = femur_end_x + self.TIBIA_LENGTH * cos(coxa_rad) * cos(femur_rad + tibia_rad)
-        tibia_end_y = femur_end_y + self.TIBIA_LENGTH * sin(coxa_rad) * cos(femur_rad + tibia_rad)
-        tibia_end_z = femur_end_z + self.TIBIA_LENGTH * sin(femur_rad + tibia_rad)
-
-        return [
-            [base_x, coxa_end_x, femur_end_x, tibia_end_x],
-            [base_y, coxa_end_y, femur_end_y, tibia_end_y],
-            [base_z, coxa_end_z, femur_end_z, tibia_end_z]
-        ]
-
-    def update_3d_view(self):
-        """Update the 3D visualization with current servo angles"""
-        self.ax.cla()
-        self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Y')
-        self.ax.set_zlabel('Z')
-        self.ax.set_xlim(-200, 200)
-        self.ax.set_ylim(-200, 200)
-        self.ax.set_zlim(-200, 200)
-        self.ax.grid(True)
-
-        # Draw body frame
-        body_x = [-100, -100, 100, 100, -100]
-        body_y = [100, -100, -100, 100, 100]
-        body_z = [0, 0, 0, 0, 0]
-        self.ax.plot(body_x, body_y, body_z, 'k--')
-
-        # Get current angles and draw legs
-        angles = self.get_current_angles()
-        
-        # Map servo IDs to leg positions
-        leg_servos = {
-            'LF': ('LFC', 'LFT', 'LFB'),
-            'LM': ('LMC', 'LMT', 'LMB'),
-            'LB': ('LBC', 'LBT', 'LBB'),
-            'RF': ('RFC', 'RFT', 'RFB'),
-            'RM': ('RMC', 'RMT', 'RMB'),
-            'RB': ('RBC', 'RBT', 'RBB')
-        }
-
-        # Draw each leg
-        for leg_id, servos in leg_servos.items():
-            coxa_angle = angles[servos[0]]
-            femur_angle = angles[servos[1]]
-            tibia_angle = angles[servos[2]]
-            
-            points = self.calculate_leg_points(leg_id, coxa_angle, femur_angle, tibia_angle)
-            
-            # Draw the leg segments with different colors
-            self.ax.plot(points[0][:2], points[1][:2], points[2][:2], 'r-', linewidth=2)  # Coxa
-            self.ax.plot(points[0][1:3], points[1][1:3], points[2][1:3], 'g-', linewidth=2)  # Femur
-            self.ax.plot(points[0][2:], points[1][2:], points[2][2:], 'b-', linewidth=2)  # Tibia
-
-        self.canvas.draw()
-
-    def adjust_angle(self, servo_id: str, amount: int):
-        """Adjust the angle of a servo by the given amount"""
-        controls = self.servo_controls[servo_id]
-        current_value = int(float(controls["scale"].get()))
-        new_value = max(0, min(180, current_value + amount))  # Ensure value stays within 0-180
-        
-        # Update both scale and entry
-        controls["scale"].set(new_value)
-        controls["entry"].delete(0, tk.END)
-        controls["entry"].insert(0, str(new_value))
-
-    def get_current_angles(self) -> Dict[str, int]:
-        return {
-            servo_id: int(float(controls["scale"].get()))
-            for servo_id, controls in self.servo_controls.items()
-        }
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
     def add_phase(self):
         angles = self.get_current_angles()
@@ -553,13 +397,12 @@ class ServoSequenceGenerator:
         current = int(float(self.servo_controls[servo_id]["scale"].get()))
         
         # Move to min, mid, max positions
-        test_positions = [0, 90, 180, current]  # Return to original position
+        test_positions = [current]  # Return to original position
         for pos in test_positions:
             self.send_command(f"{servo_id}:{pos}")
             self.servo_controls[servo_id]["scale"].set(pos)
             self.servo_controls[servo_id]["entry"].delete(0, tk.END)
             self.servo_controls[servo_id]["entry"].insert(0, str(pos))
-            self.update_3d_view()
             time.sleep(0.5)  # Delay between positions
 
     def create_mode_controls(self):
@@ -585,6 +428,13 @@ class ServoSequenceGenerator:
             self.socket.close()
         if hasattr(self, 'context'):
             self.context.term()
+
+    def get_current_angles(self) -> Dict[str, int]:
+        """Get current angles of all servos"""
+        return {
+            servo_id: int(float(controls["scale"].get()))
+            for servo_id, controls in self.servo_controls.items()
+        }
 
 if __name__ == "__main__":
     app = ServoSequenceGenerator()

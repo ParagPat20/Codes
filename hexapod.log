@@ -199,3 +199,15 @@
 2025-01-13 13:19:45,125 - DEBUG - Sent to Arduino: standby
 2025-01-13 13:19:45,223 - DEBUG - Sent to Arduino: forward
 2025-01-13 13:19:45,294 - DEBUG - Sent to Arduino: standby
+2025-01-13 13:53:50,664 - INFO - Connected to Arduino
+2025-01-13 13:53:50,665 - INFO - ZMQ Subscriber started on port 5556
+2025-01-13 13:54:36,652 - ERROR - Error: name 'ser' is not defined
+2025-01-13 13:54:41,213 - ERROR - Error: name 'ser' is not defined
+2025-01-13 13:54:41,315 - ERROR - Error: name 'ser' is not defined
+2025-01-13 13:54:43,937 - ERROR - Error: name 'ser' is not defined
+2025-01-13 13:54:44,038 - ERROR - Error: name 'ser' is not defined
+2025-01-13 13:55:55,382 - ERROR - Could not connect to any serial port
+2025-01-13 13:56:11,266 - INFO - Connected to Arduino on port COM21
+2025-01-13 13:56:11,266 - INFO - ZMQ Subscriber started on port 5556
+2025-01-13 13:56:19,453 - DEBUG - Sent to Arduino: test_servos
+2025-01-13 13:56:19,555 - DEBUG - Sent to Arduino: LFC:45

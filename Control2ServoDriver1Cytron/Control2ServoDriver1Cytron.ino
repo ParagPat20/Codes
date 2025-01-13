@@ -173,6 +173,11 @@ void updateTestForwardMotion() {
   }
 }
 
+void updateTestServosMotion() {
+  // Do nothing - this mode only responds to direct servo commands
+  // through parseAndSetServos() when receiving serial input
+}
+
 void setMotionMode(MotionMode mode) {
   if (mode != currentMode) {
     Serial.print("Motion mode changing from ");
@@ -304,8 +309,10 @@ void loop() {
       updateTurnRightMotion();
       break;
     case MODE_STANDBY:
-      // Already prints debug in moveToStandby()
-      moveToStandby();
+      // Only move to standby if not in TEST_SERVOS mode
+      if (currentMode != MODE_TEST_SERVOS) {
+        moveToStandby();
+      }
       break;
     case MODE_TEST:
       if (millis() - lastMotionUpdate >= MOTION_DELAY) {
@@ -322,7 +329,7 @@ void loop() {
       updateTestForwardMotion();
       break;
     case MODE_TEST_SERVOS:
-      // Do nothing, just wait for commands
+      updateTestServosMotion();
       break;
     default:
       break;
@@ -346,35 +353,10 @@ void parseAndSetServos(String command) {
   Serial.print(" to angle: ");
   Serial.println(angle);
 
-  // Find servo config
-  const ServoConfig* config = findServoConfig(servoId.c_str());
-  if (config && angle >= 0 && angle <= 180) {
-    // Apply inversion and offset from config
-    if (config->inverted) {
-      angle = 180 - angle;
-      Serial.print("Inverted angle: ");
-      Serial.println(angle);
-    }
-    angle += config->offset;
-    Serial.print("After offset: ");
-    Serial.println(angle);
-    
-    // Constrain final angle
-    angle = constrain(angle, 0, 180);
-    
-    // Determine which PCA9685 to use based on old_id
-    if (config->old_id[0] == 'L') {  // Left side servos on PCA1
-      pca1.setPWM(config->channel, 0, angleToPulse(angle));
-      Serial.print("Set LEFT servo channel ");
-    } else {  // Right side servos on PCA2
-      pca2.setPWM(config->channel, 0, angleToPulse(angle));
-      Serial.print("Set RIGHT servo channel ");
-    }
-    Serial.print(config->channel);
-    Serial.print(" to angle ");
-    Serial.println(angle);
+  if (angle >= 0 && angle <= 180) {
+    setServoAngle(servoId.c_str(), angle);
   } else {
-    Serial.println("Invalid servo ID or angle");
+    Serial.println("Invalid angle");
   }
 }
 
