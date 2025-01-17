@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 import zmq
-import logging
 import time
 
 class HexapodGUI:
@@ -121,9 +120,9 @@ class HexapodGUI:
             self.socket = self.context.socket(zmq.PUB)
             self.ip = "192.168.229.39"
             self.socket.connect(f"tcp://{self.ip}:5556")
-            logging.info("ZMQ communication setup complete")
+            print("ZMQ communication setup complete")
         except Exception as e:
-            logging.error(f"Failed to setup ZMQ: {e}")
+            print(f"Failed to setup ZMQ: {e}")
             self.socket = None
             
     def send_command(self, cmd):
@@ -131,11 +130,11 @@ class HexapodGUI:
         try:
             if self.socket:
                 self.socket.send_string(cmd)
-                logging.info(f"Sent command: {cmd}")
+                print(f"Sent command: {cmd}")
             else:
-                logging.error("No ZMQ connection available")
+                print("No ZMQ connection available")
         except Exception as e:
-            logging.error(f"ZMQ send error: {e}")
+            print(f"ZMQ send error: {e}")
             
     def __del__(self):
         """Cleanup ZMQ resources"""
@@ -153,7 +152,7 @@ if __name__ == "__main__":
     try:
         root = tk.Tk()
         app = HexapodGUI(root)
-        logging.info("Starting main loop")
+        print("Starting main loop")
         root.mainloop()
     except Exception as e:
-        logging.error(f"Application error: {e}") 
+        print(f"Application error: {e}") 
