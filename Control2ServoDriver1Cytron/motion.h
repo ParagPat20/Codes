@@ -17,36 +17,36 @@ struct ServoPosition {
 #define NUM_STANDBY_POSITIONS 20
 const ServoPosition STANDBY_POSITION[NUM_STANDBY_POSITIONS] = {
   // LEFT FRONT
-  { "LFC", 0 },    // Front Coxa (L2)
-  { "LFT", 70 },   // Front Femur (L3)
-  { "LFB", 180 },  // Front Tibia (L1)
+  { "LFC", 90 },    // Front Coxa (L2)
+  { "LFT", 90 },   // Front Femur (L3)
+  { "LFB", 90 },  // Front Tibia (L1)
 
   // LEFT MID
   { "LMC", 90 },   // Mid Coxa (L8)
-  { "LMT", 160 },  // Mid Femur1 (L6)
-  { "LMB", 100 },  // Mid Femur2 (L7)
-  { "LMF", 0 },    // Mid Tibia (L5)
+  { "LMT", 90 },  // Mid Femur1 (L6)
+  { "LMB", 90 },  // Mid Femur2 (L7)
+  { "LMF", 90 },    // Mid Tibia (L5)
 
   // LEFT BACK
-  { "LBC", 0 },    // Back Coxa (L11)
-  { "LBT", 70 },   // Back Femur (L10)
-  { "LBB", 180 },  // Back Tibia (L9)
+  { "LBC", 90 },    // Back Coxa (L11)
+  { "LBT", 90 },   // Back Femur (L10)
+  { "LBB", 90 },  // Back Tibia (L9)
 
   // RIGHT FRONT
-  { "RFC", 0 },    // Front Coxa (R3)
-  { "RFT", 70 },   // Front Femur (R2)
-  { "RFB", 180 },  // Front Tibia (R1)
+  { "RFC", 90 },    // Front Coxa (R3)
+  { "RFT", 90 },   // Front Femur (R2)
+  { "RFB", 90 },  // Front Tibia (R1)
 
   // RIGHT MID
   { "RMC", 90 },   // Mid Coxa (R8)
-  { "RMT", 160 },  // Mid Femur1 (R7)
-  { "RMB", 100 },  // Mid Femur2 (R6)
-  { "RMF", 0 },    // Mid Tibia (R5)
+  { "RMT", 90 },  // Mid Femur1 (R7)
+  { "RMB", 90 },  // Mid Femur2 (R6)
+  { "RMF", 90 },    // Mid Tibia (R5)
 
   // RIGHT BACK
-  { "RBC", 0 },   // Back Coxa (R9)
-  { "RBT", 70 },  // Back Femur (R11)
-  { "RBB", 180 }  // Back Tibia (R10)
+  { "RBC", 90 },   // Back Coxa (R9)
+  { "RBT", 90 },  // Back Femur (R11)
+  { "RBB", 90 }  // Back Tibia (R10)
 };
 
 // Forward walking sequence
