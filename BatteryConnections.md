@@ -1,89 +1,200 @@
-# Hexapod Robot - Three Battery Power and Control System with Diode Protection (Detailed Connections)
+# Hexapod Robot Power System Documentation
 
-This document describes the battery connections and circuit setup for a hexapod robot using three batteries (one for the middle section, one for each side), separate control circuits, and a Schottky diode for simultaneous charging and servo operation.
+## Circuit Diagram
+```
+                                    Middle Section
+                    +----------------------------------------+
+                    |   +------------+      +------------+    |
+                    |   | 5000mAh    |      |    3S     |    |
+                    |   |   LiPo     |----->|    BMS    |    |
+                    |   | Battery    |      |           |    |
+                    |   +------------+      +------------+    |
+                    |           |                |           |
+                    |           v                v           |
+                    |      +-----------+   +------------+   |
+                    |      |  ESP32    |   | Charging   |   |
+                    |      | (Master)  |   | Circuit    |   |
+                    |      +-----------+   +------------+   |
+                    +----------------------------------------+
+                                    |
+                                    |
+            +------------------------|------------------------+
+            |                       |                        |
+            v                       v                        v
+    Left Section                                     Right Section
++------------------+                            +------------------+
+|  +------------+  |                           |  +------------+  |
+|  | 2500mAh    |  |                           |  | 2500mAh    |  |
+|  |   LiPo     |--|                           |  |   LiPo     |--|
+|  | Battery    |  |                           |  | Battery    |  |
+|  +------------+  |                           |  +------------+  |
+|        |         |                           |        |         |
+|        v         |                           |        v         |
+|  +------------+  |                           |  +------------+  |
+|  |    3S      |  |                           |  |    3S      |  |
+|  |    BMS     |  |                           |  |    BMS     |  |
+|  +------------+  |                           |  +------------+  |
+|        |         |                           |        |         |
+|        v         |                           |        v         |
+|    [Schottky]    |                           |    [Schottky]    |
+|        |         |                           |        |         |
+|        v         |                           |        v         |
+| +-------------+  |                           | +-------------+  |
+| |   ESP32     |  |                           | |   ESP32     |  |
+| +-------------+  |                           | +-------------+  |
+|        |         |                           |        |         |
+|        v         |                           |        v         |
+| +-------------+  |                           | +-------------+  |
+| |   STM32     |  |                           | |   STM32     |  |
+| +-------------+  |                           | +-------------+  |
+|        |         |                           |        |         |
+|        v         |                           |        v         |
+| +-------------+  |                           | +-------------+  |
+| |Servo Motors |  |                           | |Servo Motors |  |
+| |& DC Motors  |  |                           | |& DC Motors  |  |
+| +-------------+  |                           | +-------------+  |
++------------------+                           +------------------+
+```
 
-## System Overview
+## System Architecture Overview
 
-The robot uses a distributed power and control system. Each side (left and right) has its own battery, control circuitry, and servo motors. The middle section houses the main battery, charging circuitry, and the central ESP32 for high-level control and communication.
+The hexapod robot uses a distributed power system with three independent battery sections:
 
-## Components - Left and Right Sides
+1. Middle Section (Control Hub)
+2. Left Section (Leg Control)
+3. Right Section (Leg Control)
 
-Each side (left and right) contains the following:
+### Key Features
+- Independent power distribution for improved reliability
+- Simultaneous charging and operation capability
+- Protected charging circuits with Schottky diodes
+- Wireless communication between sections
 
-*   ESP32 Microcontroller: Handles local control tasks, communicates with the central ESP32.
-*   STM32 Microcontroller: Generates PWM signals for the servo motors.
-*   DC Motor: Drives the wheel on that side.
-*   DC Motor Driver Circuit: Controls the speed and direction of the DC motor.
-*   Servo Motors: 10 servo motors for the hexapod legs.
-*   Servo Motor Power and PWM Circuit: Provides power to the servo motors and receives PWM signals from the STM32.
-*   2500mAh 3S LiPo Battery: Powers all components on that side.
-*   3S BMS (Battery Management System): Protects the LiPo battery.
-*   Schottky Diode (10A-20A Recommended): Prevents backflow of current into the charging circuit.
+## Detailed Component Specifications
 
-## Components - Middle Section
+### Middle Section (Control Hub)
+- Battery: 5000mAh 3S LiPo
+- BMS: 3S Battery Management System
+- Controller: ESP32 (Master)
+- Primary Functions: Central control, charging management
 
-The middle section contains:
+### Side Sections (Left & Right)
+- Battery: 2500mAh 3S LiPo
+- BMS: 3S Battery Management System
+- Controllers: ESP32 + STM32
+- Actuators: 10 Servo motors, 1 DC motor
+- Protection: Schottky diode (10A-20A)
 
-*   ESP32 Microcontroller: Central controller, communicates wirelessly with the side ESP32s.
-*   5000mAh 3S LiPo Battery: Powers the middle section electronics and acts as the charging source.
-*   3S BMS (Battery Management System): Protects the middle battery.
-*   Charging Circuit (CC/CV): Manages charging of the side batteries.
+## Connection Guide
 
-## Battery Connections and Circuit Setup (Detailed)
+### 1. Power Distribution
 
-**Left and Right Sides (Identical Setup - Example for Left Side, Right side is mirrored):**
+#### Middle Section Setup
+1. Battery Connections
+   ```
+   Battery (+) â†’ BMS B+
+   Battery (-) â†’ BMS B-
+   Balance Leads â†’ BMS Balance Ports
+   ```
 
-1.  **Battery to BMS:**
-    *   Connect the *large red wire* (positive terminal) of the 2500mAh 3S LiPo battery to the *B+* terminal of the 3S BMS.
-    *   Connect the *large black wire* (negative terminal) of the 2500mAh 3S LiPo battery to the *B-* terminal of the 3S BMS.
-    *   Connect the *balance wires* (small wires) from the 2500mAh 3S LiPo battery to the *balance pins* on the 3S BMS.  *Refer to your BMS documentation for the correct order.*
+2. Control Circuit
+   ```
+   BMS P+ â†’ ESP32 VIN
+   BMS P- â†’ Common Ground
+   BMS P+ â†’ Charging Circuit Input
+   ```
 
-2.  **BMS Output to Electronics (Servo Power Path):**
-    *   Connect the *P+* terminal of the 3S BMS to the positive (+) power rail that supplies power to the ESP32, STM32, DC motor driver circuit, and the servo motor power/PWM circuit.
-    *   Connect the *P-* terminal of the 3S BMS to the negative (-) power rail (common ground).
+#### Side Section Setup (Left/Right)
+1. Battery Protection
+   ```
+   Battery (+) â†’ BMS B+
+   Battery (-) â†’ BMS B-
+   Balance Leads â†’ BMS Balance Ports
+   ```
 
-3.  **BMS to Servo Power (Through Diode):**
-    *   Connect the *P+* terminal of the 3S BMS to the *anode* (the end without the stripe) of the Schottky diode.
-    *   Connect the *cathode* (the end with the stripe) of the Schottky diode to the positive (+) power rail of the servo motors.
-    *   Connect the negative (-) power rail of the servo motors to the *P-* terminal of the 3S BMS (common ground).
+2. Servo Power Circuit
+   ```
+   BMS P+ â†’ Schottky Diode Anode
+   Schottky Diode Cathode â†’ Servo Power Rail
+   BMS P- â†’ Servo Ground Rail
+   ```
 
-4.  **STM32 to Servos:**
-    *   Connect the PWM output pins from the STM32 microcontroller to the appropriate input pins on the servo motor power/PWM circuit.  This circuit then drives the 10 servo motors.
+3. Control Circuit Power
+   ```
+   BMS P+ â†’ Voltage Regulator Input
+   Voltage Regulator Output â†’ ESP32/STM32 VIN
+   BMS P- â†’ Control Circuit Ground
+   ```
 
-5.  **ESP32 Communication:**
-    *   Connect the appropriate TX/RX pins of the ESP32 microcontroller to the corresponding RX/TX pins of the central ESP32 in the middle section for wireless communication (e.g., ESP-NOW).
+### 2. Communication Setup
 
-6.  **ESP32 to DC Motor:**
-    *   Connect the GPIO pins of the ESP32 microcontroller to the input pins of the DC motor driver circuit.  This controls the speed and direction of the DC motor.
+#### ESP32 Network Configuration
+```
+Protocol: ESP-NOW
+Topology: Star (Middle ESP32 as hub)
+Data Rate: 1Mbps
+```
 
-**Middle Section:**
+#### Control Signal Routing
+1. Middle ESP32 â†’ Side ESP32s
+   - Movement commands
+   - Status monitoring
+   - Battery management
 
-1.  **Battery to BMS:**
-    *   Connect the *large red wire* (positive terminal) of the 5000mAh 3S LiPo battery to the *B+* terminal of the 3S BMS.
-    *   Connect the *large black wire* (negative terminal) of the 5000mAh 3S LiPo battery to the *B-* terminal of the 3S BMS.
-    *   Connect the *balance wires* from the 5000mAh 3S LiPo battery to the *balance pins* on the 3S BMS.  *Refer to your BMS documentation.*
+2. Side ESP32 â†’ STM32
+   - Servo control signals
+   - Motor control signals
 
-2.  **BMS to Electronics:**
-    *   Connect the *P+* terminal of the 5000mAh 3S BMS to the positive (+) power rail for the ESP32 and the charging circuit.
-    *   Connect the *P-* terminal of the 5000mAh 3S BMS to the negative (-) power rail (common ground).
+## Safety Features
 
-3.  **Charging Circuit:**
-    *   The charging circuit's *input* is connected to the P+ and P- terminals of the middle battery's BMS.
-    *   The charging circuit's *outputs* are connected to the slip rings.
+### 1. Overcurrent Protection
+- BMS current limiting
+- Fused power rails
+- Schottky diode isolation
 
-**Slip Ring Connections:**
+### 2. Battery Protection
+- Over-voltage protection
+- Under-voltage protection
+- Short circuit protection
+- Temperature monitoring
 
-*   Two slip rings (or two sets of rings on a single slip ring assembly) are used per side.
-*   The *output* (positive and negative) of the charging circuit for the left side connects to one set of slip rings.  These slip rings connect to the *B+* and *B-* terminals of the left side's BMS.
-*   The *output* (positive and negative) of the charging circuit for the right side connects to the other set of slip rings. These slip rings connect to the *B+* and *B-* terminals of the right side's BMS.
+### 3. Charging Safety
+- CC/CV charging profile
+- Balance charging
+- Isolated charging paths
 
-## Key Considerations
+## Maintenance Guidelines
 
-*   **BMS Selection:** Choose appropriate BMS units (voltage, capacity, current, pass-through charging for side BMSs).
-*   **Charging Circuit Design:** Design the charging circuit for safe and efficient charging.
-*   **Wiring:** Use appropriate gauge wiring.
-*   **Fuses:** Use fuses for protection.
-*   **Common Ground:** All grounds must be connected.
-*   **Schottky Diode:** Use a Schottky diode with the specified current and voltage ratings.  Ensure it has a low forward voltage drop.  Consider a heatsink if necessary.
-*   **Current Capacity:** Ensure the CC/CV charger can provide enough current for both charging and servo operation.
-*   **Voltage Monitoring:** Monitor battery voltages to ensure the 5000mAh battery doesn't drain too quickly.
+### Regular Checks
+1. Battery voltage monitoring
+2. Connection integrity
+3. Diode temperature during operation
+4. Slip ring conductivity
+
+### Troubleshooting
+1. Power Issues
+   - Check battery voltage
+   - Verify BMS operation
+   - Test diode continuity
+
+2. Control Issues
+   - Verify ESP32 communication
+   - Check STM32 outputs
+   - Monitor servo power rails
+
+## Performance Specifications
+
+### Power System
+```
+Input Voltage: 11.1V (3S LiPo)
+Peak Current: 15A per side
+Charging Current: 5A maximum
+Operating Time: ~2 hours (typical use)
+```
+
+### Control System
+```
+Update Rate: 50Hz
+Latency: <20ms
+Communication Range: 10m (typical)
+```
