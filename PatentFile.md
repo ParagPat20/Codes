@@ -3,10 +3,15 @@
 ## **Title of the Design**  
 **Rollopod – A Transforming Hexapod with Dual-Mode Locomotion**
 
-## **Applicant Information**  
-- **Name:** [Your Name]  
-- **Address:** [Your Address]  
-- **Contact Details:** [Your Contact Details]  
+## **1st Applicant Information**  
+- **Name:** Parag Patil  
+- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445
+- **Contact Details:** 9313552445
+
+## **2nd Applicant Information**  
+- **Name:** Rutu Patel  
+- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445
+- **Contact Details:** 9313552445
 
 ## **Field of Invention**  
 The present design pertains to robotic locomotion systems, specifically a **hexapod robot capable of dual-mode movement – walking and rolling** – with a **unique transformation mechanism**. The design enables efficient **mobility, stability, and adaptability**, making it suitable for applications in **search and rescue, planetary exploration, industrial inspection, military operations, and autonomous mobility solutions**.  
