@@ -5,13 +5,13 @@
 
 ## **1st Applicant Information**  
 - **Name:** Parag Patil  
-- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445
-- **Contact Details:** 9313552445
+- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445  
+- **Contact Details:** 9313552445  
 
 ## **2nd Applicant Information**  
 - **Name:** Rutu Patel  
-- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445
-- **Contact Details:** 9313552445
+- **Address:** 10-C, Aakarpark Society, Near Parth colony, Vijalpore, Navsari, Gujarat, India - 396445  
+- **Contact Details:** 9313552445  
 
 ## **Field of Invention**  
 The present design pertains to robotic locomotion systems, specifically a **hexapod robot capable of dual-mode movement – walking and rolling** – with a **unique transformation mechanism**. The design enables efficient **mobility, stability, and adaptability**, making it suitable for applications in **search and rescue, planetary exploration, industrial inspection, military operations, and autonomous mobility solutions**.  
@@ -51,6 +51,14 @@ Attached to this application are **detailed drawings, CAD models, and exploded v
 3. **Front, Side, and Top Views of Both Configurations**  
 4. **Transformation Sequence Diagrams**  
 5. **Functional Component Integration with Structural Elements**  
+6. **Additional Views and Uploaded Files:**  
+   - **AllViewsLine.pdf**  
+   - **FrontView.png**  
+   - **BottomView.png**  
+   - **FrontCLView.pdf**  
+   - **LeftView.png**  
+   - **RightView.png**  
+   - **HomeView.png**  
 
 ## **Conclusion**  
 This **design patent application for Rollopod** seeks protection for its **unique dual-mode robotic structure**, ensuring exclusive rights over its **visual and structural innovations**. The design presents a **novel aesthetic and functional combination** that enhances **robotic mobility across varied terrains and applications**.  
