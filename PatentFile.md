@@ -55,7 +55,6 @@ Attached to this application are **detailed drawings, CAD models, and exploded v
    - ![All Views](AllViewsLine.pdf)  
    - ![Front View](FrontView.png)  
    - ![Bottom View](BottomView.png)  
-   - ![Front CL View](FrontCLView.pdf)  
    - ![Left View](LeftView.png)  
    - ![Right View](RightView.png)  
    - ![Home View](HomeView.png)  
