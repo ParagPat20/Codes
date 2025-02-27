@@ -52,13 +52,13 @@ Attached to this application are **detailed drawings, CAD models, and exploded v
 4. **Transformation Sequence Diagrams**  
 5. **Functional Component Integration with Structural Elements**  
 6. **Additional Views and Uploaded Files:**  
-   - **AllViewsLine.pdf**  
-   - **FrontView.png**  
-   - **BottomView.png**  
-   - **FrontCLView.pdf**  
-   - **LeftView.png**  
-   - **RightView.png**  
-   - **HomeView.png**  
+   - ![All Views](AllViewsLine.pdf)  
+   - ![Front View](FrontView.png)  
+   - ![Bottom View](BottomView.png)  
+   - ![Front CL View](FrontCLView.pdf)  
+   - ![Left View](LeftView.png)  
+   - ![Right View](RightView.png)  
+   - ![Home View](HomeView.png)  
 
 ## **Conclusion**  
 This **design patent application for Rollopod** seeks protection for its **unique dual-mode robotic structure**, ensuring exclusive rights over its **visual and structural innovations**. The design presents a **novel aesthetic and functional combination** that enhances **robotic mobility across varied terrains and applications**.  
