@@ -13,6 +13,11 @@ Rollopod consists of:
 - Three articulated legs mounted on the right ring.
 - Six legs total.
 
+### Ring Structure & Leg Distribution
+The rolling rings are structural transformation frames rather than conventional wheels. Each ring acts as a rolling surface, a structural support frame, a mounting structure for three articulated legs, and a housing for transformation linkages.
+
+Each rolling ring carries three major articulated leg assemblies. The front, middle and rear legs are permanently attached to the ring structure. The middle leg is larger and occupies the central region of the ring. The legs fold inward into the ring volume during rolling transformation. The rings remain mechanically visible in both walking and rolling modes.
+
 The rolling rings remain visible in all operating modes.
 The central body remains suspended between the two rolling rings.
 The robot never transforms into a sphere.
@@ -35,16 +40,34 @@ During transformation:
 - Central body remains suspended.
 - No spherical enclosure is formed.
 
+### Transformation States
+Rollopod can exist in:
+
+1. **Walking State**
+   - All six legs deployed.
+
+2. **Rolling State**
+   - Both side rings closed.
+
+3. **Transitional State**
+   - One or more legs partially folded.
+   - One ring may be deployed while the opposite ring remains closed.
+   - Intermediate configurations are mechanically valid and visually important.
+
 ## Visual Geometry
 
 The robot is visually characterized by:
 - Two large side rolling rings.
 - Central rectangular body.
 - Open mechanical architecture.
-- Exposed servo actuators.
-- Aluminium structural members.
-- Visible folding joints.
+- Exposed servo motors, brackets, and joints.
+- Aluminium structural members and CNC-cut plates.
+- Carbon-fibre components.
+- Visible folding mechanical linkages.
 - Six articulated legs.
+
+**Visual Appearance**
+The robot should resemble a practical engineering prototype with functional engineering aesthetics. The robot should not resemble a consumer product, toy, or futuristic science-fiction machine.
 
 The robot does not resemble a spherical robot or ball robot.
 

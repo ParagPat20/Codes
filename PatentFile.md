@@ -48,6 +48,20 @@ During transformation:
 - Central body remains suspended.
 - No spherical enclosure is formed.
 
+### Transformation States
+Rollopod can exist in:
+
+1. **Walking State**
+   - All six legs deployed.
+
+2. **Rolling State**
+   - Both side rings closed.
+
+3. **Transitional State**
+   - One or more legs partially folded.
+   - One ring may be deployed while the opposite ring remains closed.
+   - Intermediate configurations are mechanically valid and visually important.
+
 ## **Description of the Design**  
 The **Rollopod** features a **six-legged walking system** integrated with a **rotational mechanism** that enables the robot to transition smoothly between rolling and walking. The unique **geometric configuration of its legs, outer disk, and actuators** allows a **compact dual-ring rolling configuration for rolling** and an **expanded form for hexapod walking**. The design also incorporates **speed differential control** for movement direction during rolling mode.  
 

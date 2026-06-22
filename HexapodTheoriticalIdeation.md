@@ -43,6 +43,20 @@ During transformation:
 - Central body remains suspended.
 - No spherical enclosure is formed.
 
+### Transformation States
+Rollopod can exist in:
+
+1. **Walking State**
+   - All six legs deployed.
+
+2. **Rolling State**
+   - Both side rings closed.
+
+3. **Transitional State**
+   - One or more legs partially folded.
+   - One ring may be deployed while the opposite ring remains closed.
+   - Intermediate configurations are mechanically valid and visually important.
+
 In the rapidly evolving field of robotics, there is a constant push for machines that can adapt to diverse environments and overcome complex challenges. Our proposed Rollopod Robot represents a significant leap forward in this pursuit, combining advanced mobility, adaptability, and autonomous capabilities in a single, versatile platform. The hexapod, or six-legged robot, is designed to navigate a wide range of terrains with unprecedented agility and stability. What sets our design of Rollopod apart is its unique ability to transform between walking and rolling modes, allowing it to efficiently traverse both rough terrain and smooth surfaces. This dual-mode locomotion system enables the robot to adapt to changing environments, making it suitable for a variety of applications from search and rescue operations to planetary exploration and keep scanning the environment in Rolling motion.
 
    
@@ -129,15 +143,15 @@ It can also follow other patterns of climbing based on the height and position.
 
 Rolling Mechanism:
 
-The rolling mechanism comprises an outer disk to which the legs are connected via servos. This disk is affixed with a gear, which in turn is linked to a DC motor. When the microcontroller signals the DC motor, it initiates rotation, causing the outer disk to rotate as well. With both disks rotating in the same direction, the robot rolls forward or backward seamlessly.
+The rolling mechanism comprises an structural rolling ring to which the legs are connected via servos. This disk is affixed with a gear, which in turn is linked to a DC motor. When the microcontroller signals the DC motor, it initiates rotation, causing the structural rolling ring to rotate as well. With both disks rotating in the same direction, the robot rolls forward or backward seamlessly.
 
 Fig 4.3.7: Parts used for Rolling
 
 Fig 4.3.8: Motion Study for Rolling
 
-To maintain the central body of the robot in a stable and forward-facing position, the Return Wheel Mechanism is employed. This mechanism, which is spring-loaded, ensures that the central body consistently faces forward. Additionally, the inclusion of a ball bearing in the center of the outer disks ensures independence between the central body and the outer disks. Consequently, the central body, which houses the camera, can continuously face forward, allowing for tasks such as depth measurement and object detection. This mechanism facilitates the autonomous rolling of the hexapod in unfamiliar environments.
+To maintain the central body of the robot in a stable and forward-facing position, the Return Wheel Mechanism is employed. This mechanism, which is spring-loaded, ensures that the central body consistently faces forward. Additionally, the inclusion of a ball bearing in the center of the structural rolling rings ensures independence between the central body and the structural rolling rings. Consequently, the central body, which houses the camera, can continuously face forward, allowing for tasks such as depth measurement and object detection. This mechanism facilitates the autonomous rolling of the hexapod in unfamiliar environments.
 
-Both outer disks are equipped with Inertial Measurement Units (IMUs) to provide feedback on disk rotation. The IMU determines the gyroscopic position of the outer disk, aiding the hexapod in transforming into a legged form with downward-facing legs. This transformation ensures that the robot remains upright and avoids flipping over. By rotating the outer disks appropriately, the hexapod can position both sets of legs facing downward, maintaining stability and preventing the robot from turning upside down.
+Both structural rolling rings are equipped with Inertial Measurement Units (IMUs) to provide feedback on structural rolling ring rotation. The IMU determines the gyroscopic position of the structural rolling ring, aiding the hexapod in transforming into a legged form with downward-facing legs. This transformation ensures that the robot remains upright and avoids flipping over. By rotating the structural rolling rings appropriately, the hexapod can position both sets of legs facing downward, maintaining stability and preventing the robot from turning upside down.
 
 Fig 4.3.9: Return Wheel Mechanism
 
@@ -147,11 +161,11 @@ Aluminium/Carbon Fibre Extrusion Frame and Linkages: The hexapod’s body will b
 
 Servo Motors and Control System: The hexapod uses standard PWM-controlled servo motors, driven by an STM32 microcontroller. The STM32 generates precise PWM signals to control each servo, enabling accurate and coordinated leg movements for walking and rolling.
 
-High Torque DC Motors and DC Motor Driver: The high torque DC motors are employed to rotate the outer disks, which house the servo legs, while in the rolling position. These motors are connected to the outer disks through gears, providing the necessary torque for climbing by exerting rotational force forward.
+High Torque DC Motors and DC Motor Driver: The high torque DC motors are employed to rotate the structural rolling rings, which house the servo legs, while in the rolling position. These motors are connected to the structural rolling rings through gears, providing the necessary torque for climbing by exerting rotational force forward.
 
 Intel RealSense 3D Depth Sensing Camera: It is used in developing autonomous behavior in the hexapod robot. It continuously captures images and utilizes them for object detection, recognition, and avoidance (DRA). Additionally, it employs stereoscopic vision to sense the depth of objects, enabling the robot to navigate its environment more effectively. The camera's ability to perceive depth allows for more accurate decision-making, enhancing the robot's autonomy and adaptability in various scenarios.
 
-Inertial Measurement Unit (MPU6050): This component plays a crucial role in maintaining stability in the hexapod robot during various actions such as walking, climbing, rolling, and transforming. It collects gyroscopic data to keep the robot steady, allowing the legs to move accordingly to maintain balance on uneven terrain. Additionally, the MPU6050 is used to collect attitude data of the outer disks, ensuring that during autonomous rolling or transformation, the hexapod remains upright and avoids flipping over. This capability is essential for the robot's safe and stable operation in dynamic environments.
+Inertial Measurement Unit (MPU6050): This component plays a crucial role in maintaining stability in the hexapod robot during various actions such as walking, climbing, rolling, and transforming. It collects gyroscopic data to keep the robot steady, allowing the legs to move accordingly to maintain balance on uneven terrain. Additionally, the MPU6050 is used to collect attitude data of the structural rolling rings, ensuring that during autonomous rolling or transformation, the hexapod remains upright and avoids flipping over. This capability is essential for the robot's safe and stable operation in dynamic environments.
 
 Raspberry Pi Processor: It is the main brain of the Hexapod robot which processes the data and generates the control signals based on the situations. The Raspberry Pi serves as the central processing unit of the hexapod robot, responsible for processing data and generating control signals based on environmental conditions. It receives sensor data and integrates them to develop autonomous behavior in the hexapod. Additionally, the Raspberry Pi performs depth measuring operations and object recognition, crucial for navigating and interacting with its surroundings. Its wireless capabilities enable remote operation via WiFi, allowing for flexible control and monitoring. The Raspberry Pi supports coding in multiple languages, making it accessible to a wide range of developers. Furthermore, it can save setups, codes, and trained data, enabling seamless reuse and customization for different applications and environments.
 
