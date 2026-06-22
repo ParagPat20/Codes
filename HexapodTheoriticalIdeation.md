@@ -4,14 +4,14 @@ A Fastest Evolution of Hexapod
 
 
 
-Rollopod is not a spherical robot. It is a dual-ring transformable hexapod with a central suspended body and two side rolling ring assemblies.
+Rollopod is not a spherical robot. It is a dual-ring transformable hexapod with a central suspended body where three legs on each side transform into a wheel.
 
 # Physical Architecture
 
 Rollopod consists of:
 
 - One central body module.
-- Two large circular side rolling rings.
+- Three legs on each side transform into a wheel.
 - Three articulated legs mounted on the left ring.
 - Three articulated legs mounted on the right ring.
 - Six legs total.

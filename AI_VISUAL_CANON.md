@@ -2,35 +2,89 @@
 
 The image attached in this repository is the authoritative visual reference for Rollopod. All generated visualizations, CAD concepts, renders and illustrations shall conform to its geometry, proportions and transformation principles.
 
+AUTHORITATIVE GEOMETRY
+
+The uploaded CAD model is the primary source of truth.
+Text descriptions are secondary.
+All generated images must follow:
+- wheel diameter
+- body proportions
+- leg proportions
+- servo locations
+- transformation sequence
+exactly as shown in CAD.
+
+Without a visual anchor, image models invent geometry.
+
 ## 1. Reference Geometry
 The official Rollopod appearance consists of:
-- Two large side circular transformation rings.
+- Three legs on each side transform into a wheel structure.
 - Central suspended rectangular body.
 - Open-frame architecture.
-- Ring diameter significantly larger than body height.
+- Wheel structure diameter significantly larger than body height.
 - Exposed mechanical joints.
 - Exposed servo housings.
-- Thick rolling tread sections mounted on ring perimeter.
-- Three leg assemblies integrated into each ring.
+- Thick rolling tread sections mounted on the legs.
 - Industrial engineering appearance.
 
 The overall appearance should resemble a transformable field robot rather than a consumer robot.
 
-## 2. Transformation Rings (Not Conventional Wheels)
-The rolling rings are structural transformation frames rather than conventional wheels.
-Each ring acts as:
-- A rolling surface.
-- A structural support frame.
-- A mounting structure for three articulated legs.
-- A housing for transformation linkages.
+## 2. Critical Geometry Constraints
+IMPORTANT:
 
-The rings remain mechanically visible in both walking and rolling modes.
+The side rolling rings are NOT permanent wheels.
+The wheel structure is formed by the transformation of the three legs on each side.
 
-## 3. Leg Distribution and Anatomy
-Each rolling ring carries three major articulated leg assemblies.
-The front, middle and rear legs are permanently attached to the ring structure.
-The middle leg is larger and occupies the central region of the ring.
-The legs fold inward into the ring volume during rolling transformation.
+**Walking Mode Appearance:**
+The robot should visually resemble:
+- traditional hexapod
+- six visible fully deployed legs
+- central suspended body
+- no complete circular wheel exists
+The wheel structures should not visually dominate. At first glance it should be identified as a hexapod.
+
+**Rolling Mode Appearance:**
+The robot should visually resemble:
+- two large wheels
+- central suspended body
+The six legs are folded and integrated into the wheel structure. No separate walking legs remain visible.
+- Three left legs fold together to create one continuous rolling ring.
+- Three right legs fold together to create one continuous rolling ring.
+- The rings are created from the transformed leg assemblies.
+
+The robot must never appear as:
+- A wheel robot with legs attached.
+- A wheel with decorative legs.
+- A wheel carrying a hexapod.
+Instead: The legs themselves become the wheel.
+
+## 3. Mechanical Topology
+LEFT SIDE
+Leg A
+Leg B
+Leg C
+↓
+Fold inward
+↓
+Connect edge-to-edge
+↓
+Create left wheel
+
+RIGHT SIDE
+Leg D
+Leg E
+Leg F
+↓
+Fold inward
+↓
+Connect edge-to-edge
+↓
+Create right wheel
+
+The wheels do not exist independently. The wheels are created by transformed legs.
+
+**Leg Curvature for Rolling:**
+Crucially, each individual leg features an outer curvature with thick treads. When the three legs on a side fold inward, their curved outer profiles align perfectly edge-to-edge to form a continuous circular rolling surface.
 
 ## 4. Visual Appearance & Materials
 The robot should resemble a practical engineering prototype.
@@ -44,21 +98,19 @@ Features include:
 - Carbon-fibre components.
 - Functional engineering aesthetics.
 
-The robot should not resemble a consumer product, toy, or futuristic science-fiction machine.
-
-## 5. Transformation States
-Rollopod can exist in:
-
-1. **Walking State**
-   - All six legs deployed.
-
-2. **Rolling State**
-   - Both side rings closed.
-
-3. **Transitional State**
-   - One or more legs partially folded.
-   - One ring may be deployed while the opposite ring remains closed.
-   - Intermediate configurations are mechanically valid and visually important.
+## 5. Negative Constraints
+Do NOT generate:
+- Festo BionicWheelBot style geometry
+- Wheels with attached legs
+- Spider robots
+- Wheel-legged hybrids
+- Circular wheel frames carrying legs
+- Permanent wheels
+- Sci-fi mechs
+- Military robot aesthetics
+- Tank-like robots
+- Ball robots
+- Spherical robots
 
 ## Universal Anchor Rule
-Rollopod is not a spherical robot. It is a dual-ring transformable hexapod with a central suspended body and two side rolling ring assemblies.
+Rollopod is not a spherical robot. It is a dual-ring transformable hexapod with a central suspended body where three legs on each side transform into a wheel.
