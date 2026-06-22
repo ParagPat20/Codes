@@ -33,7 +33,7 @@ The **Rollopod** features a **six-legged walking system** integrated with a **ro
 
 4. **Material and Build Innovation:**  
    - **Lightweight aluminum or carbon fiber** frame enhances durability while reducing energy consumption.  
-   - **Integrated gear and servo mechanisms** ensure seamless actuation within the rolling disk while maintaining a compact and efficient form.  
+   - **Integrated gear, servo mechanisms, and distributed electronics (ESP32 microcontrollers and PCA9685 PWM drivers)** ensure seamless wireless actuation within the rolling disk while maintaining a compact and efficient form.  
 
 ## **Statement of Novelty**  
 The **Rollopod's** design is a **first-of-its-kind robotic structure** integrating **hexapod walking with a rolling transformation system**, while maintaining an **aesthetically distinct and functionally efficient form**. The **spherical rolling mode, servo-actuated transformation mechanism, and speed differential movement control** contribute to its **unique and non-obvious design elements**.  

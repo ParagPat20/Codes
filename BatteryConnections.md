@@ -1,8 +1,8 @@
 # Hexapod Robot Power System Documentation
 
 ## Circuit Diagram
-```
-                                    Middle Section
+```text
+                                    Middle Section (Logic & Comm Hub)
                     +----------------------------------------+
                     |   +------------+      +------------+    |
                     |   | 5000mAh    |      |    3S     |    |
@@ -13,14 +13,14 @@
                     |           v                v           |
                     |      +-----------+   +------------+   |
                     |      |  ESP32    |   | Charging   |   |
-                    |      | (Master)  |   | Circuit    |   |
+                    |      |  (Slave)  |   | Circuit    |   |
                     |      +-----------+   +------------+   |
                     +----------------------------------------+
-                                    |
+                                    | (I2C: SDA/SCL)
                                     |
             +------------------------|------------------------+
-            |                       |                        |
-            v                       v                        v
+            |                        |                        |
+            v                        v                        v
     Left Section                                     Right Section
 +------------------+                            +------------------+
 |  +------------+  |                           |  +------------+  |
@@ -40,161 +40,118 @@
 |        |         |                           |        |         |
 |        v         |                           |        v         |
 | +-------------+  |                           | +-------------+  |
-| |   ESP32     |  |                           | |   ESP32     |  |
-| +-------------+  |                           | +-------------+  |
-|        |         |                           |        |         |
-|        v         |                           |        v         |
-| +-------------+  |                           | +-------------+  |
-| |   STM32     |  |                           | |   STM32     |  |
+| |  PCA9685    |  |                           | |  PCA9685    |  |
+| | PWM Driver  |  |                           | | PWM Driver  |  |
 | +-------------+  |                           | +-------------+  |
 |        |         |                           |        |         |
 |        v         |                           |        v         |
 | +-------------+  |                           | +-------------+  |
 | |Servo Motors |  |                           | |Servo Motors |  |
-| |& DC Motors  |  |                           | |& DC Motors  |  |
 | +-------------+  |                           | +-------------+  |
 +------------------+                           +------------------+
 ```
 
 ## System Architecture Overview
 
-The hexapod robot uses a distributed power system with three independent battery sections:
+The hexapod robot uses a distributed power system with three independent battery sections to separate sensitive logic electronics from the high-current demands of the servos.
 
-1. Middle Section (Control Hub)
-2. Left Section (Leg Control)
-3. Right Section (Leg Control)
+1. **Middle Section (Control Hub)**: Powers the logic side (Slave ESP32).
+2. **Left Section (Leg Control)**: Powers the PCA9685 high-current rail and left-side servos.
+3. **Right Section (Leg Control)**: Powers the PCA9685 high-current rail and right-side servos.
 
 ### Key Features
-- Independent power distribution for improved reliability
-- Simultaneous charging and operation capability
-- Protected charging circuits with Schottky diodes
-- Wireless communication between sections
+- Independent power distribution for improved reliability.
+- Prevention of brownouts: ESP32 remains stable even under heavy servo load.
+- Hardware-based PWM generation via PCA9685 over I2C.
+- Wireless commands received via ESP-NOW from a PC-connected Master ESP32.
 
 ## Detailed Component Specifications
 
 ### Middle Section (Control Hub)
-- Battery: 5000mAh 3S LiPo
-- BMS: 3S Battery Management System
-- Controller: ESP32 (Master)
-- Primary Functions: Central control, charging management
+- **Battery**: 5000mAh 3S LiPo
+- **BMS**: 3S Battery Management System
+- **Controller**: ESP32 (Slave)
+- **Primary Functions**: Wireless communication reception (ESP-NOW), I2C master control.
 
 ### Side Sections (Left & Right)
-- Battery: 2500mAh 3S LiPo
-- BMS: 3S Battery Management System
-- Controllers: ESP32 + STM32
-- Actuators: 10 Servo motors, 1 DC motor
-- Protection: Schottky diode (10A-20A)
+- **Battery**: 6200mAh 3S LiPo
+- **BMS**: 3S Battery Management System
+- **Controllers**: PCA9685 16-Channel PWM Drivers
+- **Actuators**: Servo motors
+- **Protection**: Schottky diode (10A-20A)
 
 ## Connection Guide
 
 ### 1. Power Distribution
 
 #### Middle Section Setup
-1. Battery Connections
+1. **Battery Connections**
+   ```text
+   Battery (+) → BMS B+
+   Battery (-) → BMS B-
+   Balance Leads → BMS Balance Ports
    ```
-   Battery (+) â†’ BMS B+
-   Battery (-) â†’ BMS B-
-   Balance Leads â†’ BMS Balance Ports
-   ```
-
-2. Control Circuit
-   ```
-   BMS P+ â†’ ESP32 VIN
-   BMS P- â†’ Common Ground
-   BMS P+ â†’ Charging Circuit Input
+2. **Control Circuit**
+   ```text
+   BMS P+ → Voltage Regulator (e.g., 5V Buck) Input
+   Voltage Regulator Output → ESP32 VIN (or 5V pin)
+   BMS P- → Common Ground
    ```
 
 #### Side Section Setup (Left/Right)
-1. Battery Protection
+1. **Battery Protection**
+   ```text
+   Battery (+) → BMS B+
+   Battery (-) → BMS B-
    ```
-   Battery (+) â†’ BMS B+
-   Battery (-) â†’ BMS B-
-   Balance Leads â†’ BMS Balance Ports
+2. **Servo Power Circuit**
+   ```text
+   BMS P+ → Schottky Diode Anode
+   Schottky Diode Cathode → PCA9685 "V+" (Servo Power Input)
+   BMS P- → PCA9685 Ground (Must be tied to Common Ground)
    ```
-
-2. Servo Power Circuit
-   ```
-   BMS P+ â†’ Schottky Diode Anode
-   Schottky Diode Cathode â†’ Servo Power Rail
-   BMS P- â†’ Servo Ground Rail
-   ```
-
-3. Control Circuit Power
-   ```
-   BMS P+ â†’ Voltage Regulator Input
-   Voltage Regulator Output â†’ ESP32/STM32 VIN
-   BMS P- â†’ Control Circuit Ground
+3. **PCA9685 Logic Power**
+   ```text
+   From Middle Section 5V Regulator → PCA9685 "VCC"
    ```
 
 ### 2. Communication Setup
 
 #### ESP32 Network Configuration
-```
+```text
 Protocol: ESP-NOW
-Topology: Star (Middle ESP32 as hub)
-Data Rate: 1Mbps
+Topology: Point-to-Point (PC Master ESP32 to Robot Slave ESP32)
 ```
 
 #### Control Signal Routing
-1. Middle ESP32 â†’ Side ESP32s
-   - Movement commands
-   - Status monitoring
-   - Battery management
-
-2. Side ESP32 â†’ STM32
-   - Servo control signals
-   - Motor control signals
+1. **Master ESP32 (on PC) → Slave ESP32 (on Robot)**
+   - Translates Python GUI serial commands to wireless ESP-NOW packets.
+2. **Slave ESP32 → PCA9685 Boards**
+   - Transmits PWM tick adjustments over the I2C bus (`GPIO21`/`GPIO22`).
+3. **PCA9685 Boards → Servos**
+   - Directly drives servo signal lines with 50Hz PWM signals based on I2C commands.
 
 ## Safety Features
 
 ### 1. Overcurrent Protection
 - BMS current limiting
 - Fused power rails
-- Schottky diode isolation
+- Schottky diode isolation to prevent reverse currents from regenerative braking.
 
-### 2. Battery Protection
-- Over-voltage protection
-- Under-voltage protection
-- Short circuit protection
-- Temperature monitoring
-
-### 3. Charging Safety
-- CC/CV charging profile
-- Balance charging
-- Isolated charging paths
-
-## Maintenance Guidelines
-
-### Regular Checks
-1. Battery voltage monitoring
-2. Connection integrity
-3. Diode temperature during operation
-4. Slip ring conductivity
-
-### Troubleshooting
-1. Power Issues
-   - Check battery voltage
-   - Verify BMS operation
-   - Test diode continuity
-
-2. Control Issues
-   - Verify ESP32 communication
-   - Check STM32 outputs
-   - Monitor servo power rails
+### 2. Common Ground Requirement
+- **Critical:** The grounds for all three batteries, the ESP32, and the PCA9685 boards *must* be connected together. Without a common ground, I2C signals will fail and servos may behave erratically.
 
 ## Performance Specifications
 
 ### Power System
-```
-Input Voltage: 11.1V (3S LiPo)
-Peak Current: 15A per side
-Charging Current: 5A maximum
-Operating Time: ~2 hours (typical use)
+```text
+Input Voltage: 11.1V (3S LiPo, dropped down via buck converters)
+Peak Current: Dependent on servos (can exceed 10A per side)
 ```
 
 ### Control System
-```
-Update Rate: 50Hz
-Latency: <20ms
-Communication Range: 10m (typical)
+```text
+Protocol: ESP-NOW
+Update Rate: Optimized via Serial/I2C
+Latency: ~10-30ms over wireless link
 ```

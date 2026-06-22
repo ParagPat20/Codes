@@ -1,60 +1,54 @@
-# Hexapod Robot with Wireless Control and Separate Power Supplies
+# Hexapod Robot Hardware Connections
 
-This document details the setup for a hexapod robot with wireless control and separate power supplies for each section (left, right, and middle).
+This document details the setup for the Rollopod hexapod robot, featuring an ESP-NOW wireless architecture and a streamlined servo control system using PCA9685 PWM drivers.
 
 ## Mechanical Structure
 
-The robot comprises three main parts:
+The robot comprises three conceptual parts:
 
-1.  **Left Side:** Contains 10 servo motors for the left hexapod legs.
-2.  **Right Side:** Contains 10 servo motors for the right hexapod legs.
-3.  **Middle Part:** Contains the control electronics, including the ESP32, MOSFETs for DC motor control (for the wheels), and acts as the central communication hub.
+1.  **Left Side:** Contains servo motors for the left hexapod legs.
+2.  **Right Side:** Contains servo motors for the right hexapod legs.
+3.  **Middle Part:** Contains the control electronics, including the central Slave ESP32, IMU, and power distribution components.
 
 ## Components
 
 *   **Microcontrollers:**
-    *   **ESP32 (Middle Part):** Central controller, handles wireless communication, high-level control logic, and DC motor control.
-    *   **STM32 (Left Side):** Controls the 10 servo motors on the left side.
-    *   **STM32 (Right Side):** Controls the 10 servo motors on the right side.
-*   **Servo Motors:** 20 servo motors (10 on each side) with 150kg torque rating, operating at 12V.
-*   **DC Motors:** Two DC motors for the wheels.
-*   **MOSFETs:** H-bridge configuration for each DC motor to control speed and direction.
-*   **IMU (Inertial Measurement Unit):**  For measuring the angle and angular rate of the middle section.
-*   **Buck Converters:** Three buck converters, one for each section (left, right, and middle), to regulate the 12V battery voltage to 5V (or 3.3V) for the microcontrollers and other low-voltage electronics.
-*   **Batteries:** Three 12V battery packs, one for each section.
-*   **Wiring:** Appropriate gauge wiring for the high-current servo motors and other connections.
-*   **Connectors:** Suitable connectors for all connections.
-
-## Power Distribution
-
-*   **Left Side:** A 12V battery pack powers the 10 servo motors directly. A separate buck converter, powered by the same battery, provides 5V/3.3V to the STM32.
-*   **Right Side:** A 12V battery pack powers the 10 servo motors directly. A separate buck converter, powered by the same battery, provides 5V/3.3V to the STM32.
-*   **Middle Part:** A 12V battery pack powers a buck converter, which provides 5V/3.3V to the ESP32, MOSFET drivers, and other electronics on this board.  The DC motors for the wheels are also powered from this buck converter.
+    *   **Master ESP32 (PC Bridge):** Connected to the computer via USB. Sends wireless commands to the robot.
+    *   **Slave ESP32 (On Robot - Middle Part):** Central controller on the robot. Receives wireless communication (ESP-NOW) and sends I2C commands to the servo drivers.
+*   **Servo Drivers:**
+    *   **PCA9685 PWM Drivers:** 16-channel I2C-controlled PWM drivers. These replace the previously used STM32 microcontrollers, simplifying the architecture and relying purely on hardware PWM generation. Multiple PCA9685 boards can be daisy-chained via I2C to support up to 20+ servos.
+*   **Servo Motors:** High-torque servo motors operating at appropriate voltage (e.g., 5-6V or 12V depending on model) for the hexapod legs and transformation mechanism.
+*   **DC Motors & MOSFETs (If applicable):** H-bridge configurations for any auxiliary DC motors (e.g., for rolling assist).
+*   **IMU (Inertial Measurement Unit):** For measuring the angle and angular rate of the robot to assist in balancing and orientation tracking.
+*   **Batteries:** Distributed battery packs to isolate high-current servo loads from sensitive logic electronics.
 
 ## Connections and Control Signals
 
-*   **ESP32 (Middle):**
-    *   Powers its electronics from the middle section's buck converter.
-    *   Communicates wirelessly (ESP-NOW) with the STM32s.
-    *   Sends servo angle commands to the STM32s.
-    *   Controls the DC motors via MOSFETs (powered from the middle section's buck converter).
-*   **STM32 (Left/Right):**
-    *   Powers its electronics from its respective side's buck converter.
-    *   Receives servo commands from the ESP32 via UART serial communication.
-    *   Generates PWM signals for the 10 servo motors on its side.  The servos are powered directly from the 12V battery on that side.
-*   **MOSFETs:** Control the speed and direction of the DC motors.  Control signals come from the ESP32.  Power comes from the middle section's buck converter.
-*   **Servo Motors:**  Connected to the STM32s for control signals (PWM) and powered directly from their respective 12V battery packs.
-*   **Common Ground:** All ground connections (battery negatives, buck converter grounds, and all component grounds) *must* be connected together.
+*   **Master ESP32 (PC Bridge):**
+    *   Connected to PC via USB.
+    *   Translates commands from the Python GUI into ESP-NOW wireless packets.
+*   **Slave ESP32 (Middle):**
+    *   Powers its electronics from a regulated 5V buck converter.
+    *   Communicates wirelessly (ESP-NOW) with the Master ESP32.
+    *   Connects to the PCA9685 boards via I2C (`GPIO21` for SDA, `GPIO22` for SCL, plus common ground).
+*   **PCA9685 Boards:**
+    *   **Logic Power (`VCC`):** Connected to the 5V output of the logic buck converter.
+    *   **Servo Power (`V+`):** Connected directly to the high-current external battery/power supply for the servos.
+    *   **Signal Lines:** Receive I2C from the Slave ESP32.
+    *   **PWM Output:** Connected to the signal wires of the servo motors.
+*   **Servo Motors:** 
+    *   Connected directly to the output pins of the PCA9685 boards. Power is drawn through the `V+` rail of the PCA9685, keeping it isolated from the ESP32 logic power.
+*   **Common Ground:** All ground connections (battery negatives, buck converter grounds, ESP32 ground, and PCA9685 ground) *must* be connected together.
 
-## Software
+## Software Architecture
 
-*   **ESP32:** Handles wireless communication (ESP-NOW), runs the high-level control logic, and sends commands to the STM32s and MOSFET drivers.
-*   **STM32s:** Receive commands from the ESP32 and generate the precise PWM signals for the servo motors.
+*   **Python GUI (PC):** Provides an intuitive interface for calibrating and manually controlling the servo positions.
+*   **Master ESP32 Firmware:** Runs `esp32_master_bridge.ino` to act as a transparent serial-to-wireless bridge.
+*   **Slave ESP32 Firmware:** Runs `esp32_slave_pca9685.ino` to receive ESP-NOW packets and directly manipulate the PCA9685 registers over I2C to adjust servo PWM ticks.
 
 ## Key Considerations
 
-*   **Separate Power Supplies:** Essential for isolating high-current servo loads.
-*   **Common Ground:** Crucial for signal integrity.
-*   **Wiring and Connectors:** Must be rated for the expected currents.
-*   **Fuses:** Recommended for each battery connection for safety.
-*   **Buck Converter Capacity:** Choose buck converters that can handle the current requirements of the electronics.
+*   **ESP-NOW MAC Addressing:** The Master ESP32 must be hardcoded with the exact MAC address of the Slave ESP32. Check the `ESP_NOW_SETUP_GUIDE.md` in the `RollopodCodes` directory for instructions on how to find and configure this.
+*   **Separate Power Supplies:** Essential for isolating high-current servo loads. The servos pulling high current can cause voltage dips that will reset the ESP32 if they share the same unprotected power rail.
+*   **I2C Addressing:** If using multiple PCA9685 boards to control more than 16 servos, ensure you solder the address jumpers on the boards to give each a unique I2C address (e.g., `0x40`, `0x41`).
+*   **Common Ground:** Crucial for signal integrity across the I2C bus and PWM signals.
