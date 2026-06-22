@@ -132,6 +132,14 @@ const char index_html[] PROGMEM = R"rawliteral(
     .motor-button:active {
       opacity: 0.8;
     }
+    .motor-button.left {
+      background-color: #2196F3;
+      color: white;
+    }
+    .motor-button.right {
+      background-color: #FF9800;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -139,7 +147,10 @@ const char index_html[] PROGMEM = R"rawliteral(
   <p>Current Mode: <span id="mode">%MODE%</span></p>
   <p>
     <button class="button standby" onclick="setMode('standby')">STANDBY</button>
-    <button class="button active" onclick="setMode('forward')">FORWARD</button>
+    <button class="button forward" onclick="setMode('forward')">FORWARD</button>
+    <button class="button backward" onclick="setMode('backward')">BACKWARD</button>
+    <button class="button left" onclick="setMode('left')">LEFT</button>
+    <button class="button right" onclick="setMode('right')">RIGHT</button>
     <button class="button test" onclick="setMode('test_servos')">TEST MODE</button>
     <button class="button rolling" onclick="setMode('rolling')">ROLLING</button>
   </p>
@@ -483,6 +494,59 @@ void updateForwardMotion() {
   Serial.println("ms)");
 }
 
+void updateBackwardMotion() {
+  if (millis() - lastMotionUpdate < MOTION_DELAY + SERVO_MOVE_TIME) {
+    return;  // Wait for both movement and delay time
+  }
+
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    const ServoMove& move = BACKWARD_SEQUENCE[currentPhase][i];
+    if (move.id != nullptr) {
+      // Find standby position for this servo
+      const ServoPosition* standbyPos = nullptr;
+      for (int j = 0; j < NUM_STANDBY_POSITIONS; j++) {
+        if (strcmp(STANDBY_POSITION[j].id, move.id) == 0) {
+          standbyPos = &STANDBY_POSITION[j];
+          break;
+        }
+      }
+
+      if (standbyPos) {
+        // Apply relative change to standby position
+        int newAngle = standbyPos->angle + move.change;
+
+        // Debug output
+        Serial.print("Servo ");
+        Serial.print(move.id);
+        Serial.print(": Standby=");
+        Serial.print(standbyPos->angle);
+        Serial.print(" Change=");
+        Serial.print(move.change);
+        Serial.print(" New=");
+        Serial.println(newAngle);
+
+        setServoAngle(move.id, newAngle);
+      }
+    } else {
+      // No change, use standby position
+      setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
+    }
+  }
+
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_BACKWARD_PHASES;
+  lastMotionUpdate = millis();
+
+  Serial.print("Backward phase: ");
+  Serial.print(currentPhase);
+  Serial.print(" (Move time: ");
+  Serial.print(SERVO_MOVE_TIME);
+  Serial.print("ms, Delay: ");
+  Serial.print(MOTION_DELAY);
+  Serial.println("ms)");
+}
+
 void updateTestServosMotion() {
   static unsigned long lastDebugUpdate = 0;
   const unsigned long DEBUG_INTERVAL = 1000;  // Print positions every second
@@ -535,23 +599,110 @@ void updateRollingMotion() {
   Serial.println("ms)");
 }
 
-void setMotionMode(MotionMode mode) {
-  if (mode != currentMode) {
-    Serial.print("Motion mode changing from ");
-    Serial.print(getMotionModeName(currentMode));
-    Serial.print(" to ");
-    Serial.println(getMotionModeName(mode));
+void updateLeftMotion() {
+  if (millis() - lastMotionUpdate < MOTION_DELAY + SERVO_MOVE_TIME) {
+    return;  // Wait for both movement and delay time
+  }
 
-    currentMode = mode;
-    currentPhase = 0;
-    lastMotionUpdate = 0;
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    const ServoMove& move = LEFT_SEQUENCE[currentPhase][i];
+    if (move.id != nullptr) {
+      // Find standby position for this servo
+      const ServoPosition* standbyPos = nullptr;
+      for (int j = 0; j < NUM_STANDBY_POSITIONS; j++) {
+        if (strcmp(STANDBY_POSITION[j].id, move.id) == 0) {
+          standbyPos = &STANDBY_POSITION[j];
+          break;
+        }
+      }
 
-    if (mode == MODE_STANDBY) {
-      moveToStandby();
-    } else if (mode == MODE_ROLLING) {
-      rollingComplete = false;  // Reset rolling state when entering roll mode
+      if (standbyPos) {
+        // Apply relative change to standby position
+        int newAngle = standbyPos->angle + move.change;
+
+        // Debug output
+        Serial.print("Servo ");
+        Serial.print(move.id);
+        Serial.print(": Standby=");
+        Serial.print(standbyPos->angle);
+        Serial.print(" Change=");
+        Serial.print(move.change);
+        Serial.print(" New=");
+        Serial.println(newAngle);
+
+        setServoAngle(move.id, newAngle);
+      }
+    } else {
+      // No change, use standby position
+      setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
     }
   }
+
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_LEFT_PHASES;
+  lastMotionUpdate = millis();
+
+  Serial.print("Left phase: ");
+  Serial.print(currentPhase);
+  Serial.print(" (Move time: ");
+  Serial.print(SERVO_MOVE_TIME);
+  Serial.print("ms, Delay: ");
+  Serial.print(MOTION_DELAY);
+  Serial.println("ms)");
+}
+
+void updateRightMotion() {
+  if (millis() - lastMotionUpdate < MOTION_DELAY + SERVO_MOVE_TIME) {
+    return;  // Wait for both movement and delay time
+  }
+
+  // Update all servos for current phase
+  for (int i = 0; i < NUM_STANDBY_POSITIONS; i++) {
+    const ServoMove& move = RIGHT_SEQUENCE[currentPhase][i];
+    if (move.id != nullptr) {
+      // Find standby position for this servo
+      const ServoPosition* standbyPos = nullptr;
+      for (int j = 0; j < NUM_STANDBY_POSITIONS; j++) {
+        if (strcmp(STANDBY_POSITION[j].id, move.id) == 0) {
+          standbyPos = &STANDBY_POSITION[j];
+          break;
+        }
+      }
+
+      if (standbyPos) {
+        // Apply relative change to standby position
+        int newAngle = standbyPos->angle + move.change;
+
+        // Debug output
+        Serial.print("Servo ");
+        Serial.print(move.id);
+        Serial.print(": Standby=");
+        Serial.print(standbyPos->angle);
+        Serial.print(" Change=");
+        Serial.print(move.change);
+        Serial.print(" New=");
+        Serial.println(newAngle);
+
+        setServoAngle(move.id, newAngle);
+      }
+    } else {
+      // No change, use standby position
+      setServoAngle(STANDBY_POSITION[i].id, STANDBY_POSITION[i].angle);
+    }
+  }
+
+  // Move to next phase
+  currentPhase = (currentPhase + 1) % NUM_RIGHT_PHASES;
+  lastMotionUpdate = millis();
+
+  Serial.print("Right phase: ");
+  Serial.print(currentPhase);
+  Serial.print(" (Move time: ");
+  Serial.print(SERVO_MOVE_TIME);
+  Serial.print("ms, Delay: ");
+  Serial.print(MOTION_DELAY);
+  Serial.println("ms)");
 }
 
 // Helper function to get mode name
@@ -559,10 +710,29 @@ const char* getMotionModeName(MotionMode mode) {
   switch (mode) {
     case MODE_STANDBY: return "STANDBY";
     case MODE_FORWARD: return "FORWARD";
+    case MODE_BACKWARD: return "BACKWARD";
+    case MODE_LEFT: return "LEFT";
+    case MODE_RIGHT: return "RIGHT";
     case MODE_TEST_SERVOS: return "TEST_SERVOS";
     case MODE_ROLLING: return "ROLLING";
     default: return "UNKNOWN";
   }
+}
+
+// Function to set motion mode
+void setMotionMode(MotionMode mode) {
+  currentMode = mode;
+  currentPhase = 0;
+  lastMotionUpdate = 0;
+  rollingComplete = false;
+
+  // If switching to standby, move to standby position
+  if (mode == MODE_STANDBY) {
+    moveToStandby();
+  }
+
+  Serial.print("Mode changed to: ");
+  Serial.println(getMotionModeName(mode));
 }
 
 void setupWiFi() {
@@ -588,12 +758,18 @@ void setupWebServer() {
       String mode = server.arg("set");
       if (mode == "forward") {
         setMotionMode(MODE_FORWARD);
+      } else if (mode == "backward") {
+        setMotionMode(MODE_BACKWARD);
       } else if (mode == "standby") {
         setMotionMode(MODE_STANDBY);
       } else if (mode == "test_servos") {
         setMotionMode(MODE_TEST_SERVOS);
       } else if (mode == "rolling") {
         setMotionMode(MODE_ROLLING);
+      } else if (mode == "left") {
+        setMotionMode(MODE_LEFT);
+      } else if (mode == "right") {
+        setMotionMode(MODE_RIGHT);
       }
     }
     server.send(200, "text/plain", getMotionModeName(currentMode));
@@ -752,6 +928,9 @@ void loop() {
     if (input == "forward") {
       setMotionMode(MODE_FORWARD);
       Serial.println("OK");
+    } else if (input == "backward") {
+      setMotionMode(MODE_BACKWARD);
+      Serial.println("OK");
     } else if (input == "standby") {
       setMotionMode(MODE_STANDBY);
       Serial.println("OK");
@@ -760,6 +939,12 @@ void loop() {
       Serial.println("OK");
     } else if (input == "rolling") {
       setMotionMode(MODE_ROLLING);
+      Serial.println("OK");
+    } else if (input == "left") {
+      setMotionMode(MODE_LEFT);
+      Serial.println("OK");
+    } else if (input == "right") {
+      setMotionMode(MODE_RIGHT);
       Serial.println("OK");
     } else if (currentMode == MODE_TEST_SERVOS) {
       parseAndSetServos(input);
@@ -775,6 +960,9 @@ void loop() {
     case MODE_FORWARD:
       updateForwardMotion();
       break;
+    case MODE_BACKWARD:
+      updateBackwardMotion();
+      break;
     case MODE_STANDBY:
       if (currentMode != MODE_TEST_SERVOS) {
         moveToStandby();
@@ -785,6 +973,12 @@ void loop() {
       break;
     case MODE_ROLLING:
       updateRollingMotion();
+      break;
+    case MODE_LEFT:
+      updateLeftMotion();
+      break;
+    case MODE_RIGHT:
+      updateRightMotion();
       break;
     default:
       break;

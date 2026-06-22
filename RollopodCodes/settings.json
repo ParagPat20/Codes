@@ -1,0 +1,69 @@
+{
+  "frequency": 50,
+  "channels": {
+    "0": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "1": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "2": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "3": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "4": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "5": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "6": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "7": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "8": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "9": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "10": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "11": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "12": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "13": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "14": {
+      "tick_min": 102,
+      "tick_max": 512
+    },
+    "15": {
+      "tick_min": 102,
+      "tick_max": 512
+    }
+  }
+}

@@ -17,7 +17,7 @@
 
 // Motion timing
 #define MOTION_DELAY 100     // Delay between motion phases (ms)
-#define SERVO_MOVE_TIME 100  // Time for servo to reach position (ms)
+#define SERVO_MOVE_TIME 150  // Time for servo to reach position (ms)
 
 // Leg identifiers for easier reference
 #define LEFT_FRONT 0
@@ -38,8 +38,11 @@ struct ServoConfig {
 enum MotionMode {
   MODE_STANDBY,
   MODE_FORWARD,
+  MODE_BACKWARD,
+  MODE_LEFT,      // New left motion mode
+  MODE_RIGHT,     // New right motion mode
   MODE_TEST_SERVOS,
-  MODE_ROLLING  // New rolling motion mode
+  MODE_ROLLING
 };
 
 // Servo configurations grouped by leg

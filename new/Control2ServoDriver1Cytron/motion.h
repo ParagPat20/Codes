@@ -17,35 +17,35 @@ struct ServoPosition {
 #define NUM_STANDBY_POSITIONS 20
 const ServoPosition STANDBY_POSITION[NUM_STANDBY_POSITIONS] = {
   // LEFT FRONT
-  { "LFC", 135 },  // Front Coxa
-  { "LFF", 80 },   // Front Femur
+  { "LFC", 150 },  // Front Coxa
+  { "LFF", 75 },   // Front Femur
   { "LFT", 35 },   // Front Tibia
 
   // LEFT MID
   { "LMC", 62 },    // Mid Coxa
   { "LMF1", 145 },  // Mid Femur 1
-  { "LMF2", 70 },   // Mid Femur 2
+  { "LMF2", 90 },   // Mid Femur 2
   { "LMT", 140 },   // Mid Tibia
 
   // LEFT REAR
   { "LRC", 53 },   // Rear Coxa
-  { "LRF", 90 },   // Rear Femur
+  { "LRF", 95 },   // Rear Femur
   { "LRT", 125 },  // Rear Tibia
 
   // RIGHT FRONT
   { "RFC", 45 },   // Front Coxa
-  { "RFF", 105 },  // Front Femur
+  { "RFF", 100 },  // Front Femur
   { "RFT", 55 },   // Front Tibia
 
   // RIGHT MID
   { "RMC", 100 },   // Mid Coxa
   { "RMF1", 0 },    // Mid Femur 1
-  { "RMF2", 115 },  // Mid Femur 2
+  { "RMF2", 80 },  // Mid Femur 2
   { "RMT", 150 },   // Mid Tibia
 
   // RIGHT REAR
   { "RRC", 140 },  // Rear Coxa
-  { "RRF", 100 },  // Rear Femur
+  { "RRF", 95 },  // Rear Femur
   { "RRT", 35 }    // Rear Tibia
 };
 
@@ -55,69 +55,744 @@ struct ServoMove {
   int change;  // Amount to add/subtract from standby position
 };
 
+// Walking scheme with relative changes
+// add nullptr to set pos standby servo
+
+//
+// this scheme is
+// + forward means : adding values will lead to forward, subtracting values will lead to backward
+// - forward means : adding values will lead to backward, subtracting values will lead to forward
+// + up: adding up, subtracting down
+// - up : adding down, subtracting up
+
+// LFC: +  : Forward
+// LFF: + : Up
+
+// LMC: + : Forward
+// LMF2: - : UP (inverse)
+
+// LRC: + : Forward
+// LRF: + : Up
+
+// RFC: - : Forward (inverse)
+// RFF: + : Up
+
+// RMC: - : Forward (inverse)
+// RMF2: + : Up
+
+// RRC: - : Forward (inverse)
+// RRF: + : Up
+
 // Forward walking sequence with relative changes
-#define NUM_FORWARD_PHASES 4
+#define NUM_FORWARD_PHASES 6
 const ServoMove FORWARD_SEQUENCE[NUM_FORWARD_PHASES][20] = {
-  // Phase 1: Lift and move forward group 1 (RF, LM, RR legs)
+  // Phase 1: Lift group 1 (RF, LM, RR)
   {
-    { "LFC", -20 },  // LFC: no change from standby
-    { nullptr, 0 },  // LFF: no change
-    { nullptr, 0 },  // LFT: no change
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
 
-    { nullptr, 0 },  // Add 13 to standby position
-    { nullptr, 0 },  // LMF1: no change
-    { nullptr, 0 },  // LMF2: no change
-    { nullptr, 0 },  // LMT: no change
+    { "LMC", 0 },    // LMC
+    { nullptr, 0 },  // LMF1
+    { "LMF2", -30 }, // LMF2 - lift
+    { nullptr, 0 },  // LMT
 
-    { "LRC", +40 },  // Add 22 to standby position
-    { nullptr, 0 },  // LRF: no change
-    { nullptr, 0 },  // LRT: no change
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
 
-    { nullptr, 0 },  // Add 20 to standby position
-    { nullptr, 0 },  // RFF: no change
-    { nullptr, 0 },  // RFT: no change
+    { "RFC", 0 },    // RFC
+    { "RFF", +30 },  // RFF - lift
+    { nullptr, 0 },  // RFT
 
-    { "RMC", +40 },  // Subtract 15 from standby position
-    { nullptr, 0 },  // RMF1: no change
-    { nullptr, 0 },  // RMF2: no change
-    { nullptr, 0 },  // RMT: no change
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
 
-    { nullptr, 0 },  // RRC: no change
-    { nullptr, 0 },  // RRF: no change
-    { nullptr, 0 }   // RRT: no change
+    { "RRC", 0 },    // RRC
+    { "RRF", +30 },  // RRF - lift
+    { nullptr, 0 }   // RRT
   },
 
-  // Phase 2: Return to standby (all changes are 0)
+  // Phase 2: Move group 1 forward while lifted
   {
-    { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } },
+    { nullptr, 0 },   // LFC
+    { nullptr, 0 },   // LFF
+    { nullptr, 0 },   // LFT
 
-  // Phase 3: Move other legs
-  {
-    { nullptr, 0 },  // Subtract 20 from standby
-    { nullptr, 0 },  // LFF: no change
-    { nullptr, 0 },  // LFT: no change
-    { "LMC", +40 },  // Subtract 17 from standby
-    { nullptr, 0 },  // LMF1: no change
-    { nullptr, 0 },  // LMF2: no change
-    { nullptr, 0 },  // LMT: no change
-    { nullptr, 0 },  // LRC: no change
-    { nullptr, 0 },  // LRF: no change
-    { nullptr, 0 },  // LRT: no change
-    { "RFC", +40 },  // RFC: no change
-    { nullptr, 0 },  // RFF: no change
-    { nullptr, 0 },  // RFT: no change
-    { nullptr, 0 },  // Add 15 to standby
-    { nullptr, 0 },  // RMF1: no change
-    { nullptr, 0 },  // RMF2: no change
-    { nullptr, 0 },  // RMT: no change
-    { "RRC", +40 },  // Subtract 20 from standby
-    { nullptr, 0 },  // RRF: no change
-    { nullptr, 0 }   // RRT: no change
+    { "LMC", +30 },   // LMC - forward
+    { nullptr, 0 },   // LMF1
+    { "LMF2", -30 },  // LMF2 - keep lifted
+    { nullptr, 0 },   // LMT
+
+    { nullptr, 0 },   // LRC
+    { nullptr, 0 },   // LRF
+    { nullptr, 0 },   // LRT
+
+    { "RFC", -30 },   // RFC - forward (inverse)
+    { "RFF", +30 },   // RFF - keep lifted
+    { nullptr, 0 },   // RFT
+
+    { nullptr, 0 },   // RMC
+    { nullptr, 0 },   // RMF1
+    { nullptr, 0 },   // RMF2
+    { nullptr, 0 },   // RMT
+
+    { "RRC", -30 },   // RRC - forward (inverse)
+    { "RRF", +30 },   // RRF - keep lifted
+    { nullptr, 0 }    // RRT
   },
 
-  // Phase 4: Return to standby (all changes are 0)
+  // Phase 3: Drop group 1
   {
-    { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", +30 },  // LMC - maintain forward
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - drop
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", -30 },  // RFC - maintain forward
+    { "RFF", 0 },    // RFF - drop
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", -30 },  // RRC - maintain forward
+    { "RRF", 0 },    // RRF - drop
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 4: Lift group 2 (LF, RM, LR)
+  {
+    { "LFC", 0 },    // LFC
+    { "LFF", +30 },  // LFF - lift
+    { nullptr, 0 },  // LFT
+
+    { "LMC", +30 },  // LMC - maintain forward
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", 0 },    // LRC
+    { "LRF", +30 },  // LRF - lift
+    { nullptr, 0 },  // LRT
+
+    { "RFC", -30 },  // RFC - maintain forward
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", 0 },    // RMC
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - lift
+    { nullptr, 0 },  // RMT
+
+    { "RRC", -30 },  // RRC - maintain forward
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 5: Move group 2 forward while lifted
+  {
+    { "LFC", +30 },  // LFC - forward
+    { "LFF", +30 },  // LFF - keep lifted
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - back to center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", +30 },  // LRC - forward
+    { "LRF", +30 },  // LRF - keep lifted
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - back to center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", -30 },  // RMC - forward (inverse)
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - keep lifted
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - back to center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 6: Drop group 2
+  {
+    { "LFC", +30 },  // LFC - maintain forward
+    { "LFF", 0 },    // LFF - drop
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - maintain center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", +30 },  // LRC - maintain forward
+    { "LRF", 0 },    // LRF - drop
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - maintain center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", -30 },  // RMC - maintain forward
+    { nullptr, 0 },  // RMF1
+    { "RMF2", 0 },   // RMF2 - drop
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - maintain center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  }
+};
+
+// Backward walking sequence with relative changes
+#define NUM_BACKWARD_PHASES 6
+const ServoMove BACKWARD_SEQUENCE[NUM_BACKWARD_PHASES][20] = {
+  // Phase 1: Lift group 1 (RF, LM, RR)
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC
+    { nullptr, 0 },  // LMF1
+    { "LMF2", -30 }, // LMF2 - lift
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC
+    { "RFF", +30 },  // RFF - lift
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC
+    { "RRF", +30 },  // RRF - lift
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 2: Move group 1 backward while lifted
+  {
+    { nullptr, 0 },   // LFC
+    { nullptr, 0 },   // LFF
+    { nullptr, 0 },   // LFT
+
+    { "LMC", -30 },   // LMC - backward
+    { nullptr, 0 },   // LMF1
+    { "LMF2", -30 },  // LMF2 - keep lifted
+    { nullptr, 0 },   // LMT
+
+    { nullptr, 0 },   // LRC
+    { nullptr, 0 },   // LRF
+    { nullptr, 0 },   // LRT
+
+    { "RFC", +30 },   // RFC - backward (inverse)
+    { "RFF", +30 },   // RFF - keep lifted
+    { nullptr, 0 },   // RFT
+
+    { nullptr, 0 },   // RMC
+    { nullptr, 0 },   // RMF1
+    { nullptr, 0 },   // RMF2
+    { nullptr, 0 },   // RMT
+
+    { "RRC", +30 },   // RRC - backward (inverse)
+    { "RRF", +30 },   // RRF - keep lifted
+    { nullptr, 0 }    // RRT
+  },
+
+  // Phase 3: Drop group 1
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", -30 },  // LMC - maintain backward
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - drop
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", +30 },  // RFC - maintain backward
+    { "RFF", 0 },    // RFF - drop
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", +30 },  // RRC - maintain backward
+    { "RRF", 0 },    // RRF - drop
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 4: Lift group 2 (LF, RM, LR)
+  {
+    { "LFC", 0 },    // LFC
+    { "LFF", +30 },  // LFF - lift
+    { nullptr, 0 },  // LFT
+
+    { "LMC", -30 },  // LMC - maintain backward
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", 0 },    // LRC
+    { "LRF", +30 },  // LRF - lift
+    { nullptr, 0 },  // LRT
+
+    { "RFC", +30 },  // RFC - maintain backward
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", 0 },    // RMC
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - lift
+    { nullptr, 0 },  // RMT
+
+    { "RRC", +30 },  // RRC - maintain backward
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 5: Move group 2 backward while lifted
+  {
+    { "LFC", -30 },  // LFC - backward
+    { "LFF", +30 },  // LFF - keep lifted
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - back to center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", -30 },  // LRC - backward
+    { "LRF", +30 },  // LRF - keep lifted
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - back to center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", +30 },  // RMC - backward (inverse)
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - keep lifted
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - back to center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 6: Drop group 2
+  {
+    { "LFC", -30 },  // LFC - maintain backward
+    { "LFF", 0 },    // LFF - drop
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - maintain center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", -30 },  // LRC - maintain backward
+    { "LRF", 0 },    // LRF - drop
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - maintain center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", +30 },  // RMC - maintain backward
+    { nullptr, 0 },  // RMF1
+    { "RMF2", 0 },   // RMF2 - drop
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - maintain center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  }
+};
+
+// Left walking sequence with relative changes
+#define NUM_LEFT_PHASES 6
+const ServoMove LEFT_SEQUENCE[NUM_LEFT_PHASES][20] = {
+  // Phase 1: Lift group 1 (RF, LM, RR)
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC
+    { nullptr, 0 },  // LMF1
+    { "LMF2", -30 }, // LMF2 - lift
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC
+    { "RFF", +30 },  // RFF - lift
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC
+    { "RRF", +30 },  // RRF - lift
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 2: Move group 1 left while lifted
+  {
+    { nullptr, 0 },   // LFC
+    { nullptr, 0 },   // LFF
+    { nullptr, 0 },   // LFT
+
+    { "LMC", -30 },   // LMC - left
+    { nullptr, 0 },   // LMF1
+    { "LMF2", -30 },  // LMF2 - keep lifted
+    { nullptr, 0 },   // LMT
+
+    { nullptr, 0 },   // LRC
+    { nullptr, 0 },   // LRF
+    { nullptr, 0 },   // LRT
+
+    { "RFC", -30 },   // RFC - left
+    { "RFF", +30 },   // RFF - keep lifted
+    { nullptr, 0 },   // RFT
+
+    { nullptr, 0 },   // RMC
+    { nullptr, 0 },   // RMF1
+    { nullptr, 0 },   // RMF2
+    { nullptr, 0 },   // RMT
+
+    { "RRC", -30 },   // RRC - left
+    { "RRF", +30 },   // RRF - keep lifted
+    { nullptr, 0 }    // RRT
+  },
+
+  // Phase 3: Drop group 1
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", -30 },  // LMC - maintain left
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - drop
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", -30 },  // RFC - maintain left
+    { "RFF", 0 },    // RFF - drop
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", -30 },  // RRC - maintain left
+    { "RRF", 0 },    // RRF - drop
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 4: Lift group 2 (LF, RM, LR)
+  {
+    { "LFC", 0 },    // LFC
+    { "LFF", +30 },  // LFF - lift
+    { nullptr, 0 },  // LFT
+
+    { "LMC", -30 },  // LMC - maintain left
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", 0 },    // LRC
+    { "LRF", +30 },  // LRF - lift
+    { nullptr, 0 },  // LRT
+
+    { "RFC", -30 },  // RFC - maintain left
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", 0 },    // RMC
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - lift
+    { nullptr, 0 },  // RMT
+
+    { "RRC", -30 },  // RRC - maintain left
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 5: Move group 2 left while lifted
+  {
+    { "LFC", -30 },  // LFC - left
+    { "LFF", +30 },  // LFF - keep lifted
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - back to center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", -30 },  // LRC - left
+    { "LRF", +30 },  // LRF - keep lifted
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - back to center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", -30 },  // RMC - left
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - keep lifted
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - back to center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 6: Drop group 2
+  {
+    { "LFC", -30 },  // LFC - maintain left
+    { "LFF", 0 },    // LFF - drop
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - maintain center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", -30 },  // LRC - maintain left
+    { "LRF", 0 },    // LRF - drop
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - maintain center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", -30 },  // RMC - maintain left
+    { nullptr, 0 },  // RMF1
+    { "RMF2", 0 },   // RMF2 - drop
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - maintain center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  }
+};
+
+// Right walking sequence with relative changes
+#define NUM_RIGHT_PHASES 6
+const ServoMove RIGHT_SEQUENCE[NUM_RIGHT_PHASES][20] = {
+  // Phase 1: Lift group 1 (RF, LM, RR)
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC
+    { nullptr, 0 },  // LMF1
+    { "LMF2", -30 }, // LMF2 - lift
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC
+    { "RFF", +30 },  // RFF - lift
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC
+    { "RRF", +30 },  // RRF - lift
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 2: Move group 1 right while lifted
+  {
+    { nullptr, 0 },   // LFC
+    { nullptr, 0 },   // LFF
+    { nullptr, 0 },   // LFT
+
+    { "LMC", +30 },   // LMC - right
+    { nullptr, 0 },   // LMF1
+    { "LMF2", -30 },  // LMF2 - keep lifted
+    { nullptr, 0 },   // LMT
+
+    { nullptr, 0 },   // LRC
+    { nullptr, 0 },   // LRF
+    { nullptr, 0 },   // LRT
+
+    { "RFC", +30 },   // RFC - right
+    { "RFF", +30 },   // RFF - keep lifted
+    { nullptr, 0 },   // RFT
+
+    { nullptr, 0 },   // RMC
+    { nullptr, 0 },   // RMF1
+    { nullptr, 0 },   // RMF2
+    { nullptr, 0 },   // RMT
+
+    { "RRC", +30 },   // RRC - right
+    { "RRF", +30 },   // RRF - keep lifted
+    { nullptr, 0 }    // RRT
+  },
+
+  // Phase 3: Drop group 1
+  {
+    { nullptr, 0 },  // LFC
+    { nullptr, 0 },  // LFF
+    { nullptr, 0 },  // LFT
+
+    { "LMC", +30 },  // LMC - maintain right
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - drop
+    { nullptr, 0 },  // LMT
+
+    { nullptr, 0 },  // LRC
+    { nullptr, 0 },  // LRF
+    { nullptr, 0 },  // LRT
+
+    { "RFC", +30 },  // RFC - maintain right
+    { "RFF", 0 },    // RFF - drop
+    { nullptr, 0 },  // RFT
+
+    { nullptr, 0 },  // RMC
+    { nullptr, 0 },  // RMF1
+    { nullptr, 0 },  // RMF2
+    { nullptr, 0 },  // RMT
+
+    { "RRC", +30 },  // RRC - maintain right
+    { "RRF", 0 },    // RRF - drop
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 4: Lift group 2 (LF, RM, LR)
+  {
+    { "LFC", 0 },    // LFC
+    { "LFF", +30 },  // LFF - lift
+    { nullptr, 0 },  // LFT
+
+    { "LMC", +30 },  // LMC - maintain right
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", 0 },    // LRC
+    { "LRF", +30 },  // LRF - lift
+    { nullptr, 0 },  // LRT
+
+    { "RFC", +30 },  // RFC - maintain right
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", 0 },    // RMC
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - lift
+    { nullptr, 0 },  // RMT
+
+    { "RRC", +30 },  // RRC - maintain right
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 5: Move group 2 right while lifted
+  {
+    { "LFC", +30 },  // LFC - right
+    { "LFF", +30 },  // LFF - keep lifted
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - back to center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", +30 },  // LRC - right
+    { "LRF", +30 },  // LRF - keep lifted
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - back to center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", +30 },  // RMC - right
+    { nullptr, 0 },  // RMF1
+    { "RMF2", +30 }, // RMF2 - keep lifted
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - back to center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  },
+
+  // Phase 6: Drop group 2
+  {
+    { "LFC", +30 },  // LFC - maintain right
+    { "LFF", 0 },    // LFF - drop
+    { nullptr, 0 },  // LFT
+
+    { "LMC", 0 },    // LMC - maintain center
+    { nullptr, 0 },  // LMF1
+    { "LMF2", 0 },   // LMF2 - maintain ground
+    { nullptr, 0 },  // LMT
+
+    { "LRC", +30 },  // LRC - maintain right
+    { "LRF", 0 },    // LRF - drop
+    { nullptr, 0 },  // LRT
+
+    { "RFC", 0 },    // RFC - maintain center
+    { "RFF", 0 },    // RFF - maintain ground
+    { nullptr, 0 },  // RFT
+
+    { "RMC", +30 },  // RMC - maintain right
+    { nullptr, 0 },  // RMF1
+    { "RMF2", 0 },   // RMF2 - drop
+    { nullptr, 0 },  // RMT
+
+    { "RRC", 0 },    // RRC - maintain center
+    { "RRF", 0 },    // RRF - maintain ground
+    { nullptr, 0 }   // RRT
+  }
 };
 
 // Rolling sequence with absolute angles
@@ -133,7 +808,6 @@ const ServoPosition ROLLING_SEQUENCE[NUM_ROLLING_PHASES][20] = {
     STANDBY_POSITION[12], STANDBY_POSITION[13], STANDBY_POSITION[14],
     STANDBY_POSITION[15], STANDBY_POSITION[16], STANDBY_POSITION[17],
     STANDBY_POSITION[18], STANDBY_POSITION[19] },
-  // Phase 2: Prepare for roll - Lift left side
   {
     // LEFT FRONT
     { "LFC", 170 },  // Front Coxa - center
