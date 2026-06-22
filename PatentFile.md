@@ -16,12 +16,43 @@
 ## **Field of Invention**  
 The present design pertains to robotic locomotion systems, specifically a **hexapod robot capable of dual-mode movement – walking and rolling** – with a **unique transformation mechanism**. The design enables efficient **mobility, stability, and adaptability**, making it suitable for applications in **search and rescue, planetary exploration, industrial inspection, military operations, and autonomous mobility solutions**.  
 
+Rollopod is not a spherical robot. It is a dual-ring transformable hexapod with a central suspended body and two side rolling ring assemblies.
+
+## **Physical Architecture**
+Rollopod consists of:
+- One central body module.
+- Two large circular side rolling rings.
+- Three articulated legs mounted on the left ring.
+- Three articulated legs mounted on the right ring.
+- Six legs total.
+
+The rolling rings remain visible in all operating modes.
+The central body remains suspended between the two rolling rings.
+The robot never transforms into a sphere.
+
+## **Transformation Mechanism**
+
+Walking Mode:
+- Six legs fully extended.
+- Three legs on each side.
+- Robot operates as a hexapod.
+
+Rolling Mode:
+- Left legs fold into left rolling ring.
+- Right legs fold into right rolling ring.
+- Folded legs become part of the rolling structure.
+- Two rolling rings provide locomotion.
+
+During transformation:
+- Central body remains visible.
+- Central body remains suspended.
+- No spherical enclosure is formed.
+
 ## **Description of the Design**  
-The **Rollopod** features a **six-legged walking system** integrated with a **rotational mechanism** that enables the robot to transition smoothly between rolling and walking. The unique **geometric configuration of its legs, outer disk, and actuators** allows a **compact spherical form for rolling** and an **expanded form for hexapod walking**. The design also incorporates **speed differential control** for movement direction during rolling mode.  
+The **Rollopod** features a **six-legged walking system** integrated with a **rotational mechanism** that enables the robot to transition smoothly between rolling and walking. The unique **geometric configuration of its legs, outer disk, and actuators** allows a **compact dual-ring rolling configuration for rolling** and an **expanded form for hexapod walking**. The design also incorporates **speed differential control** for movement direction during rolling mode.  
 
 ### **Key Novel Design Features**  
 1. **Transformation Mechanism:**  
-   - The robot transitions between **rolling mode** (legs retracted within a circular frame) and **walking mode** (legs extended for articulated locomotion).  
    - Uses a **servo-actuated unfolding system** to switch modes dynamically.  
 
 2. **Aesthetics and Structural Form:**  
@@ -35,11 +66,20 @@ The **Rollopod** features a **six-legged walking system** integrated with a **ro
    - **Lightweight aluminum or carbon fiber** frame enhances durability while reducing energy consumption.  
    - **Integrated gear, servo mechanisms, and distributed electronics (ESP32 microcontrollers and PCA9685 PWM drivers)** ensure seamless wireless actuation within the rolling disk while maintaining a compact and efficient form.  
 
+### Structural Novelty
+The Rollopod architecture consists of:
+- Two side rolling ring assemblies.
+- One central suspended body.
+- Three articulated legs integrated into each rolling ring.
+
+The transformation mechanism allows the legs to fold into the side rolling rings while maintaining visibility of the central body.
+The robot maintains a dual-ring geometry throughout transformation and operation.
+
 ## **Statement of Novelty**  
-The **Rollopod's** design is a **first-of-its-kind robotic structure** integrating **hexapod walking with a rolling transformation system**, while maintaining an **aesthetically distinct and functionally efficient form**. The **spherical rolling mode, servo-actuated transformation mechanism, and speed differential movement control** contribute to its **unique and non-obvious design elements**.  
+The **Rollopod's** design is a **first-of-its-kind robotic structure** integrating **hexapod walking with a rolling transformation system**, while maintaining an **aesthetically distinct and functionally efficient form**. The **side-ring rolling configuration, servo-actuated transformation mechanism, and speed differential movement control** contribute to its **unique and non-obvious design elements**.  
 
 ## **Claimed Design Aspects**  
-1. **Overall Shape and Transformation Design** – The **unique ability to shift from a hexapod to a rolling sphere** while maintaining **functional stability and aesthetics**.  
+1. **Overall Shape and Transformation Design** – The **unique ability to shift from a hexapod to a dual-wheel rolling robot** while maintaining **functional stability and aesthetics**.  
 2. **Leg Mechanism Integration** – A **foldable six-legged system** that fully retracts into a **circular rolling frame**, forming a **streamlined and compact appearance**.  
 3. **Rolling Frame with Integrated Actuation** – A **servo-driven disk system** providing **seamless and controlled rolling movement** using **speed differential for directional control**.  
 4. **Overall Structural Appearance** – A distinctive **dual-mode robotic form**, aesthetically optimized for both mobility and durability.  
@@ -60,4 +100,4 @@ Attached to this application are **detailed drawings, CAD models, and exploded v
    - ![Home View](HomeView.png)  
 
 ## **Conclusion**  
-This **design patent application for Rollopod** seeks protection for its **unique dual-mode robotic structure**, ensuring exclusive rights over its **visual and structural innovations**. The design presents a **novel aesthetic and functional combination** that enhances **robotic mobility across varied terrains and applications**.  
+This **design patent application for Rollopod** seeks protection for its **unique dual-mode robotic structure**, ensuring exclusive rights over its **visual and structural innovations**. The design presents a **novel aesthetic and functional combination** that enhances **robotic mobility across varied terrains and applications**.
