@@ -120,7 +120,27 @@ Features include:
 - Carbon-fibre components.
 - Functional engineering aesthetics.
 
+### Geometric Proportions & Servos
+- **Legs:** Wide wheel-segment legs, thick rolling surfaces, and substantial arc members. The legs are NOT slender or bicycle-rim-like. They must contribute a large percentage of the wheel circumference.
+- **Body:** A compact enclosed center pod with electronics housed inside. It is NOT a thin skeletal frame.
+- **Mechanics:** The design MUST include visible servo blocks, functional brackets, and mechanical joints. It must look like a servo-driven robot prototype, not a smoothed-out concept render.
+
+
 The robot should not resemble a consumer product, toy, or futuristic science-fiction machine.
+
+## Demonstration Configuration
+
+For explanatory visualizations:
+The robot may be shown in an asymmetric state.
+
+Left side:
+- walking configuration
+
+Right side:
+- rolling configuration
+
+This configuration is used only to demonstrate how the wheel is formed from the legs.
+This is an important educational visualization because it clearly reveals the transformation mechanism.
 
 ## Negative Constraints
 Do NOT generate:
