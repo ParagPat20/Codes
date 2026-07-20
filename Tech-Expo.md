@@ -46,9 +46,23 @@
 
 ## Abstract
 
-For the Senior Category theme of Robotics & Aerial Robotics, Rollopod investigates a transformable mobile robot that combines the terrain adaptability of a hexapod with the continuous motion of a rolling platform. Conventional hexapods distribute support across six legs but require coordinated articulated gait control, while fixed wheeled robots are less adaptable to obstacles and discontinuous terrain. Rollopod addresses this design problem by folding the three legs on each side into a rolling ring, allowing the same structural assemblies to support walking and rolling while a central body remains suspended between the two rings.
+**Theme:** This project is submitted under the Senior Category theme of Robotics & Aerial Robotics.
 
-The method combines CAD-based mechanical design, servo-actuated transformation, distributed microcontroller control, wireless communication, PWM actuation, separated power distribution, and sensor-oriented architecture. The documented results are a defined mechanical concept, CAD reference geometry, electronics architecture, control architecture, and an active firmware and prototype-assembly effort. This distinction separates design completion from prototype performance: effectiveness will be judged through repeatable engineering tests. Walking, rolling, transformation, autonomous terrain adaptation, and environmental-scanning performance have not been reported as validated results. The engineering conclusion is that Rollopod provides a coherent platform for investigating hybrid locomotion without using independent permanent wheels, while its operational performance must be established through subsequent testing.
+**Objective:** Rollopod investigates a transformable mobile robot that combines the terrain adaptability of a hexapod with the continuous motion of a rolling platform. Hexapods require coordinated articulated gait control, while fixed wheeled robots are less adaptable to obstacles and discontinuities. Rollopod addresses this problem by folding the three legs on each side into a rolling ring. The same assemblies therefore support walking and rolling, while the central body remains suspended between the rings for payload and sensing functions.
+
+**Methods:** The development method combines CAD-based mechanical design, servo-actuated transformation, distributed microcontroller control, wireless communication, PWM-based actuation, separated power distribution, and sensor-oriented architecture. The mechanical design defines the central body, six articulated legs, side rings, linkages, and transitional states. The control design covers walking gait, differential rolling, transformation sequences, and synchronized actuator commands. Inertial and depth or range sensing support the proposed balance, terrain-assessment, and environmental-scanning architecture.
+
+**Results:** The documented results are a defined mechanical concept, CAD reference geometry, electronics and power architectures, control architecture, and an active firmware and prototype-assembly effort. The transformation principle uses the legs themselves to form the rolling rings rather than independent permanent wheels. Walking, rolling, transformation, autonomous terrain adaptation, and environmental-scanning performance have not been reported as validated experimental results.
+
+**Conclusion:** Rollopod provides a coherent engineering platform for investigating hybrid locomotion in the Senior Category Robotics & Aerial Robotics theme. Its operational performance, stability, and transformation repeatability remain to be established through controlled engineering tests.
+
+![Rollopod CAD hybrid configuration](HomeView.png)
+
+> **Figure A.** CAD reference view showing the central body and the dual-side transformable rolling structures.
+
+![Rollopod front CAD configuration](FrontView.png)
+
+> **Figure B.** Front CAD reference view showing the central body, side structures, actuated assemblies, and rolling geometry.
 
 ## Introduction
 
