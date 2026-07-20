@@ -30,13 +30,25 @@
 | Distributed Control | ESP32, ESP-NOW, and PCA9685-based actuation |
 | Modular Electronics | Expandable servo-control architecture |
 
+## Quick Specifications
+
+| Specification | Documented Configuration |
+|---------------|--------------------------|
+| Robot Type | Transformable dual-ring hexapod |
+| Locomotion | Six-legged walking and two-ring rolling |
+| Transformation | Three legs on each side fold into a rolling ring |
+| Controller | ESP32 master/slave architecture with PCA9685 PWM drivers |
+| Communication | ESP-NOW wireless communication |
+| Power | Distributed battery system with separate logic and servo-load sections |
+| Current Status | Mechanical and control architectures documented; firmware and prototype assembly in progress |
+
 ---
 
 ## Abstract
 
-Rollopod is a transformable mobile robot designed to address the contrasting mobility characteristics of legged and wheeled platforms. Conventional hexapods can distribute support across six legs and adapt to uneven terrain, but their articulated gait can reduce travel efficiency and increase control complexity. Fixed wheeled robots can move continuously on suitable surfaces, but their geometry is less adaptable to obstacles and discontinuous terrain. Rollopod investigates a shared mechanical solution in which the three legs on each side fold inward to form a rolling ring, allowing the same structural assemblies to support walking and rolling.
+For the Senior Category theme of Robotics & Aerial Robotics, Rollopod investigates a transformable mobile robot that combines the terrain adaptability of a hexapod with the continuous motion of a rolling platform. Conventional hexapods distribute support across six legs but require coordinated articulated gait control, while fixed wheeled robots are less adaptable to obstacles and discontinuous terrain. Rollopod addresses this design problem by folding the three legs on each side into a rolling ring, allowing the same structural assemblies to support walking and rolling while a central body remains suspended between the two rings.
 
-The methodology combines CAD-based mechanical development, servo-actuated transformation, distributed embedded control, wireless communication, and sensor-oriented system design. Its documented architecture uses ESP32 controllers, ESP-NOW communication, PCA9685 PWM drivers, servo actuators, distributed power sections, and a suspended central body. The current project documentation establishes the mechanical concept, CAD reference views, electronics and control architecture, and prototype-development direction. Firmware and physical assembly remain in progress, while walking, rolling, transformation, autonomous terrain adaptation, and environmental-scanning performance require validation. The significance of the project lies in investigating whether one reconfigurable platform can combine terrain adaptability with a rolling mode while retaining a central body for sensing and control.
+The method combines CAD-based mechanical design, servo-actuated transformation, distributed ESP32 control, ESP-NOW communication, PCA9685 PWM actuation, separated power distribution, and sensor-oriented architecture. The documented results are a defined mechanical concept, CAD reference geometry, electronics architecture, control architecture, and an active firmware and prototype-assembly effort. This distinction separates design completion from prototype performance: effectiveness will be judged through repeatable engineering tests. Walking, rolling, transformation, autonomous terrain adaptation, and environmental-scanning performance have not been reported as validated results. The engineering conclusion is that Rollopod provides a coherent platform for investigating hybrid locomotion without using independent permanent wheels, while its operational performance must be established through subsequent testing.
 
 ## Introduction
 
@@ -50,7 +62,7 @@ Wheeled robots can provide efficient continuous motion on prepared or relatively
 
 ### Motivation Behind Rollopod
 
-Rollopod was proposed to combine the two mobility strategies. It uses six articulated legs in walking mode and transforms those same assemblies into two side rolling rings in rolling mode. The central body remains suspended between the rings. Environmental scanning is an intended capability of the sensing architecture, but autonomous scanning performance is not claimed as experimentally demonstrated.
+Rollopod combines the two mobility strategies in one reconfigurable structure. It uses six articulated legs in walking mode and transforms those assemblies into two side rolling rings in rolling mode, with the central body suspended between them. Environmental scanning is included as a sensing objective; autonomous scanning performance is not reported as validated.
 
 ## Problem Statement
 
@@ -101,17 +113,19 @@ Rollopod consists of a central body module and two side assemblies. Each side co
 
 The design is an open mechanical prototype architecture. The reference documents describe aluminium structural members, CNC-cut plates, carbon-fibre components, exposed servo housings, brackets, joints, and folding linkages. The central body is a compact enclosed pod for electronics, while the actuated side structures remain mechanically visible.
 
-> **Figure 1.** Walking Configuration — insert the relevant CAD or reference view here.
+> **Figure 1. Overall CAD Assembly.** Insert the selected assembly view or orthographic CAD reference here.
 
 ### Leg Arrangement and Walking Configuration
 
 In walking mode, all six legs are deployed. The legs are arranged as three front-to-rear assemblies on each side of the body. Their articulated joints are driven by servos, allowing the platform to support a tripod gait in which alternating groups of legs provide support while the other group is repositioned. Other gait patterns and terrain-adaptive motion are part of the broader control direction and require further implementation and testing.
 
+> **Figure 2. Walking Configuration.** Insert the relevant CAD or reference view here.
+
 ### Rolling Configuration
 
 In rolling mode, the three left legs fold inward and align their curved outer profiles edge-to-edge to form the left rolling ring. The three right legs perform the corresponding operation to form the right ring. The two rings provide the rolling contact and remain visible on either side of the suspended central body. No separate permanent wheel is assumed in this configuration.
 
-> **Figure 2.** Rolling Configuration — insert the relevant CAD or reference view here.
+> **Figure 3. Rolling Configuration.** Insert the relevant CAD or reference view here.
 
 ### Transformation Mechanism
 
@@ -127,9 +141,8 @@ Right: Leg D + Leg E + Leg F -> fold inward -> edge-to-edge rolling ring
 
 The transformation preserves the dual-ring geometry and keeps the central body visible. The platform is not designed to enclose itself as a sphere.
 
-> **Figure 3.** Transformation Sequence — insert a sequence showing walking, transitional, and rolling states here.
+> **Figure 4. Transformation Sequence.** Insert a sequence showing walking, transitional, and rolling states here.
 
-> **Figure 4.** CAD Assembly — insert the selected assembly view or orthographic CAD reference here.
 
 ## Electronics Architecture
 
@@ -151,6 +164,8 @@ Servo Motors and Transformation Actuators
 
 The electronics are divided into command and communication, actuator control, power distribution, and sensing functions. The PCA9685 drivers provide multi-channel PWM generation for the servo network. The documented battery architecture separates the central logic supply from the left and right servo loads through regulated and protected power sections. The MPU6050 and higher-level depth or range sensing are included as proposed sensing elements for balance, terrain assessment, obstacle detection, and environmental scanning. Raspberry Pi processing is a proposed higher-level option rather than a completed experimental capability.
 
+> **Figure 5. Electronics Architecture.** Command, wireless communication, distributed PWM control, actuation, and power-distribution paths.
+
 ## Software Architecture
 
 The software architecture coordinates locomotion, transformation, wireless commands, and servo timing at multiple control levels. The documented control direction is summarized below.
@@ -162,7 +177,19 @@ The software architecture coordinates locomotion, transformation, wireless comma
 - **Wireless communication:** Operator commands are transferred from the external interface to the robot controller through the ESP-NOW link.
 - **Servo synchronization:** The robot controller distributes coordinated position commands through the PWM drivers so that multiple legs and transformation joints move as a group.
 
-The software architecture is documented and partially implemented; complete system-level validation of walking, rolling, transformation, and autonomous operation remains future work.
+The software architecture is documented and partially implemented. Complete system-level validation of walking, rolling, transformation, and autonomous operation is not yet reported.
+
+> **Figure 6. Software Architecture.** Locomotion, transformation, wireless communication, synchronization, and motion-planning layers.
+
+## Methodology
+
+The system uses a staged engineering methodology. First, the mechanical architecture is represented in CAD, including the central body, six articulated legs, side rolling structures, joints, and transformation states. The geometry is checked against the project visual references so that the rolling rings are produced by transformed leg assemblies rather than independent wheels.
+
+The prototype electronics consist of a PC-side Python interface and ESP32 master bridge, an ESP32 slave mounted on the robot, PCA9685 PWM drivers, servo actuators, and distributed battery sections. The master receives serial commands, the slave receives ESP-NOW packets, and the PCA9685 boards generate the servo PWM outputs through I2C commands. Logic power and high-current servo power are distributed separately, with common grounding and protection provisions documented in the wiring references.
+
+The control method uses calibrated servo positions and coordinated motion sequences. In walking mode, a tripod gait is the documented baseline for alternating support and leg repositioning. In rolling mode, the side rolling structures are controlled as a differential-drive pair. Transformation sequences coordinate the leg servos so that the three assemblies on each side fold or unfold as a mechanically consistent group.
+
+Sensor-assisted balance and autonomous environmental scanning are included in the system architecture. The MPU6050 is intended to provide inertial feedback, while depth or other range sensors are proposed for terrain and obstacle information. Where these functions have not been integrated or experimentally validated, they are treated as under development rather than as completed capabilities.
 
 ## Prototype Development
 
@@ -191,16 +218,6 @@ The software architecture is documented and partially implemented; complete syst
 - Measure speed, endurance, turning behavior, payload stability, and terrain performance using a defined test protocol.
 - Improve fault handling, emergency stopping, and recovery behavior.
 
-## Methodology
-
-The system uses a staged engineering methodology. First, the mechanical architecture is represented in CAD, including the central body, six articulated legs, side rolling structures, joints, and transformation states. The geometry is checked against the project visual references so that the rolling rings are produced by transformed leg assemblies rather than independent wheels.
-
-The prototype electronics consist of a PC-side Python interface and ESP32 master bridge, an ESP32 slave mounted on the robot, PCA9685 PWM drivers, servo actuators, and distributed battery sections. The master receives serial commands, the slave receives ESP-NOW packets, and the PCA9685 boards generate the servo PWM outputs through I2C commands. Logic power and high-current servo power are distributed separately, with common grounding and protection provisions documented in the wiring references.
-
-The control method uses calibrated servo positions and coordinated motion sequences. In walking mode, a tripod gait is the documented baseline for alternating support and leg repositioning. In rolling mode, the side rolling structures are controlled as a differential-drive pair. Transformation sequences coordinate the leg servos so that the three assemblies on each side fold or unfold as a mechanically consistent group.
-
-Sensor-assisted balance and autonomous environmental scanning are included in the system architecture. The MPU6050 is intended to provide inertial feedback, while depth or other range sensors are proposed for terrain and obstacle information. Where these functions have not been integrated or experimentally validated, they are treated as under development rather than as completed capabilities.
-
 ## Current Progress
 
 Based on the project documentation, the current progress is:
@@ -214,6 +231,18 @@ Based on the project documentation, the current progress is:
 - Prototype development and system integration ongoing.
 
 No numerical performance results, experimental walking or rolling results, transformation-cycle results, range claims, or test outcomes are asserted here because they are not established by the provided project documents.
+
+## Results
+
+The documented results are reported by development maturity rather than as unsupported performance claims.
+
+| Area | Documented Result | Maturity |
+|------|-------------------|----------|
+| Mechanical design | CAD/reference geometry, dual-ring topology, and transformation states defined | Completed |
+| Electronics and power | ESP32, ESP-NOW, PCA9685, servo-control, and distributed battery architecture documented | Completed |
+| Control architecture | Walking-gait, rolling, transformation, synchronization, and motion-planning structure defined | Completed |
+| Firmware and assembly | Firmware organization and physical prototype development are progressing | In Progress |
+| Locomotion and transformation | Walking, rolling, and transformation performance measurements are not reported | Future Work |
 
 ## Expected Prototype Capabilities
 
@@ -262,7 +291,9 @@ The platform can also be extended with multiple PCA9685 boards, richer sensor fu
 
 ## Conclusion
 
-Rollopod is a documented engineering design for a transformable hexapod that uses six articulated legs for walking and converts the three legs on each side into dual rolling rings. Its central suspended body, distributed ESP32/PCA9685 control architecture, wireless ESP-NOW command path, and separated power system provide a coherent basis for investigating hybrid locomotion. The mechanical concept, CAD references, electronics architecture, software structure, and prototype-development direction are established in the project documentation. Experimental validation of locomotion, transformation, sensing, autonomy, and performance remains necessary before those capabilities can be claimed as demonstrated.
+Rollopod is an engineering design for a transformable hexapod that uses six articulated legs for walking and converts the three legs on each side into dual rolling rings. Its suspended central body, distributed ESP32/PCA9685 control architecture, ESP-NOW command path, and separated power system provide a coherent basis for hybrid-locomotion research. The mechanical, electronic, and software architectures are documented, while prototype assembly and system validation continue.
+
+The modular architecture developed for Rollopod is intended to serve as one of the foundational subsystems of the future Modular Robotic Field Assistant (MRFA), an integrated modular robotics research platform.
 
 ## References
 
