@@ -1,0 +1,35 @@
+===============================================================================
+ESP-NOW PACKET LOSS & RF RSSI TEST RESULTS
+Project: ESP32C6_Packet_Loss Tracer
+Test Distance: 1.5 meters
+Payload Size: 237 bytes (High-Stress String + Checksum)
+===============================================================================
+
+1. MODULE COMPARISON SUMMARY (at 100 Hz Transmission Speed)
+-------------------------------------------------------------------------------
+Module Model                 | Signal RSSI      | Packet Loss % | Link Quality
+-------------------------------------------------------------------------------
+Seeed Studio XIAO ESP32-C6   | -60 to -70 dBm   | 0.05 %        | EXCELLENT
+Standard ESP32 DevKit v1     | -70 to -80 dBm   | 1.70 %        | GOOD / FAIR
+-------------------------------------------------------------------------------
+
+2. FREQUENCY BEHAVIOR ANALYSIS (Seeed XIAO ESP32-C6)
+-------------------------------------------------------------------------------
+Packet Transmission Speed    | Observed Packet Loss % | Cause / Status
+-------------------------------------------------------------------------------
+100 Hz (10.0 ms interval)    | 0.05 %                 | Optimal Airtime Window
+500 Hz (2.0 ms interval)     | ~ 50 %                 | Airtime & Buffer Saturation
+1 kHz  (1.0 ms interval)     | ~ 70 %                 | RF Frame Overlap (>1.2ms)
+-------------------------------------------------------------------------------
+
+3. KEY FINDINGS & ENGINEERING INSIGHTS
+-------------------------------------------------------------------------------
+- The Seeed Studio XIAO ESP32-C6 demonstrated ~34x lower packet loss (0.05% vs 1.7%)
+  and ~10 dBm stronger signal reception compared to standard ESP32 DevKit boards.
+- 10 dBm higher RSSI represents approximately 10x greater RF signal power.
+- High packet loss at 500Hz and 1kHz is physically caused by 237-byte frame airtime
+  duration (~1.2ms per packet) exceeding the transmission interval timing.
+
+===============================================================================
+Date: 2026-08-06
+===============================================================================
