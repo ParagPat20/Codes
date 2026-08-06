@@ -88,6 +88,42 @@ void setupAntenna() {
 #endif
 }
 
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 15
+#endif
+
+// Non-blocking LED timing & mode control for Slave
+unsigned long lastSlaveLedToggle = 0;
+bool slaveLedState = false;
+int slaveBurstToggles = 0;
+unsigned long lastMasterCommandTime = 0;
+const unsigned long MASTER_AVAILABLE_TIMEOUT_MS = 3000;
+
+void updateSlaveLed() {
+  unsigned long now = millis();
+
+  // Fast Blinks burst when command is received (6 toggles @ 35ms)
+  if (slaveBurstToggles > 0) {
+    if (now - lastSlaveLedToggle >= 35) {
+      lastSlaveLedToggle = now;
+      slaveLedState = !slaveLedState;
+      digitalWrite(LED_BUILTIN, slaveLedState ? HIGH : LOW);
+      slaveBurstToggles--;
+    }
+    return;
+  }
+
+  // Check if Master is available (command received within 3 sec)
+  bool isMasterAvailable = (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
+  unsigned long blinkInterval = isMasterAvailable ? 500 : 1000; // Slow blink 500ms when master available, 1000ms when idle
+
+  if (now - lastSlaveLedToggle >= blinkInterval) {
+    lastSlaveLedToggle = now;
+    slaveLedState = !slaveLedState;
+    digitalWrite(LED_BUILTIN, slaveLedState ? HIGH : LOW);
+  }
+}
+
 // MPU6050 Configuration & Variables
 #define MPU6050_ADDRESS 0x68
 MPU6050 mpu(Wire);
@@ -166,6 +202,9 @@ void setTorque(int state);
 void sendTelemetry();
 
 void setup() {
+  // Initialize LED_BUILTIN pin
+  pinMode(LED_BUILTIN, OUTPUT);
+
   // Initialize Internal RF Antenna for XIAO ESP32-C6
   setupAntenna();
 
@@ -247,6 +286,9 @@ void loop() {
     sendTelemetry();
   }
   
+  // Non-blocking Slave LED state machine update
+  updateSlaveLed();
+
   delay(5);
 }
 
@@ -276,6 +318,9 @@ void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len)
 #else
 void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
 #endif
+  // Record Master activity for LED timing and telemetry
+  lastMasterCommandTime = millis();
+
   // Save master MAC address for telemetry
   if (!hasMasterMac) {
     memcpy(masterMac, srcMac, 6);
@@ -288,10 +333,14 @@ void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
   // Expect structured data packets per RNT strategy
   if (len == sizeof(cmd_struct)) {
     memcpy(&myCmd, data, sizeof(myCmd));
+    String cmdStr = String(myCmd.command);
+
+    // Only trigger fast-blink burst for explicit user commands, not 2Hz background heartbeats
+    if (cmdStr != "PING") {
+      slaveBurstToggles = 6;
+    }
     
     // Reconstruct string to reuse our robust processCommand logic
-    String cmdStr = String(myCmd.command);
-    
     if (cmdStr == "MOTOR" || cmdStr == "TORQUE" || cmdStr == "FREQ" || cmdStr == "GET_CAL" || cmdStr == "TELEMETRY") {
       cmdStr += " " + String(myCmd.val1);
     } 
@@ -366,8 +415,13 @@ void processCommand(String command, const uint8_t *senderMac) {
   
   char responseBuffer[256];
   
+  // PING command: 2Hz Heartbeat ping from master
+  if (command == "PING") {
+    sendResponse("PONG", senderMac);
+  }
+  
   // TICK command: "TICK <channel> <value>"
-  if (command.startsWith("TICK ")) {
+  else if (command.startsWith("TICK ")) {
     int firstSpace = command.indexOf(' ');
     int secondSpace = command.indexOf(' ', firstSpace + 1);
     
@@ -377,14 +431,7 @@ void processCommand(String command, const uint8_t *senderMac) {
       
       if (channel >= 0 && channel < 16 && tickValue >= 0 && tickValue <= 4095) {
         setServoPWM(channel, tickValue);
-        snprintf(responseBuffer, sizeof(responseBuffer), 
-                 "OK: Channel %d set to tick %d\n", channel, tickValue);
-        sendResponse(responseBuffer, senderMac);
-      } else {
-        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)\n", senderMac);
       }
-    } else {
-      sendResponse("ERROR: Invalid TICK command format. Use: TICK <channel> <value>\n", senderMac);
     }
   }
   
@@ -400,13 +447,9 @@ void processCommand(String command, const uint8_t *senderMac) {
       if (channel >= 0 && channel < 16 && angle >= 0.0 && angle <= 180.0) {
         setServoAngle(channel, angle);
         snprintf(responseBuffer, sizeof(responseBuffer), 
-                 "OK: Channel %d set to %.1f degrees\n", channel, angle);
+                 "OK: Ch %d set to %d deg\n", channel, (int)angle);
         sendResponse(responseBuffer, senderMac);
-      } else {
-        sendResponse("ERROR: Invalid channel (0-15) or angle (0.0-180.0)\n", senderMac);
       }
-    } else {
-      sendResponse("ERROR: Invalid ANGLE command format. Use: ANGLE <channel> <angle>\n", senderMac);
     }
   }
   

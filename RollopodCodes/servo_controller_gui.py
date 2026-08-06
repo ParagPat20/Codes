@@ -1,986 +1,980 @@
+#!/usr/bin/env python3
 """
-ESP32 PCA9685 16-Channel Servo Controller GUI
-Supports tick-based PWM control with per-channel calibration
+===============================================================================
+  ROLLOPOD ESP32-C6 SERVO & ROBOT CONTROLLER GUI
+  Dark Neumorphism (Soft UI) Theme + Interactive Servo Wiggle & QThread Serial
+===============================================================================
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import serial
-import serial.tools.list_ports
-import threading
+import sys
 import time
 import json
 import os
-import queue
+import serial
+import serial.tools.list_ports
+from PyQt6 import QtWidgets, QtCore, QtGui
 
-class ServoControllerGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("PCA9685 16-Channel Servo Controller - Tick Mode")
-        self.root.geometry("1000x800")
-        
-        # Serial connection
-        self.serial_connection = None
-        self.is_connected = False
-        
-        # Configuration storage
-        # Calibration data: tick values for min (0°) and max (180°) for each channel
-        self.calibration = {
-            'channels': {str(i): {'tick_min': 102, 'tick_max': 512} for i in range(16)},
-            'frequency': 50
-        }
-        
-        # Current servo angles (0.0 - 180.0)
-        self.servo_angles = [90.0] * 16
-        
-        # Current tick values for display
-        self.current_ticks = [307] * 16  # (102+512)/2
-        
-        # Settings file path
-        self.settings_file = "settings.json"
-        
-        # Serial reading
-        self.response_queue = queue.Queue()
-        self.reader_thread = None
-        self.running = True
-        
-        # Create main UI first (before loading settings)
-        self.create_ui()
-        
-        # Load settings from file if exists (after widgets are created)
-        self.load_settings()
-        
-    def create_ui(self):
-        """Create the main tabbed interface"""
-        # Create notebook (tabbed interface)
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Create tabs
-        self.create_control_tab()
-        self.create_calibration_tab()
-        self.create_system_tab()
 
-    def create_control_tab(self):
-        """Combined Control and Robot Control Tab"""
-        control_frame = ttk.Frame(self.notebook)
-        self.notebook.add(control_frame, text="Control & Robot")
-        
-        # Left side: Servos, Right side: Robot Telemetry & Motors
-        main_pane = ttk.PanedWindow(control_frame, orient=tk.HORIZONTAL)
-        main_pane.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Servos Pane (Left)
-        servos_container = ttk.Frame(main_pane)
-        main_pane.add(servos_container, weight=3)
-        
-        # Quick presets inside Servos
-        preset_frame = ttk.LabelFrame(servos_container, text="Quick Presets", padding=10)
-        preset_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        ttk.Button(preset_frame, text="All to 0°", command=lambda: self.set_all_angles(0.0)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(preset_frame, text="All to 90°", command=lambda: self.set_all_angles(90.0)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(preset_frame, text="All to 180°", command=lambda: self.set_all_angles(180.0)).pack(side=tk.LEFT, padx=5)
-        
-        # Real-time toggle
-        self.control_mode = tk.StringVar(value="realtime")
-        ttk.Checkbutton(preset_frame, text="Real-time (Auto-send)", 
-                        variable=self.control_mode, onvalue="realtime", offvalue="manual").pack(side=tk.RIGHT, padx=10)
-        
-        # Scrollable servo controls
-        canvas = tk.Canvas(servos_container)
-        scrollbar = ttk.Scrollbar(servos_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        self.control_widgets = []
-        for ch in range(16):
-            ch_frame = ttk.Frame(scrollable_frame)
-            ch_frame.pack(fill=tk.X, pady=4)
-            
-            ttk.Label(ch_frame, text=f"Ch {ch:2d}:", width=6).pack(side=tk.LEFT, padx=5)
-            
-            slider_var = tk.DoubleVar(value=90.0)
-            slider = ttk.Scale(ch_frame, from_=0, to=180, orient=tk.HORIZONTAL,
-                              variable=slider_var, length=200,
-                              command=lambda val, c=ch: self.on_control_slider_change(c, val))
-            slider.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-            
-            value_label = ttk.Label(ch_frame, text="90.0°", width=8)
-            value_label.pack(side=tk.LEFT, padx=5)
-            
-            input_var = tk.StringVar(value="90.0")
-            input_entry = ttk.Entry(ch_frame, textvariable=input_var, width=6)
-            input_entry.pack(side=tk.LEFT, padx=5)
-            input_entry.bind('<Return>', lambda e, c=ch: self.on_control_input_change(c))
-            
-            set_btn = ttk.Button(ch_frame, text="Set", width=5,
-                                command=lambda c=ch: self.send_servo_angle(c))
-            set_btn.pack(side=tk.LEFT, padx=5)
-            
-            self.control_widgets.append({
-                'channel': ch,
-                'slider_var': slider_var,
-                'value_label': value_label,
-                'input_var': input_var
-            })
-            slider_var.trace('w', lambda *args, c=ch: self.update_control_display(c))
-            
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Robot controls Pane (Right)
-        robot_container = ttk.Frame(main_pane)
-        main_pane.add(robot_container, weight=2)
-        
-        # MPU6050 Section
-        mpu_frame = ttk.LabelFrame(robot_container, text="MPU6050 Telemetry", padding=10)
-        mpu_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.mpu_pitch_var = tk.StringVar(value="Waiting for data...")
-        ttk.Label(mpu_frame, text="Pitch Angle:", font=("Arial", 11)).pack(anchor=tk.W, padx=5, pady=2)
-        ttk.Label(mpu_frame, textvariable=self.mpu_pitch_var, font=("Arial", 20, "bold"), foreground="#007ACC").pack(anchor=tk.W, padx=5, pady=5)
-        
-        btn_mpu_frame = ttk.Frame(mpu_frame)
-        btn_mpu_frame.pack(fill=tk.X, pady=2)
-        ttk.Button(btn_mpu_frame, text="Poll MPU", command=lambda: self.send_command("GET_MPU")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_mpu_frame, text="Reset Angles", command=lambda: self.send_command("RESET_MPU")).pack(side=tk.LEFT, padx=5)
-        
-        # DC Motor Control
-        dc_frame = ttk.LabelFrame(robot_container, text="DC Motor Control (Pins 32, 33)", padding=10)
-        dc_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.dc_speed_var = tk.DoubleVar(value=0)
-        dc_slider = ttk.Scale(dc_frame, from_=-255, to=255, orient=tk.HORIZONTAL, variable=self.dc_speed_var, length=200)
-        dc_slider.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.dc_speed_label = ttk.Label(dc_frame, text="Speed: 0", font=("Arial", 11))
-        self.dc_speed_label.pack(anchor=tk.W, padx=5)
-        self.dc_speed_var.trace('w', lambda *args: self.dc_speed_label.config(text=f"Speed: {int(self.dc_speed_var.get())}"))
-        
-        btn_motor_frame = ttk.Frame(dc_frame)
-        btn_motor_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(btn_motor_frame, text="Set Motor", command=lambda: self.send_command(f"MOTOR {int(self.dc_speed_var.get())}")).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_motor_frame, text="Stop Motor", command=lambda: [self.dc_speed_var.set(0), self.send_command("MOTOR 0")]).pack(side=tk.LEFT, padx=5)
-        
-        # Mosfet Control (Torque) - Two Colored Buttons
-        mosfet_frame = ttk.LabelFrame(robot_container, text="Torque Control (Mosfet Pin 19)", padding=10)
-        mosfet_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        btn_torque_frame = ttk.Frame(mosfet_frame)
-        btn_torque_frame.pack(fill=tk.X, pady=5)
-        
-        self.torque_on_btn = tk.Button(btn_torque_frame, text="Torque HIGH (ON)", font=("Arial", 11, "bold"),
-                                       bg="#6AA84F", fg="white", activebackground="#D9EAD3",
-                                       relief="raised", bd=3, pady=10,
-                                       command=lambda: self.send_command("TORQUE 1"))
-        self.torque_on_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-        
-        self.torque_off_btn = tk.Button(btn_torque_frame, text="Torque LOW (OFF)", font=("Arial", 11, "bold"),
-                                        bg="#E06666", fg="white", activebackground="#F4CCCC",
-                                        relief="raised", bd=3, pady=10,
-                                        command=lambda: self.send_command("TORQUE 0"))
-        self.torque_off_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+# ===============================================================================
+# CUSTOM NO-WHEEL SLIDER (Ignores accidental mouse wheel scrolling)
+# ===============================================================================
+class NoWheelSlider(QtWidgets.QSlider):
+    def wheelEvent(self, event):
+        event.ignore()  # Prevent accidental slider movements when scrolling page
 
-    def create_calibration_tab(self):
-        """Calibration tab for setting tick ranges per channel"""
-        cal_frame = ttk.Frame(self.notebook)
-        self.notebook.add(cal_frame, text="Calibration")
-        
-        # Instructions
-        instructions = ttk.LabelFrame(cal_frame, text="Calibration Instructions", padding=10)
-        instructions.pack(fill=tk.X, padx=10, pady=5)
-        
-        instruction_text = """1. Connect to your ESP32 device
-2. For each channel, adjust MIN and MAX tick values (0-4095) to find the servo's full range (0° to 180°)
-3. Use the Test buttons to send tick values directly to observe servo movement
-4. Set Test Angle to verify the calibration mapping
-5. Save settings when done"""
-        
-        ttk.Label(instructions, text=instruction_text, justify=tk.LEFT).pack()
-        
-        # Global calibration controls
-        global_frame = ttk.LabelFrame(cal_frame, text="Global Calibration", padding=10)
-        global_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        global_control = ttk.Frame(global_frame)
-        global_control.pack(fill=tk.X)
-        
-        ttk.Label(global_control, text="Apply to All Channels - Min Tick:").pack(side=tk.LEFT, padx=5)
-        self.global_min_var = tk.StringVar(value="102")
-        ttk.Entry(global_control, textvariable=self.global_min_var, width=8).pack(side=tk.LEFT, padx=2)
-        
-        ttk.Label(global_control, text="Max Tick:").pack(side=tk.LEFT, padx=5)
-        self.global_max_var = tk.StringVar(value="512")
-        ttk.Entry(global_control, textvariable=self.global_max_var, width=8).pack(side=tk.LEFT, padx=2)
-        
-        ttk.Button(global_control, text="Apply to All", command=self.apply_global_calibration).pack(side=tk.LEFT, padx=10)
-        ttk.Button(global_control, text="Send to Device", command=self.send_all_calibrations).pack(side=tk.LEFT, padx=5)
-        
-        # Scrollable channel calibration
-        canvas = tk.Canvas(cal_frame)
-        scrollbar = ttk.Scrollbar(cal_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Channel calibration controls
-        channels_frame = ttk.LabelFrame(scrollable_frame, text="Per-Channel Calibration", padding=10)
-        channels_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        self.cal_widgets = []
-        
-        for ch in range(16):
-            ch_frame = ttk.Frame(channels_frame)
-            ch_frame.pack(fill=tk.X, pady=3)
-            
-            # Channel label
-            ttk.Label(ch_frame, text=f"Ch {ch:2d}:", width=6).pack(side=tk.LEFT, padx=2)
-            
-            # Min tick
-            ttk.Label(ch_frame, text="Min:").pack(side=tk.LEFT, padx=2)
-            min_var = tk.StringVar(value=str(self.calibration['channels'][str(ch)]['tick_min']))
-            min_entry = ttk.Entry(ch_frame, textvariable=min_var, width=6)
-            min_entry.pack(side=tk.LEFT, padx=2)
-            
-            # Test min button
-            test_min_btn = ttk.Button(ch_frame, text="Test Min", width=8,
-                                      command=lambda c=ch: self.test_tick_min(c))
-            test_min_btn.pack(side=tk.LEFT, padx=2)
-            
-            # Max tick
-            ttk.Label(ch_frame, text="Max:").pack(side=tk.LEFT, padx=5)
-            max_var = tk.StringVar(value=str(self.calibration['channels'][str(ch)]['tick_max']))
-            max_entry = ttk.Entry(ch_frame, textvariable=max_var, width=6)
-            max_entry.pack(side=tk.LEFT, padx=2)
-            
-            # Test max button
-            test_max_btn = ttk.Button(ch_frame, text="Test Max", width=8,
-                                      command=lambda c=ch: self.test_tick_max(c))
-            test_max_btn.pack(side=tk.LEFT, padx=2)
-            
-            # Test angle
-            ttk.Label(ch_frame, text="Test Angle:").pack(side=tk.LEFT, padx=5)
-            angle_var = tk.StringVar(value="90.0")
-            angle_entry = ttk.Entry(ch_frame, textvariable=angle_var, width=6)
-            angle_entry.pack(side=tk.LEFT, padx=2)
-            
-            test_angle_btn = ttk.Button(ch_frame, text="Test", width=6,
-                                        command=lambda c=ch: self.test_angle(c))
-            test_angle_btn.pack(side=tk.LEFT, padx=2)
-            
-            # Current tick display
-            tick_label = ttk.Label(ch_frame, text="Tick: ----", width=12)
-            tick_label.pack(side=tk.LEFT, padx=5)
-            
-            self.cal_widgets.append({
-                'channel': ch,
-                'min_var': min_var,
-                'max_var': max_var,
-                'angle_var': angle_var,
-                'tick_label': tick_label
-            })
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
 
-    def create_system_tab(self):
-        """Combined Connection, Console Log, and Settings Tab"""
-        system_frame = ttk.Frame(self.notebook)
-        self.notebook.add(system_frame, text="Setup & System")
-        
-        # Left Column: Connection & Device Configuration
-        left_col = ttk.Frame(system_frame)
-        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Connection Frame
-        connection_section = ttk.LabelFrame(left_col, text="Serial Connection", padding=10)
-        connection_section.pack(fill=tk.X, padx=5, pady=5)
-        
-        port_frame = ttk.Frame(connection_section)
-        port_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(port_frame, text="COM Port:").pack(side=tk.LEFT, padx=5)
-        self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(port_frame, textvariable=self.port_var, width=15)
-        self.port_combo.pack(side=tk.LEFT, padx=5)
-        self.port_combo['state'] = 'readonly'
-        ttk.Button(port_frame, text="Refresh", command=self.refresh_ports).pack(side=tk.LEFT, padx=5)
-        
-        baud_frame = ttk.Frame(connection_section)
-        baud_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(baud_frame, text="Baud Rate:").pack(side=tk.LEFT, padx=5)
-        self.baud_var = tk.StringVar(value="115200")
-        baud_combo = ttk.Combobox(baud_frame, textvariable=self.baud_var, width=15,
-                                   values=["9600", "19200", "38400", "57600", "115200"])
-        baud_combo.pack(side=tk.LEFT, padx=5)
-        baud_combo['state'] = 'readonly'
-        
-        btn_frame = ttk.Frame(connection_section)
-        btn_frame.pack(fill=tk.X, pady=5)
-        self.connect_btn = ttk.Button(btn_frame, text="Connect", command=self.toggle_connection)
-        self.connect_btn.pack(side=tk.LEFT, padx=5)
-        self.status_label = ttk.Label(btn_frame, text="Status: Disconnected", foreground="red")
-        self.status_label.pack(side=tk.LEFT, padx=10)
-        
-        # Device Config Frame
-        device_section = ttk.LabelFrame(left_col, text="Device Configuration", padding=10)
-        device_section.pack(fill=tk.X, padx=5, pady=5)
-        
-        freq_frame = ttk.Frame(device_section)
-        freq_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(freq_frame, text="Freq (Hz):").pack(side=tk.LEFT, padx=5)
-        self.freq_var = tk.StringVar(value=str(self.calibration['frequency']))
-        freq_spinbox = ttk.Spinbox(freq_frame, from_=40, to=1000, textvariable=self.freq_var, width=8)
-        freq_spinbox.pack(side=tk.LEFT, padx=5)
-        ttk.Button(freq_frame, text="Set Freq", command=self.set_frequency).pack(side=tk.LEFT, padx=5)
-        
-        control_frame = ttk.Frame(device_section)
-        control_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(control_frame, text="Sleep", command=self.send_sleep).pack(side=tk.LEFT, padx=2)
-        ttk.Button(control_frame, text="Wake", command=self.send_wake).pack(side=tk.LEFT, padx=2)
-        ttk.Button(control_frame, text="Reset", command=self.send_reset).pack(side=tk.LEFT, padx=2)
-        ttk.Button(control_frame, text="Info", command=self.query_info).pack(side=tk.LEFT, padx=2)
-        
-        # Settings JSON Frame
-        file_frame = ttk.LabelFrame(left_col, text="Local Settings Profile", padding=10)
-        file_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        file_info = ttk.Frame(file_frame)
-        file_info.pack(fill=tk.X, pady=2)
-        self.settings_file_var = tk.StringVar(value=self.settings_file)
-        ttk.Entry(file_info, textvariable=self.settings_file_var, width=25, state='readonly').pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        btn_settings_frame = ttk.Frame(file_frame)
-        btn_settings_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(btn_settings_frame, text="Save", command=self.save_settings).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_settings_frame, text="Load", command=self.load_settings).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_settings_frame, text="Save As...", command=self.save_settings_as).pack(side=tk.LEFT, padx=2)
-        
-        # Right Column: Console Log
-        right_col = ttk.Frame(system_frame)
-        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        console_section = ttk.LabelFrame(right_col, text="Console Log Output", padding=10)
-        console_section.pack(fill=tk.BOTH, expand=True)
-        
-        self.console_text = tk.Text(console_section, wrap=tk.WORD, font=("Courier", 9), height=15)
-        self.console_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-        
-        scrollbar = ttk.Scrollbar(self.console_text, orient="vertical", command=self.console_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.console_text.config(yscrollcommand=scrollbar.set)
-        
-        ttk.Button(console_section, text="Clear Console", command=lambda: self.console_text.delete("1.0", tk.END)).pack(anchor=tk.E, padx=5, pady=2)
-        
-        # Refresh COM ports
-        self.refresh_ports()
-            
-    def update_settings_display(self):
-        pass
-        
-    def append_to_console(self, text):
-        """Append text to the serial console log"""
-        if hasattr(self, 'console_text'):
-            self.console_text.insert(tk.END, text + "\n")
-            self.console_text.see(tk.END)
-        
-    # ==================== Connection Methods ====================
-    
-    def refresh_ports(self):
-        """Refresh available COM ports"""
-        ports = serial.tools.list_ports.comports()
-        port_list = [port.device for port in ports]
-        self.port_combo['values'] = port_list
-        if port_list:
-            self.port_combo.current(0)
-            
-    def serial_read_loop(self):
-        """Background thread to read serial data continuously"""
-        while self.is_connected and self.running and self.serial_connection:
+# ===============================================================================
+# AUTO-REFRESHING COM PORT COMBOBOX (Refreshes on click)
+# ===============================================================================
+class ClickRefreshComboBox(QtWidgets.QComboBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def showPopup(self):
+        current_text = self.currentText()
+        self.clear()
+        ports = [p.device for p in serial.tools.list_ports.comports()]
+        self.addItems(ports)
+        if current_text in ports:
+            self.setCurrentText(current_text)
+        elif ports:
+            self.setCurrentIndex(0)
+        super().showPopup()
+
+
+# ===============================================================================
+# BACKGROUND SERIAL WORKER THREAD (QThread)
+# ===============================================================================
+class SerialWorkerThread(QtCore.QThread):
+    data_received = QtCore.pyqtSignal(str)
+    status_changed = QtCore.pyqtSignal(bool, str)
+    telemetry_pitch = QtCore.pyqtSignal(float)
+
+    def __init__(self, port_name, baud_rate=115200):
+        super().__init__()
+        self.port_name = port_name
+        self.baud_rate = baud_rate
+        self.running = False
+        self.ser = None
+
+    def stop(self):
+        self.running = False
+        self.wait(1000)
+
+    def send_command(self, cmd_str):
+        """Fast non-blocking command transmission"""
+        if self.ser and self.ser.is_open:
             try:
-                if self.serial_connection.in_waiting:
-                    line = self.serial_connection.readline().decode('utf-8', errors='ignore').strip()
+                if not cmd_str.endswith('\n'):
+                    cmd_str += '\n'
+                self.ser.write(cmd_str.encode('utf-8'))
+            except Exception as e:
+                print(f"[SERIAL TX ERROR] {e}")
+
+    def run(self):
+        self.running = True
+        try:
+            self.ser = serial.Serial(self.port_name, self.baud_rate, timeout=0.05)
+            self.status_changed.emit(True, f"Connected to {self.port_name} @ {self.baud_rate}")
+        except Exception as e:
+            self.status_changed.emit(False, f"Connection Failed: {e}")
+            self.running = False
+            return
+
+        while self.running:
+            try:
+                if self.ser and self.ser.in_waiting > 0:
+                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                     if line:
-                        if hasattr(self, 'console_text'):
-                            self.root.after(0, self.append_to_console, line)
-                            
+                        self.data_received.emit(line)
+                        
+                        # Parse MPU telemetry stream (10Hz)
                         if line.startswith("MPU_DATA"):
                             parts = line.split()
                             if len(parts) >= 2:
                                 try:
                                     pitch = float(parts[1])
-                                    self.root.after(0, self.update_mpu_display, pitch)
+                                    self.telemetry_pitch.emit(pitch)
                                 except ValueError:
                                     pass
-                        else:
-                            self.response_queue.put(line)
                 else:
-                    time.sleep(0.01)
+                    time.sleep(0.002)  # 2ms polling loop for ultra-low latency
             except Exception as e:
-                print(f"DEBUG: Exception in serial read thread: {e}")
-                import traceback
-                traceback.print_exc()
-                if self.is_connected:
-                    self.root.after(0, self.disconnect_serial)
+                self.status_changed.emit(False, f"Read Error: {e}")
                 break
-    
-    def toggle_connection(self):
-        """Connect or disconnect from serial port"""
-        if not self.is_connected:
-            self.connect_serial()
-        else:
-            self.disconnect_serial()
-    
-    def connect_serial(self):
-        """Connect to ESP32 via serial"""
-        port = self.port_var.get()
-        baud = int(self.baud_var.get())
-        
-        if not port:
-            messagebox.showerror("Error", "Please select a COM port")
-            return
-        
-        try:
-            self.serial_connection = serial.Serial(port, baud, timeout=1)
-            time.sleep(2)  # Wait for ESP32 to reset
-            self.is_connected = True
-            self.connect_btn.config(text="Disconnect")
-            self.status_label.config(text=f"Connected to {port}", foreground="green")
-            self.port_combo.config(state='disabled')
-            
-            # Start reader thread
-            self.reader_thread = threading.Thread(target=self.serial_read_loop, daemon=True)
-            self.reader_thread.start()
-            
-            # Auto-enable telemetry on the robot
-            self.root.after(100, lambda: self.send_command("TELEMETRY 1"))
-            
-            messagebox.showinfo("Success", f"Connected to {port} at {baud} baud")
-            
-        except serial.SerialException as e:
-            messagebox.showerror("Connection Error", f"Failed to connect:\n{str(e)}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error:\n{str(e)}")
-    
-    def disconnect_serial(self):
-        """Disconnect from serial port"""
-        if self.serial_connection:
+
+        if self.ser and self.ser.is_open:
             try:
-                self.serial_connection.close()
-            except:
+                self.ser.close()
+            except Exception:
                 pass
-            self.serial_connection = None
+
+
+# ===============================================================================
+# SINGLE SERVO CHANNEL CARD (Dark Neumorphic Soft UI)
+# Includes Wiggle/Identify Servo Action & 1-Degree Slider Resolution with Ticks
+# ===============================================================================
+class ServoChannelCard(QtWidgets.QFrame):
+    angle_changed = QtCore.pyqtSignal(int, float)
+    card_selected = QtCore.pyqtSignal(int)
+
+    def __init__(self, channel, min_tick=102, max_tick=512, parent=None):
+        super().__init__(parent)
+        self.channel = channel
+        self.min_tick = min_tick
+        self.max_tick = max_tick
+        self.current_angle = 90.0
+        self.last_send_time = 0.0
+        self.is_selected = False
+
+        self.init_ui()
+
+    def init_ui(self):
+        self.setObjectName("ChannelCard")
+        self.setStyleSheet("""
+            QFrame#ChannelCard {
+                background-color: #1A1D2A;
+                border: 1px solid #272C3F;
+                border-radius: 10px;
+            }
+            QFrame#ChannelCard:hover {
+                border-color: #00E676;
+                background-color: #1E2232;
+            }
+        """)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # Header Row: Channel Title + Identify Wiggle Button + Large Angle Display
+        header_layout = QtWidgets.QHBoxLayout()
         
+        self.lbl_title = QtWidgets.QLabel(f"CH {self.channel:02d}")
+        self.lbl_title.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 13px;")
+        header_layout.addWidget(self.lbl_title)
+
+        # Wiggle / Identify Button
+        self.btn_wiggle = QtWidgets.QPushButton("🔍 Wiggle ±4°")
+        self.btn_wiggle.setToolTip("Click to wiggle servo ±4° to identify hardware motor")
+        self.btn_wiggle.setStyleSheet("""
+            QPushButton {
+                background-color: #24293A;
+                color: #00E5FF;
+                border: 1px solid #323850;
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #00E5FF;
+                color: #12141E;
+            }
+        """)
+        self.btn_wiggle.clicked.connect(self.on_wiggle_clicked)
+        header_layout.addWidget(self.btn_wiggle)
+
+        header_layout.addStretch()
+
+        self.lbl_angle = QtWidgets.QLabel("90°")
+        self.lbl_angle.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 16px; font-family: 'Consolas', 'Courier New';")
+        header_layout.addWidget(self.lbl_angle)
+
+        layout.addLayout(header_layout)
+
+        # Slider Row: [-] Button + Slider + [+] Button + Direct Numeric SpinBox
+        slider_layout = QtWidgets.QHBoxLayout()
+        slider_layout.setSpacing(6)
+
+        # [-] Decrement Button (-1°)
+        self.btn_dec = QtWidgets.QPushButton("-")
+        self.btn_dec.setFixedWidth(26)
+        self.btn_dec.setToolTip("Decrease angle by 1°")
+        self.btn_dec.setStyleSheet("padding: 2px 0px; font-weight: bold; font-size: 14px; background-color: #212537;")
+        self.btn_dec.clicked.connect(self.decrement_angle)
+        slider_layout.addWidget(self.btn_dec)
+
+        # 1-Degree Resolution Slider with Visible Ticks & No Mouse Wheel Scroll
+        self.slider = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 180)  # Exact 1-Degree Integer Resolution
+        self.slider.setValue(90)
+        self.slider.setTickPosition(QtWidgets.QSlider.TickPosition.TicksBelow)
+        self.slider.setTickInterval(15)  # Tick marks every 15 degrees
+        self.slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                height: 6px;
+                background: #11131C;
+                border: 1px solid #0E1018;
+                border-radius: 3px;
+            }
+            QSlider::sub-page:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00E5FF, stop:1 #00E676);
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fx:0.5, stop:0 #FFFFFF, stop:1 #E0E0E0);
+                border: 2px solid #00E5FF;
+                width: 16px;
+                margin-top: -6px;
+                margin-bottom: -6px;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #00E676;
+                border-color: #FFFFFF;
+            }
+            QSlider::tick-mark:horizontal {
+                border: 1px solid #363D56;
+                height: 4px;
+            }
+        """)
+        self.slider.valueChanged.connect(self.on_slider_moved)
+        slider_layout.addWidget(self.slider)
+
+        # [+] Increment Button (+1°)
+        self.btn_inc = QtWidgets.QPushButton("+")
+        self.btn_inc.setFixedWidth(26)
+        self.btn_inc.setToolTip("Increase angle by 1°")
+        self.btn_inc.setStyleSheet("padding: 2px 0px; font-weight: bold; font-size: 14px; background-color: #212537;")
+        self.btn_inc.clicked.connect(self.increment_angle)
+        slider_layout.addWidget(self.btn_inc)
+
+        # Direct Angle SpinBox Input (0-180°)
+        self.spn_angle = QtWidgets.QSpinBox()
+        self.spn_angle.setRange(0, 180)
+        self.spn_angle.setValue(90)
+        self.spn_angle.setFixedWidth(56)
+        self.spn_angle.setToolTip("Directly type angle (0-180°)")
+        self.spn_angle.setStyleSheet("background-color: #11131C; color: #00E5FF; font-weight: bold; font-size: 12px; border: 1px solid #23283B; border-radius: 4px; padding: 2px;")
+        self.spn_angle.valueChanged.connect(self.on_spinbox_angle_changed)
+        slider_layout.addWidget(self.spn_angle)
+
+        layout.addLayout(slider_layout)
+
+        # Footer Row: Calculated Ticks Badge
+        footer_layout = QtWidgets.QHBoxLayout()
+        footer_layout.setSpacing(4)
+
+        self.lbl_ticks = QtWidgets.QLabel(f"{self.calc_tick(90.0)} Ticks")
+        self.lbl_ticks.setStyleSheet("color: #8E98B0; font-size: 10px; font-family: 'Consolas';")
+        footer_layout.addWidget(self.lbl_ticks)
+
+        footer_layout.addStretch()
+        layout.addLayout(footer_layout)
+
+    def decrement_angle(self):
+        val = max(0, int(self.current_angle) - 1)
+        self.set_angle(val, emit_signal=True)
+
+    def increment_angle(self):
+        val = min(180, int(self.current_angle) + 1)
+        self.set_angle(val, emit_signal=True)
+
+    def on_spinbox_angle_changed(self, val):
+        if int(self.current_angle) != val:
+            self.set_angle(val, emit_signal=True)
+
+    def calc_tick(self, angle):
+        return int(self.min_tick + (angle / 180.0) * (self.max_tick - self.min_tick))
+
+    def on_slider_moved(self, angle_int):
+        angle = float(angle_int)
+        self.current_angle = angle
+        self.lbl_angle.setText(f"{int(angle)}°")
+        self.lbl_ticks.setText(f"{self.calc_tick(angle)} Ticks")
+        self.spn_angle.blockSignals(True)
+        self.spn_angle.setValue(int(angle))
+        self.spn_angle.blockSignals(False)
+
+        # Rate-limited 50Hz non-blocking dispatch
+        now = time.time()
+        if now - self.last_send_time >= 0.02:
+            self.last_send_time = now
+            self.angle_changed.emit(self.channel, angle)
+
+    def set_angle(self, angle, emit_signal=True):
+        self.slider.blockSignals(True)
+        self.slider.setValue(int(round(angle)))
+        self.slider.blockSignals(False)
+        self.spn_angle.blockSignals(True)
+        self.spn_angle.setValue(int(round(angle)))
+        self.spn_angle.blockSignals(False)
+        self.current_angle = float(angle)
+        self.lbl_angle.setText(f"{int(round(angle))}°")
+        self.lbl_ticks.setText(f"{self.calc_tick(angle)} Ticks")
+        if emit_signal:
+            self.angle_changed.emit(self.channel, float(angle))
+
+    def on_wiggle_clicked(self):
+        self.card_selected.emit(self.channel)
+
+    def update_calibration(self, min_tick, max_tick):
+        self.min_tick = min_tick
+        self.max_tick = max_tick
+        self.lbl_ticks.setText(f"{self.calc_tick(self.current_angle)} Ticks")
+
+
+# ===============================================================================
+# MAIN APPLICATION WINDOW (Dark Neumorphism Soft UI)
+# ===============================================================================
+class RollopodMainWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Rollopod ESP32-C6 Controller - Neumorphism UI")
+        self.resize(1200, 880)
+
+        self.worker_thread = None
         self.is_connected = False
-        self.connect_btn.config(text="Connect")
-        self.status_label.config(text="Disconnected", foreground="red")
-        self.port_combo.config(state='readonly')
-    
-    def send_command(self, command, timeout=1.0):
-        """Send command to ESP32 and return response"""
-        if not self.is_connected or not self.serial_connection:
-            messagebox.showwarning("Not Connected", "Please connect to the device first")
-            return None
-        
-        try:
-            # Clear old responses
-            while not self.response_queue.empty():
-                try:
-                    self.response_queue.get_nowait()
-                except queue.Empty:
-                    break
-                    
-            self.serial_connection.write(f"{command}\n".encode())
-            self.serial_connection.flush()
-            
-            # Read response
-            try:
-                response = self.response_queue.get(timeout=timeout)
-                return response
-            except queue.Empty:
-                return None
-        except Exception as e:
-            messagebox.showerror("Send Error", f"Failed to send command:\n{str(e)}")
-            return None
-    
-    # ==================== Device Control Methods ====================
-    
-    def set_frequency(self):
-        """Set PWM frequency"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        try:
-            freq = int(self.freq_var.get())
-            if not (40 <= freq <= 1000):
-                messagebox.showerror("Invalid Frequency", "Frequency must be 40-1000 Hz")
-                return
-            
-            response = self.send_command(f"FREQ {freq}")
-            if response and "OK" in response:
-                self.calibration['frequency'] = freq
-                messagebox.showinfo("Success", f"Frequency set to {freq} Hz")
-            else:
-                messagebox.showwarning("Warning", response if response else "No response")
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid frequency")
-    
-    def send_sleep(self):
-        """Put device in sleep mode"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        response = self.send_command("SLEEP")
-        if response and "OK" in response:
-            messagebox.showinfo("Sleep Mode", "Device in sleep mode")
-    
-    def send_wake(self):
-        """Wake device from sleep"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        response = self.send_command("WAKE")
-        if response and "OK" in response:
-            messagebox.showinfo("Wake", "Device is awake")
-    
-    def send_reset(self):
-        """Reset device to defaults"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        result = messagebox.askyesno("Confirm Reset",
-                                     "Reset device to default settings?")
-        if result:
-            response = self.send_command("RESET")
-            messagebox.showinfo("Reset", "Device reset to defaults")
-    
-    def query_info(self):
-        """Query device configuration"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        first_line = self.send_command("INFO")
-        time.sleep(0.3)
-        
-        # Read all response lines
-        response_lines = []
-        if first_line:
-            response_lines.append(first_line)
-            
-        while not self.response_queue.empty():
-            try:
-                line = self.response_queue.get_nowait()
-                if line:
-                    response_lines.append(line)
-            except queue.Empty:
-                break
-        
-        if response_lines:
-            info_text = "\n".join(response_lines)
-            
-            # Create info window
-            info_window = tk.Toplevel(self.root)
-            info_window.title("Device Information")
-            info_window.geometry("700x600")
-            
-            text_widget = tk.Text(info_window, wrap=tk.NONE, font=("Courier", 10))
-            text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-            
-            scrollbar_y = ttk.Scrollbar(text_widget, orient="vertical", command=text_widget.yview)
-            scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
-            text_widget.config(yscrollcommand=scrollbar_y.set)
-            
-            text_widget.insert("1.0", info_text)
-            text_widget.config(state=tk.DISABLED)
-            
-            ttk.Button(info_window, text="Close", command=info_window.destroy).pack(pady=5)
-    
-    # ==================== Calibration Methods ====================
-    
-    def apply_global_calibration(self):
-        """Apply global min/max to all channels"""
-        try:
-            min_tick = int(self.global_min_var.get())
-            max_tick = int(self.global_max_var.get())
-            
-            if not (0 <= min_tick < max_tick <= 4095):
-                messagebox.showerror("Invalid Range", "Tick range must be: 0 ≤ min < max ≤ 4095")
-                return
-            
-            # Update all channel calibrations
-            for ch in range(16):
-                self.calibration['channels'][str(ch)]['tick_min'] = min_tick
-                self.calibration['channels'][str(ch)]['tick_max'] = max_tick
-                self.cal_widgets[ch]['min_var'].set(str(min_tick))
-                self.cal_widgets[ch]['max_var'].set(str(max_tick))
-            
-            messagebox.showinfo("Success", "Global calibration applied to all channels")
-            
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid tick values")
-    
-    def send_all_calibrations(self):
-        """Send all calibrations to device"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        # Update calibration from GUI
+        self.realtime_enabled = True
+        self.telemetry_active = False
+
+        self.settings_file = "rollopod_servo_profile.json"
+        self.cards = []
+        self.selected_channel = 0
+
+        self.init_ui()
+        self.load_profile()
+
+    def init_ui(self):
+        # Soft Dark Neumorphism (Soft UI) QSS Stylesheet
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #12141E;
+            }
+            QWidget {
+                color: #E1E4EC;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+            }
+            QTabWidget::pane {
+                border: 1px solid #23283B;
+                background-color: #12141E;
+                border-radius: 8px;
+            }
+            QTabBar::tab {
+                background-color: #181B28;
+                color: #8E98B0;
+                padding: 10px 22px;
+                font-weight: bold;
+                font-size: 12px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                margin-right: 3px;
+                border: 1px solid #23283B;
+            }
+            QTabBar::tab:selected {
+                background-color: #212638;
+                color: #00E5FF;
+                border-bottom: 3px solid #00E5FF;
+            }
+            QTabBar::tab:hover {
+                color: #FFFFFF;
+            }
+            QGroupBox {
+                background-color: #1A1D2A;
+                border: 1px solid #272C3F;
+                border-radius: 10px;
+                margin-top: 10px;
+                font-weight: bold;
+                color: #FFFFFF;
+                font-size: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 5px;
+            }
+            QPushButton {
+                background-color: #212537;
+                color: #FFFFFF;
+                border: 1px solid #2F354D;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #2A3047;
+                border-color: #00E5FF;
+            }
+            QPushButton:pressed {
+                background-color: #00E5FF;
+                color: #12141E;
+            }
+            QComboBox, QSpinBox, QLineEdit {
+                background-color: #11131C;
+                color: #FFFFFF;
+                border: 1px solid #23283B;
+                border-radius: 6px;
+                padding: 5px 8px;
+            }
+            QComboBox:hover, QSpinBox:hover, QLineEdit:hover {
+                border-color: #00E5FF;
+            }
+            QPlainTextEdit {
+                background-color: #0E1018;
+                color: #00E676;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 11px;
+                border: 1px solid #1F2334;
+                border-radius: 6px;
+            }
+        """)
+
+        central_widget = QtWidgets.QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QtWidgets.QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(12)
+
+        # -----------------------------------------------------------------------
+        # TOP HEADER BAR: Clean Neumorphic Connection Bar
+        # -----------------------------------------------------------------------
+        header_frame = QtWidgets.QFrame()
+        header_frame.setStyleSheet("""
+            QFrame {
+                background-color: #1A1D2A;
+                border: 1px solid #272C3F;
+                border-radius: 10px;
+            }
+        """)
+        header_layout = QtWidgets.QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(14, 10, 14, 10)
+        header_layout.setSpacing(12)
+
+        # Brand Logo
+        lbl_brand = QtWidgets.QLabel("ROLLOPOD")
+        lbl_brand.setStyleSheet("color: #00E5FF; font-weight: 900; font-size: 16px; letter-spacing: 1px;")
+        header_layout.addWidget(lbl_brand)
+
+        header_layout.addSpacing(10)
+
+        # Auto-refreshing COM Port Selector (Refreshes on click)
+        self.cmb_port = ClickRefreshComboBox()
+        self.cmb_port.setMinimumWidth(110)
+        self.cmb_port.setToolTip("Click to select/refresh COM port")
+        header_layout.addWidget(self.cmb_port)
+
+        # Baud Rate Selector
+        self.cmb_baud = QtWidgets.QComboBox()
+        self.cmb_baud.addItems(["9600", "57600", "115200", "230400", "460800", "921600"])
+        self.cmb_baud.setCurrentText("115200")
+        header_layout.addWidget(self.cmb_baud)
+
+        # Connect / Disconnect Button
+        self.btn_connect = QtWidgets.QPushButton("⚡ CONNECT")
+        self.btn_connect.setStyleSheet("background-color: #00E676; color: #12141E; font-weight: bold;")
+        self.btn_connect.clicked.connect(self.toggle_connection)
+        header_layout.addWidget(self.btn_connect)
+
+        # Connection Status Pill Badge
+        self.lbl_status = QtWidgets.QLabel("DISCONNECTED")
+        self.lbl_status.setStyleSheet("color: #FF0055; font-weight: bold; font-size: 11px; background-color: #2D0A14; border: 1px solid #7F002B; border-radius: 6px; padding: 5px 12px;")
+        header_layout.addWidget(self.lbl_status)
+
+        header_layout.addStretch()
+
+        # Realtime 50Hz Checkbox
+        self.chk_realtime = QtWidgets.QCheckBox("Realtime (50Hz)")
+        self.chk_realtime.setChecked(True)
+        self.chk_realtime.setStyleSheet("color: #00E676; font-weight: bold;")
+        self.chk_realtime.stateChanged.connect(self.on_realtime_toggled)
+        header_layout.addWidget(self.chk_realtime)
+
+        main_layout.addWidget(header_frame)
+
+        # -----------------------------------------------------------------------
+        # EXPANDED LIVE SERIAL LOG STREAM (Clean Inline Layout)
+        # -----------------------------------------------------------------------
+        console_frame = QtWidgets.QFrame()
+        console_frame.setStyleSheet("""
+            QFrame {
+                background-color: #1A1D2A;
+                border: 1px solid #272C3F;
+                border-radius: 10px;
+            }
+        """)
+        console_layout = QtWidgets.QVBoxLayout(console_frame)
+        console_layout.setContentsMargins(12, 8, 12, 8)
+        console_layout.setSpacing(6)
+
+        # Inline Console Top Bar (No big tag lines taking up space!)
+        console_hdr = QtWidgets.QHBoxLayout()
+        lbl_console_title = QtWidgets.QLabel("LIVE SERIAL LOG STREAM")
+        lbl_console_title.setStyleSheet("color: #8E98B0; font-size: 11px; font-weight: bold;")
+        console_hdr.addWidget(lbl_console_title)
+
+        console_hdr.addStretch()
+
+        btn_clear_log = QtWidgets.QPushButton("🧹 Clear Log")
+        btn_clear_log.setStyleSheet("padding: 2px 10px; font-size: 10px;")
+        btn_clear_log.clicked.connect(lambda: self.txt_console.clear())
+        console_hdr.addWidget(btn_clear_log)
+
+        console_layout.addLayout(console_hdr)
+
+        # Expanded Log View (160px height so full logs are visible!)
+        self.txt_console = QtWidgets.QPlainTextEdit()
+        self.txt_console.setReadOnly(True)
+        self.txt_console.setMinimumHeight(120)
+        self.txt_console.setMaximumHeight(160)
+        console_layout.addWidget(self.txt_console)
+
+        main_layout.addWidget(console_frame)
+
+        # -----------------------------------------------------------------------
+        # MAIN TABBED INTERFACE
+        # -----------------------------------------------------------------------
+        self.tabs = QtWidgets.QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        # Tab 1: Master Control Dashboard (All Servos + DC Motor + Telemetry)
+        self.tab_dashboard = QtWidgets.QWidget()
+        self.init_dashboard_tab()
+        self.tabs.addTab(self.tab_dashboard, "🎛️ Master Control Dashboard")
+
+        # Tab 2: Calibration & JSON Profiles
+        self.tab_calibration = QtWidgets.QWidget()
+        self.init_calibration_tab()
+        self.tabs.addTab(self.tab_calibration, "⚙️ Servo Calibration & Profiles")
+
+        self.scan_ports()
+
+    # ---------------------------------------------------------------------------
+    # TAB 1: MASTER CONTROL DASHBOARD
+    # ---------------------------------------------------------------------------
+    def init_dashboard_tab(self):
+        layout = QtWidgets.QHBoxLayout(self.tab_dashboard)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(14)
+
+        # LEFT PANE: 16 Servo Channels Grid (Scrollable 2-Column Grid)
+        scroll_area = QtWidgets.QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        grid_widget = QtWidgets.QWidget()
+        grid_layout = QtWidgets.QGridLayout(grid_widget)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        grid_layout.setSpacing(10)
+
+        # Build 16 Servo Channel Cards
         for ch in range(16):
-            try:
-                min_tick = int(self.cal_widgets[ch]['min_var'].get())
-                max_tick = int(self.cal_widgets[ch]['max_var'].get())
-                self.calibration['channels'][str(ch)]['tick_min'] = min_tick
-                self.calibration['channels'][str(ch)]['tick_max'] = max_tick
-            except ValueError:
-                pass
+            card = ServoChannelCard(channel=ch)
+            card.angle_changed.connect(self.on_channel_angle_changed)
+            card.card_selected.connect(self.on_channel_selected)
+            
+            row = ch // 2
+            col = ch % 2
+            grid_layout.addWidget(card, row, col)
+            self.cards.append(card)
+
+        scroll_area.setWidget(grid_widget)
+        layout.addWidget(scroll_area, stretch=3)
+
+        # RIGHT PANE: Telemetry, 12V Power & DC Motor Controls
+        right_panel = QtWidgets.QWidget()
+        right_layout = QtWidgets.QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
+
+        # 1. MPU6050 Telemetry Box (10Hz Auto Stream)
+        box_mpu = QtWidgets.QGroupBox("MPU6050 Pitch Telemetry")
+        mpu_layout = QtWidgets.QVBoxLayout(box_mpu)
+        mpu_layout.setContentsMargins(14, 18, 14, 14)
+        mpu_layout.setSpacing(10)
+
+        self.lbl_pitch = QtWidgets.QLabel("+0.00°")
+        self.lbl_pitch.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.lbl_pitch.setStyleSheet("""
+            QLabel {
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 34px;
+                font-family: 'Consolas', 'Courier New';
+                background-color: #11131C;
+                border: 2px solid #23283B;
+                border-radius: 10px;
+                padding: 14px;
+            }
+        """)
+        mpu_layout.addWidget(self.lbl_pitch)
+
+        telem_btn_layout = QtWidgets.QHBoxLayout()
+        self.btn_telem_toggle = QtWidgets.QPushButton("📡 Telemetry (10Hz) ON")
+        self.btn_telem_toggle.setStyleSheet("background-color: #212537; color: #00E676; border-color: #00E676;")
+        self.btn_telem_toggle.clicked.connect(self.toggle_telemetry)
+        telem_btn_layout.addWidget(self.btn_telem_toggle)
+
+        btn_poll_mpu = QtWidgets.QPushButton("🔄 Poll")
+        btn_poll_mpu.clicked.connect(lambda: self.send_command("GET_MPU"))
+        telem_btn_layout.addWidget(btn_poll_mpu)
+
+        mpu_layout.addLayout(telem_btn_layout)
+        right_layout.addWidget(box_mpu)
+
+        # 2. 12V MOSFET Servo Power Control
+        box_torque = QtWidgets.QGroupBox("Servo 12V MOSFET Power Rail")
+        torque_layout = QtWidgets.QVBoxLayout(box_torque)
+        torque_layout.setContentsMargins(14, 18, 14, 14)
+        torque_layout.setSpacing(10)
+
+        btn_torque_on = QtWidgets.QPushButton("⚡ TORQUE HIGH (12V ON)")
+        btn_torque_on.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 13px; font-weight: bold; padding: 10px;")
+        btn_torque_on.clicked.connect(lambda: self.send_command("TORQUE 1"))
+        torque_layout.addWidget(btn_torque_on)
+
+        btn_torque_off = QtWidgets.QPushButton("🛑 TORQUE OFF (12V OFF)")
+        btn_torque_off.setStyleSheet("background-color: #FF0055; color: #FFFFFF; font-size: 13px; font-weight: bold; padding: 10px;")
+        btn_torque_off.clicked.connect(lambda: self.send_command("TORQUE 0"))
+        torque_layout.addWidget(btn_torque_off)
+
+        right_layout.addWidget(box_torque)
+
+        # 3. DC Motor Driver Control (MD13S PWM Pin 17, DIR Pin 19)
+        box_motor = QtWidgets.QGroupBox("DC Motor Control (MD13S)")
+        motor_layout = QtWidgets.QVBoxLayout(box_motor)
+        motor_layout.setContentsMargins(14, 18, 14, 14)
+        motor_layout.setSpacing(10)
+
+        self.lbl_motor_speed = QtWidgets.QLabel("Speed: 0")
+        self.lbl_motor_speed.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: bold;")
+        motor_layout.addWidget(self.lbl_motor_speed)
+
+        # No Mouse Wheel Scroll on Motor Slider as well
+        self.slider_motor = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_motor.setRange(-255, 255)
+        self.slider_motor.setValue(0)
+        self.slider_motor.setStyleSheet("""
+            QSlider::groove:horizontal { height: 6px; background: #11131C; border-radius: 3px; }
+            QSlider::sub-page:horizontal { background: #FFFFFF; border-radius: 3px; }
+            QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }
+        """)
+        self.slider_motor.valueChanged.connect(self.on_motor_slider_moved)
+        motor_layout.addWidget(self.slider_motor)
+
+        btn_stop_motor = QtWidgets.QPushButton("⏹ EMERGENCY STOP")
+        btn_stop_motor.setStyleSheet("background-color: #FF0055; color: #FFFFFF; font-weight: bold; padding: 8px;")
+        btn_stop_motor.clicked.connect(self.stop_motor)
+        motor_layout.addWidget(btn_stop_motor)
+
+        right_layout.addWidget(box_motor)
+        right_layout.addStretch()
+
+        layout.addWidget(right_panel, stretch=1)
+
+    # ---------------------------------------------------------------------------
+    # SERVO IDENTIFICATION WIGGLE LOGIC (Wiggles ±4° to identify hardware servo)
+    # ---------------------------------------------------------------------------
+    def on_channel_selected(self, channel):
+        self.selected_channel = channel
+        self.wiggle_servo(channel)
+
+    def wiggle_servo(self, channel):
+        """Wiggles target servo by +4° then -4° then back to original position to identify hardware servo"""
+        if channel not in range(len(self.cards)):
+            return
         
-        # Send to device
+        card = self.cards[channel]
+        orig_angle = card.current_angle
+
+        # Step 1: +4 degrees
+        card.set_angle(min(180.0, orig_angle + 4.0), emit_signal=True)
+
+        # Step 2: -4 degrees after 150ms
+        QtCore.QTimer.singleShot(150, lambda: card.set_angle(max(0.0, orig_angle - 4.0), emit_signal=True))
+
+        # Step 3: Return to original angle after 300ms
+        QtCore.QTimer.singleShot(300, lambda: card.set_angle(orig_angle, emit_signal=True))
+
+    # ---------------------------------------------------------------------------
+    # TAB 2: SERVO CALIBRATION & PROFILES
+    # ---------------------------------------------------------------------------
+    def init_calibration_tab(self):
+        layout = QtWidgets.QHBoxLayout(self.tab_calibration)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(14)
+
+        # Left Column: Detailed Channel Min/Max Calibration Table
+        box_cal = QtWidgets.QGroupBox("Channel Min / Max Tick Calibrations")
+        cal_layout = QtWidgets.QVBoxLayout(box_cal)
+        cal_layout.setContentsMargins(10, 18, 10, 10)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        cal_widget = QtWidgets.QWidget()
+        cal_grid = QtWidgets.QVBoxLayout(cal_widget)
+        cal_grid.setContentsMargins(0, 0, 0, 0)
+        cal_grid.setSpacing(6)
+
+        self.cal_spinboxes = []
+
         for ch in range(16):
-            min_tick = self.calibration['channels'][str(ch)]['tick_min']
-            max_tick = self.calibration['channels'][str(ch)]['tick_max']
-            self.send_command(f"CAL {ch} {min_tick} {max_tick}")
-            time.sleep(0.02)
-        
-        messagebox.showinfo("Success", "All calibrations sent to device")
-    
-    def test_tick_min(self, channel):
-        """Test minimum tick value for a channel"""
+            row_frame = QtWidgets.QFrame()
+            row_frame.setStyleSheet("background-color: #1A1D2A; border: 1px solid #272C3F; border-radius: 6px;")
+            row_layout = QtWidgets.QHBoxLayout(row_frame)
+            row_layout.setContentsMargins(10, 6, 10, 6)
+
+            lbl_ch = QtWidgets.QLabel(f"Channel {ch:02d}:")
+            lbl_ch.setStyleSheet("font-weight: bold; width: 80px;")
+            row_layout.addWidget(lbl_ch)
+
+            row_layout.addWidget(QtWidgets.QLabel("Min Tick:"))
+            spn_min = QtWidgets.QSpinBox()
+            spn_min.setRange(0, 4095)
+            spn_min.setValue(102)
+            row_layout.addWidget(spn_min)
+
+            row_layout.addWidget(QtWidgets.QLabel("Max Tick:"))
+            spn_max = QtWidgets.QSpinBox()
+            spn_max.setRange(0, 4095)
+            spn_max.setValue(512)
+            row_layout.addWidget(spn_max)
+
+            btn_test_min = QtWidgets.QPushButton("Test Min")
+            btn_test_min.clicked.connect(lambda _, c=ch: self.test_tick(c, 'min'))
+            row_layout.addWidget(btn_test_min)
+
+            btn_test_max = QtWidgets.QPushButton("Test Max")
+            btn_test_max.clicked.connect(lambda _, c=ch: self.test_tick(c, 'max'))
+            row_layout.addWidget(btn_test_max)
+
+            self.cal_spinboxes.append((spn_min, spn_max))
+            cal_grid.addWidget(row_frame)
+
+        scroll.setWidget(cal_widget)
+        cal_layout.addWidget(scroll)
+        layout.addWidget(box_cal, stretch=2)
+
+        # Right Column: Bulk Operations & Profile File Manager
+        box_prof = QtWidgets.QGroupBox("Bulk Calibrations & JSON Profiles")
+        prof_layout = QtWidgets.QVBoxLayout(box_prof)
+        prof_layout.setContentsMargins(14, 18, 14, 14)
+        prof_layout.setSpacing(12)
+
+        prof_layout.addWidget(QtWidgets.QLabel("BULK CALIBRATION:"))
+
+        glob_row = QtWidgets.QHBoxLayout()
+        glob_row.addWidget(QtWidgets.QLabel("Global Min:"))
+        self.spn_glob_min = QtWidgets.QSpinBox()
+        self.spn_glob_min.setRange(0, 4095)
+        self.spn_glob_min.setValue(102)
+        glob_row.addWidget(self.spn_glob_min)
+
+        glob_row.addWidget(QtWidgets.QLabel("Global Max:"))
+        self.spn_glob_max = QtWidgets.QSpinBox()
+        self.spn_glob_max.setRange(0, 4095)
+        self.spn_glob_max.setValue(512)
+        glob_row.addWidget(self.spn_glob_max)
+
+        prof_layout.addLayout(glob_row)
+
+        btn_apply_glob = QtWidgets.QPushButton("⚡ Apply Min/Max to All Channels")
+        btn_apply_glob.clicked.connect(self.apply_global_calibration)
+        prof_layout.addWidget(btn_apply_glob)
+
+        btn_sync_all = QtWidgets.QPushButton("📡 Sync All 16 Calibrations to Robot")
+        btn_sync_all.clicked.connect(self.send_all_calibrations)
+        prof_layout.addWidget(btn_sync_all)
+
+        prof_layout.addSpacing(15)
+        prof_layout.addWidget(QtWidgets.QLabel("PROFILE MANAGEMENT:"))
+
+        btn_save = QtWidgets.QPushButton("💾 Save Profile JSON")
+        btn_save.clicked.connect(self.save_profile)
+        prof_layout.addWidget(btn_save)
+
+        btn_load = QtWidgets.QPushButton("📂 Load Profile JSON")
+        btn_load.clicked.connect(self.load_profile_dialog)
+        prof_layout.addWidget(btn_load)
+
+        prof_layout.addStretch()
+        layout.addWidget(box_prof, stretch=1)
+
+    # ---------------------------------------------------------------------------
+    # SERIAL PORT & CONNECTION LOGIC
+    # ---------------------------------------------------------------------------
+    def scan_ports(self):
+        self.cmb_port.clear()
+        ports = [p.device for p in serial.tools.list_ports.comports()]
+        self.cmb_port.addItems(ports)
+
+    def toggle_connection(self):
         if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        try:
-            # Update calibration from entry
-            min_tick = int(self.cal_widgets[channel]['min_var'].get())
-            max_tick = int(self.cal_widgets[channel]['max_var'].get())
-            
-            if not (0 <= min_tick < max_tick <= 4095):
-                messagebox.showerror("Invalid Range", "Invalid tick range")
+            port = self.cmb_port.currentText()
+            baud = int(self.cmb_baud.currentText()) if self.cmb_baud.currentText() else 115200
+            if not port:
+                QtWidgets.QMessageBox.warning(self, "Port Error", "Please select a valid COM port.")
                 return
-            
-            # Update calibration
-            self.calibration['channels'][str(channel)]['tick_min'] = min_tick
-            self.calibration['channels'][str(channel)]['tick_max'] = max_tick
-            
-            # Send calibration
-            self.send_command(f"CAL {channel} {min_tick} {max_tick}")
-            time.sleep(0.02)
-            
-            # Send tick command
-            response = self.send_command(f"TICK {channel} {min_tick}")
-            self.cal_widgets[channel]['tick_label'].config(text=f"Tick: {min_tick}")
-            
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid tick values")
-    
-    def test_tick_max(self, channel):
-        """Test maximum tick value for a channel"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        try:
-            # Update calibration from entry
-            min_tick = int(self.cal_widgets[channel]['min_var'].get())
-            max_tick = int(self.cal_widgets[channel]['max_var'].get())
-            
-            if not (0 <= min_tick < max_tick <= 4095):
-                messagebox.showerror("Invalid Range", "Invalid tick range")
-                return
-            
-            # Update calibration
-            self.calibration['channels'][str(channel)]['tick_min'] = min_tick
-            self.calibration['channels'][str(channel)]['tick_max'] = max_tick
-            
-            # Send calibration
-            self.send_command(f"CAL {channel} {min_tick} {max_tick}")
-            time.sleep(0.02)
-            
-            # Send tick command
-            response = self.send_command(f"TICK {channel} {max_tick}")
-            self.cal_widgets[channel]['tick_label'].config(text=f"Tick: {max_tick}")
-            
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid tick values")
-    
-    def test_angle(self, channel):
-        """Test angle for a channel using calibration"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        try:
-            # Update calibration from entry
-            min_tick = int(self.cal_widgets[channel]['min_var'].get())
-            max_tick = int(self.cal_widgets[channel]['max_var'].get())
-            angle = float(self.cal_widgets[channel]['angle_var'].get())
-            
-            if not (0 <= min_tick < max_tick <= 4095):
-                messagebox.showerror("Invalid Range", "Invalid tick range")
-                return
-            
-            if not (0.0 <= angle <= 180.0):
-                messagebox.showerror("Invalid Angle", "Angle must be 0.0-180.0")
-                return
-            
-            # Update calibration
-            self.calibration['channels'][str(channel)]['tick_min'] = min_tick
-            self.calibration['channels'][str(channel)]['tick_max'] = max_tick
-            
-            # Send calibration
-            self.send_command(f"CAL {channel} {min_tick} {max_tick}")
-            time.sleep(0.02)
-            
-            # Send angle command
-            response = self.send_command(f"ANGLE {channel} {angle}")
-            
-            # Calculate and display tick
-            tick = int(min_tick + (angle / 180.0) * (max_tick - min_tick))
-            self.cal_widgets[channel]['tick_label'].config(text=f"Tick: {tick}")
-            
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid values")
-    
-    # ==================== Control Methods ====================
-    
-    def on_control_slider_change(self, channel, value):
-        """Handle slider change in control tab"""
-        angle = float(value)
-        self.servo_angles[channel] = angle
-        self.control_widgets[channel]['input_var'].set(f"{angle:.1f}")
-        
-        # Auto-send in realtime mode
-        if self.control_mode.get() == "realtime":
-            self.send_servo_angle(channel)
-    
-    def on_control_input_change(self, channel):
-        """Handle input field change in control tab"""
-        try:
-            angle = float(self.control_widgets[channel]['input_var'].get())
-            if not (0.0 <= angle <= 180.0):
-                messagebox.showerror("Invalid Angle", "Angle must be 0.0-180.0")
-                return
-            
-            self.servo_angles[channel] = angle
-            self.control_widgets[channel]['slider_var'].set(angle)
-            
-            # Auto-send in realtime mode
-            if self.control_mode.get() == "realtime":
-                self.send_servo_angle(channel)
-                
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid angle")
-    
-    def update_control_display(self, channel):
-        """Update value label in control tab"""
-        angle = self.control_widgets[channel]['slider_var'].get()
-        self.control_widgets[channel]['value_label'].config(text=f"{angle:.1f}°")
-    
-    def send_servo_angle(self, channel):
-        """Send calibrated angle command to servo"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        try:
-            # Get angle
-            angle = float(self.control_widgets[channel]['input_var'].get())
-            
-            if not (0.0 <= angle <= 180.0):
-                messagebox.showerror("Invalid Angle", "Angle must be 0.0-180.0")
-                return
-            
-            # Update calibration from calibration tab
-            min_tick = int(self.cal_widgets[channel]['min_var'].get())
-            max_tick = int(self.cal_widgets[channel]['max_var'].get())
-            self.calibration['channels'][str(channel)]['tick_min'] = min_tick
-            self.calibration['channels'][str(channel)]['tick_max'] = max_tick
-            
-            # Send calibration first
-            self.send_command(f"CAL {channel} {min_tick} {max_tick}")
-            time.sleep(0.02)
-            
-            # Send angle
-            response = self.send_command(f"ANGLE {channel} {angle:.1f}")
-            
-            # Calculate tick for display
-            tick = int(min_tick + (angle / 180.0) * (max_tick - min_tick))
-            self.current_ticks[channel] = tick
-            
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid values")
-    
-    def set_all_angles(self, angle):
-        """Set all servos to the same angle"""
-        if not self.is_connected:
-            messagebox.showwarning("Not Connected", "Please connect first")
-            return
-        
-        for ch in range(16):
-            self.control_widgets[ch]['slider_var'].set(angle)
-            self.control_widgets[ch]['input_var'].set(f"{angle:.1f}")
-            self.servo_angles[ch] = angle
-            self.send_servo_angle(ch)
-            time.sleep(0.02)
-        
-        messagebox.showinfo("Success", f"All servos set to {angle}°")
-    
-    # ==================== Robot Control Methods ====================
-    
-    def update_mpu_display(self, pitch):
-        if hasattr(self, 'mpu_pitch_var'):
-            self.mpu_pitch_var.set(f"{pitch:.2f}°")
-        
+
+            self.worker_thread = SerialWorkerThread(port_name=port, baud_rate=baud)
+            self.worker_thread.data_received.connect(self.on_serial_data_received)
+            self.worker_thread.status_changed.connect(self.on_connection_status_changed)
+            self.worker_thread.telemetry_pitch.connect(self.on_telemetry_pitch_received)
+            self.worker_thread.start()
+        else:
+            if self.worker_thread:
+                self.worker_thread.stop()
+                self.worker_thread = None
+            self.is_connected = False
+            self.update_connection_ui(False, "Disconnected")
+
+    def on_connection_status_changed(self, connected, msg):
+        self.is_connected = connected
+        self.update_connection_ui(connected, msg)
+        if connected:
+            self.telemetry_active = True
+            self.send_command("TELEMETRY 1")  # Auto-start 10Hz pitch telemetry stream
+
+    def update_connection_ui(self, connected, msg):
+        if connected:
+            self.btn_connect.setText("DISCONNECT")
+            self.btn_connect.setStyleSheet("background-color: #FF0055; color: #FFFFFF; font-weight: bold;")
+            self.lbl_status.setText(f"CONNECTED ({self.cmb_port.currentText()})")
+            self.lbl_status.setStyleSheet("color: #00E676; font-weight: bold; font-size: 11px; background-color: #082B1B; border: 1px solid #00E676; border-radius: 6px; padding: 5px 12px;")
+            self.cmb_port.setEnabled(False)
+            self.cmb_baud.setEnabled(False)
+        else:
+            self.btn_connect.setText("CONNECT")
+            self.btn_connect.setStyleSheet("background-color: #00E676; color: #12141E; font-weight: bold;")
+            self.lbl_status.setText("DISCONNECTED")
+            self.lbl_status.setStyleSheet("color: #FF0055; font-weight: bold; font-size: 11px; background-color: #2D0A14; border: 1px solid #7F002B; border-radius: 6px; padding: 5px 12px;")
+            self.cmb_port.setEnabled(True)
+            self.cmb_baud.setEnabled(True)
+
+        self.log_console(f"[SYSTEM] {msg}")
+
+    def on_serial_data_received(self, line):
+        self.log_console(line)
+
+    def on_telemetry_pitch_received(self, pitch):
+        sign = "+" if pitch >= 0 else ""
+        self.lbl_pitch.setText(f"{sign}{pitch:.2f}°")
+
+    def toggle_telemetry(self):
+        if self.telemetry_active:
+            self.telemetry_active = False
+            self.send_command("TELEMETRY 0")
+            self.btn_telem_toggle.setText("📡 Telemetry OFF")
+            self.btn_telem_toggle.setStyleSheet("background-color: #212537; color: #FF0055; border-color: #FF0055;")
+        else:
+            self.telemetry_active = True
+            self.send_command("TELEMETRY 1")
+            self.btn_telem_toggle.setText("📡 Telemetry (10Hz) ON")
+            self.btn_telem_toggle.setStyleSheet("background-color: #212537; color: #00E676; border-color: #00E676;")
+
+    def log_console(self, text):
+        self.txt_console.appendPlainText(text)
+
+    def send_command(self, cmd_str):
+        if self.is_connected and self.worker_thread:
+            self.worker_thread.send_command(cmd_str)
+            self.log_console(f"> {cmd_str}")
+
+    # ---------------------------------------------------------------------------
+    # SLIDER & MOTOR EVENT HANDLERS
+    # ---------------------------------------------------------------------------
+    def on_realtime_toggled(self, state):
+        self.realtime_enabled = (state == QtCore.Qt.CheckState.Checked.value)
+
+    def on_channel_angle_changed(self, channel, angle):
+        if self.realtime_enabled:
+            self.send_command(f"ANGLE {channel} {int(angle)}")
+
+    def on_motor_slider_moved(self, speed):
+        self.lbl_motor_speed.setText(f"Speed: {speed}")
+        if self.realtime_enabled:
+            self.send_command(f"MOTOR {speed}")
+
     def stop_motor(self):
-        if hasattr(self, 'dc_speed_var'):
-            self.dc_speed_var.set(0)
+        self.slider_motor.setValue(0)
+        self.lbl_motor_speed.setText("Speed: 0")
         self.send_command("MOTOR 0")
-        
-    # ==================== Settings Methods ====================
-    
-    def save_settings(self):
-        """Save settings to file"""
-        # Update calibration from GUI
+
+    def test_tick(self, channel, mode):
+        spn_min, spn_max = self.cal_spinboxes[channel]
+        tick = spn_min.value() if mode == 'min' else spn_max.value()
+        self.send_command(f"TICK {channel} {tick}")
+
+    # ---------------------------------------------------------------------------
+    # CALIBRATION PROFILES & BATCH OPERATORS
+    # ---------------------------------------------------------------------------
+    def apply_global_calibration(self):
+        g_min = self.spn_glob_min.value()
+        g_max = self.spn_glob_max.value()
         for ch in range(16):
-            try:
-                min_tick = int(self.cal_widgets[ch]['min_var'].get())
-                max_tick = int(self.cal_widgets[ch]['max_var'].get())
-                self.calibration['channels'][str(ch)]['tick_min'] = min_tick
-                self.calibration['channels'][str(ch)]['tick_max'] = max_tick
-            except ValueError:
-                pass
-        
+            spn_min, spn_max = self.cal_spinboxes[ch]
+            spn_min.setValue(g_min)
+            spn_max.setValue(g_max)
+            self.cards[ch].update_calibration(g_min, g_max)
+        QtWidgets.QMessageBox.information(self, "Success", "Global calibration applied to all 16 channels.")
+
+    def send_all_calibrations(self):
+        if not self.is_connected:
+            QtWidgets.QMessageBox.warning(self, "Connection Error", "Please connect to ESP32 first.")
+            return
+
+        for ch in range(16):
+            spn_min, spn_max = self.cal_spinboxes[ch]
+            self.send_command(f"CAL {ch} {spn_min.value()} {spn_max.value()}")
+            time.sleep(0.01)
+        QtWidgets.QMessageBox.information(self, "Success", "All 16 channel calibrations synced to robot.")
+
+    def save_profile(self):
+        data = {
+            "channels": {}
+        }
+        for ch in range(16):
+            spn_min, spn_max = self.cal_spinboxes[ch]
+            data["channels"][str(ch)] = {
+                "tick_min": spn_min.value(),
+                "tick_max": spn_max.value()
+            }
         try:
-            with open(self.settings_file, 'w') as f:
-                json.dump(self.calibration, f, indent=2)
-            
-            messagebox.showinfo("Success", f"Settings saved to {self.settings_file}")
-            self.update_settings_display()
-            
+            with open(self.settings_file, "w") as f:
+                json.dump(data, f, indent=4)
+            self.log_console(f"[PROFILE] Saved profile to {self.settings_file}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save settings:\n{str(e)}")
-    
-    def load_settings(self):
-        """Load settings from file"""
+            QtWidgets.QMessageBox.critical(self, "Save Error", str(e))
+
+    def load_profile(self):
         if not os.path.exists(self.settings_file):
-            return  # Use defaults if file doesn't exist
-        
+            return
         try:
-            with open(self.settings_file, 'r') as f:
-                self.calibration = json.load(f)
-            
-            # Update GUI widgets if they exist
-            if hasattr(self, 'freq_var'):
-                self.freq_var.set(str(self.calibration['frequency']))
-            
-            if hasattr(self, 'cal_widgets'):
-                for ch in range(16):
-                    ch_str = str(ch)
-                    if ch_str in self.calibration['channels']:
-                        min_tick = self.calibration['channels'][ch_str]['tick_min']
-                        max_tick = self.calibration['channels'][ch_str]['tick_max']
-                        self.cal_widgets[ch]['min_var'].set(str(min_tick))
-                        self.cal_widgets[ch]['max_var'].set(str(max_tick))
-            
-            if hasattr(self, 'settings_text'):
-                self.update_settings_display()
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load settings:\n{str(e)}")
-    
-    def save_settings_as(self):
-        """Save settings to a new file"""
-        filename = filedialog.asksaveasfilename(
-            title="Save Settings As",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        
-        if filename:
-            self.settings_file = filename
-            self.settings_file_var.set(filename)
-            self.save_settings()
-    
-    def load_settings_from(self):
-        """Load settings from a specific file"""
-        filename = filedialog.askopenfilename(
-            title="Load Settings From",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        
-        if filename:
-            self.settings_file = filename
-            self.settings_file_var.set(filename)
-            self.load_settings()
-            messagebox.showinfo("Success", f"Settings loaded from {filename}")
-    
-    def reset_to_defaults(self):
-        """Reset all calibrations to default values"""
-        result = messagebox.askyesno("Confirm Reset",
-                                     "Reset all calibrations to defaults (102-512 ticks)?")
-        if result:
+            with open(self.settings_file, "r") as f:
+                data = json.load(f)
+            ch_data = data.get("channels", {})
             for ch in range(16):
-                self.calibration['channels'][str(ch)]['tick_min'] = 102
-                self.calibration['channels'][str(ch)]['tick_max'] = 512
-                self.cal_widgets[ch]['min_var'].set("102")
-                self.cal_widgets[ch]['max_var'].set("512")
-            
-            self.calibration['frequency'] = 50
-            self.freq_var.set("50")
-            
-            self.global_min_var.set("102")
-            self.global_max_var.set("512")
-            
-            messagebox.showinfo("Reset", "Calibrations reset to defaults")
-            self.update_settings_display()
-    
-    def update_settings_display(self):
-        """Update settings display text if widget exists"""
-        if hasattr(self, 'settings_text'):
-            self.settings_text.config(state=tk.NORMAL)
-            self.settings_text.delete("1.0", tk.END)
-            
-            # Format settings nicely
-            display_text = json.dumps(self.calibration, indent=2)
-            self.settings_text.insert("1.0", display_text)
-            
-            self.settings_text.config(state=tk.DISABLED)
+                c_str = str(ch)
+                if c_str in ch_data:
+                    min_t = ch_data[c_str].get("tick_min", 102)
+                    max_t = ch_data[c_str].get("tick_max", 512)
+                    spn_min, spn_max = self.cal_spinboxes[ch]
+                    spn_min.setValue(min_t)
+                    spn_max.setValue(max_t)
+                    self.cards[ch].update_calibration(min_t, max_t)
+            self.log_console(f"[PROFILE] Loaded profile from {self.settings_file}")
+        except Exception as e:
+            print(f"Error loading profile: {e}")
+
+    def load_profile_dialog(self):
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Profile JSON", "", "JSON Files (*.json)")
+        if file_path:
+            self.settings_file = file_path
+            self.load_profile()
 
 
+# ===============================================================================
+# MAIN ENTRY POINT
+# ===============================================================================
 def main():
-    root = tk.Tk()
-    app = ServoControllerGUI(root)
-    
-    # Save settings on close
-    def on_closing():
-        app.running = False
-        if messagebox.askokcancel("Quit", "Save settings before closing?"):
-            app.save_settings()
-        root.destroy()
-    
-    root.protocol("WM_DELETE_WINDOW", on_closing)
-    root.mainloop()
-
+    app = QtWidgets.QApplication(sys.argv)
+    app.setStyle("Fusion")
+    window = RollopodMainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

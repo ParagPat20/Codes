@@ -42,8 +42,7 @@ void setupAntenna() {
 }
 
 // ============================================================
-// IMPORTANT: Replace with your SLAVE ESP32's MAC Address
-// Get it by uploading the slave sketch and checking Serial Monitor
+// Target SLAVE ESP32 MAC Address (Updated to XIAO ESP32-C6)
 // ============================================================
 uint8_t SLAVE_MAC_ADDRESS[] = { 0x98, 0xA3, 0x16, 0x61, 0x1A, 0xC8 };
 // Example: {0x24, 0x6F, 0x28, 0xAB, 0xCD, 0xEF}
@@ -79,8 +78,53 @@ String serialBuffer = "";
 // Status tracking
 bool espnowInitialized = false;
 bool peerAdded = false;
-unsigned long lastHeartbeat = 0;
-const unsigned long HEARTBEAT_INTERVAL = 5000;  // 5 seconds
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 15
+#endif
+
+// Non-blocking LED timing & mode control for Master
+unsigned long lastMasterLedToggle = 0;
+bool masterLedState = false;
+int masterBurstToggles = 0;
+unsigned long masterFailPauseEnd = 0;
+unsigned long lastSlaveResponseTime = 0;
+const unsigned long SLAVE_CONNECTED_TIMEOUT_MS = 3000;
+
+void updateMasterLed() {
+  unsigned long now = millis();
+
+  // If in failed message pause, keep LED static OFF for the small pause period
+  if (now < masterFailPauseEnd) {
+    digitalWrite(LED_BUILTIN, LOW);
+    return;
+  }
+
+  // 4 Fast Blinks on Confirm message sent (8 toggles @ 40ms)
+  if (masterBurstToggles > 0) {
+    if (now - lastMasterLedToggle >= 40) {
+      lastMasterLedToggle = now;
+      masterLedState = !masterLedState;
+      digitalWrite(LED_BUILTIN, masterLedState ? HIGH : LOW);
+      masterBurstToggles--;
+    }
+    return;
+  }
+
+  // Check if Slave is connected (received response/ACK within last 3 sec)
+  bool isSlaveConnected = (now - lastSlaveResponseTime < SLAVE_CONNECTED_TIMEOUT_MS);
+
+  if (!isSlaveConnected) {
+    // Keep LED Solid ON if Slave is not connected
+    digitalWrite(LED_BUILTIN, HIGH);
+  } else {
+    // Slow Blink (500ms ON / 500ms OFF) if Slave is connected
+    if (now - lastMasterLedToggle >= 500) {
+      lastMasterLedToggle = now;
+      masterLedState = !masterLedState;
+      digitalWrite(LED_BUILTIN, masterLedState ? HIGH : LOW);
+    }
+  }
+}
 
 // Function prototypes
 void initESPNow();
@@ -91,6 +135,9 @@ void printMacAddress();
 bool isMacAddressValid();
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+
   // Initialize Serial communication with PC
   Serial.begin(115200);
   delay(1000);
@@ -149,11 +196,33 @@ void loop() {
             Serial.println("*** Slave MAC not configured! ***");
           }
         } else if (serialBuffer.equalsIgnoreCase("HELP")) {
-          Serial.println("\n=== Bridge Commands ===");
-          Serial.println("GET_MAC  - Show MAC addresses");
-          Serial.println("HELP     - Show this help");
-          Serial.println("\nAll other commands are forwarded to slave ESP32");
-          Serial.println("See slave documentation for servo commands\n");
+          Serial.println("\n========================================================");
+          Serial.println("         ROLLOPOD MASTER BRIDGE COMMAND REFERENCE        ");
+          Serial.println("========================================================");
+          Serial.println("SYSTEM & DIAGNOSTICS:");
+          Serial.println("  PING                       - Test wireless connection link");
+          Serial.println("  GET_MAC                    - Show Master & Slave MAC addresses");
+          Serial.println("  INFO                       - Print current slave PCA9685 config");
+          Serial.println("  TELEMETRY <1/0>            - Enable/Disable 10Hz pitch telemetry");
+          Serial.println();
+          Serial.println("POWER & MOTOR CONTROL:");
+          Serial.println("  TORQUE <1/0>               - Enable (12V MOSFET ON) / Disable Servo power");
+          Serial.println("  MOTOR <speed>              - Set DC Motor speed (-255 to +255)");
+          Serial.println();
+          Serial.println("SERVO CONTROL (PCA9685 16-CH):");
+          Serial.println("  ANGLE <ch> <0.0-180.0>     - Set servo angle (0-15)");
+          Serial.println("  TICK <ch> <102-512>        - Set raw PWM tick value (0-4095)");
+          Serial.println();
+          Serial.println("CALIBRATION & FREQUENCY:");
+          Serial.println("  CAL <ch> <min> <max>       - Calibrate min/max ticks for channel");
+          Serial.println("  CAL_ALL <min> <max>        - Calibrate min/max ticks for all channels");
+          Serial.println("  GET_CAL <ch>               - Read channel calibration");
+          Serial.println("  GET_ALL_CAL                - Read all channel calibrations");
+          Serial.println("  FREQ <hz>                  - Set PWM frequency (Default: 50 Hz)");
+          Serial.println();
+          Serial.println("POWER MANAGEMENT:");
+          Serial.println("  SLEEP / WAKE / RESET       - PCA9685 sleep/wake/reset");
+          Serial.println("========================================================\n");
         } else if (serialBuffer.equalsIgnoreCase("PING")) {
           // Test connectivity
           Serial.println("Bridge OK - sending ping to slave...");
@@ -170,11 +239,19 @@ void loop() {
     }
   }
 
-  // Send periodic heartbeat to check connection
-  if (millis() - lastHeartbeat > HEARTBEAT_INTERVAL) {
-    lastHeartbeat = millis();
-    // Could send a heartbeat ping here if needed
+  // Send periodic 2Hz heartbeat to check if Slave is truly connected (every 500ms)
+  static unsigned long last2HzHeartbeat = 0;
+  if (millis() - last2HzHeartbeat >= 500) {
+    last2HzHeartbeat = millis();
+    if (espnowInitialized && peerAdded) {
+      memset(&myCmd, 0, sizeof(myCmd));
+      strncpy(myCmd.command, "PING", sizeof(myCmd.command) - 1);
+      esp_now_send(SLAVE_MAC_ADDRESS, (uint8_t *)&myCmd, sizeof(myCmd));
+    }
   }
+
+  // Update Master LED state continuously
+  updateMasterLed();
 }
 
 // Initialize ESP-NOW
@@ -221,9 +298,18 @@ void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
 #else
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 #endif
-  if (status != ESP_NOW_SEND_SUCCESS) {
-    Serial.println("ERROR: ESP-NOW send failed!");
-    Serial.println("Check if slave is powered on and in range");
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    lastSlaveResponseTime = millis();
+    // Only trigger fast blink burst for actual user commands, not background 2Hz heartbeats
+    if (strcmp(myCmd.command, "PING") != 0) {
+      masterBurstToggles = 8; // 4 fast blinks = 8 toggles @ 40ms
+    }
+  } else {
+    // Only trigger failure pause for actual user commands
+    if (strcmp(myCmd.command, "PING") != 0) {
+      masterFailPauseEnd = millis() + 350;
+      Serial.println("[LINK FAIL] Delivery FAILED - Slave offline or out of range!");
+    }
   }
 }
 
@@ -233,8 +319,14 @@ void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *incomingData, 
 #else
 void onDataRecv(const uint8_t *srcMac, const uint8_t *incomingData, int len) {
 #endif
+  lastSlaveResponseTime = millis();
   if (len == sizeof(telemetry_struct)) {
     memcpy(&myData, incomingData, sizeof(myData));
+    
+    // Ignore background PONG heartbeats so PC Serial Log stays clean
+    if (strcmp(myData.message, "PONG") == 0) {
+      return;
+    }
     
     // Forward to PC via Serial depending on message type
     if (strcmp(myData.type, "MPU") == 0) {
