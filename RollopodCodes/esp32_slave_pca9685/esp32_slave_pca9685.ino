@@ -97,12 +97,12 @@ unsigned long lastSlaveLedToggle = 0;
 bool slaveLedState = false;
 int slaveBurstToggles = 0;
 unsigned long lastMasterCommandTime = 0;
-const unsigned long MASTER_AVAILABLE_TIMEOUT_MS = 3000;
+const unsigned long MASTER_AVAILABLE_TIMEOUT_MS = 2500;
 
 void updateSlaveLed() {
   unsigned long now = millis();
 
-  // Fast Blinks burst when command is received (6 toggles @ 35ms)
+  // Fast Blinks burst when explicit command is received (6 toggles @ 35ms)
   if (slaveBurstToggles > 0) {
     if (now - lastSlaveLedToggle >= 35) {
       lastSlaveLedToggle = now;
@@ -113,14 +113,19 @@ void updateSlaveLed() {
     return;
   }
 
-  // Check if Master is available (command received within 3 sec)
+  // Check if Master is available (heartbeat/command received within last 2.5 sec)
   bool isMasterAvailable = (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
-  unsigned long blinkInterval = isMasterAvailable ? 500 : 1000; // Slow blink 500ms when master available, 1000ms when idle
 
-  if (now - lastSlaveLedToggle >= blinkInterval) {
-    lastSlaveLedToggle = now;
-    slaveLedState = !slaveLedState;
-    digitalWrite(LED_BUILTIN, slaveLedState ? HIGH : LOW);
+  if (!isMasterAvailable) {
+    // SOLID OFF when Master is disconnected / unavailable
+    digitalWrite(LED_BUILTIN, LOW);
+  } else {
+    // SLOW BLINK (500ms ON / 500ms OFF) when Master is connected
+    if (now - lastSlaveLedToggle >= 500) {
+      lastSlaveLedToggle = now;
+      slaveLedState = !slaveLedState;
+      digitalWrite(LED_BUILTIN, slaveLedState ? HIGH : LOW);
+    }
   }
 }
 
@@ -221,7 +226,10 @@ void setup() {
 
   // Initialize serial communication for debugging
   Serial.begin(115200);
-  delay(1000);
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && (ARDUINO_USB_CDC_ON_BOOT == 1)
+  Serial.setTxTimeoutMs(0); // 0ms timeout: Prevent Serial.print blocking on USB-CDC hardware
+#endif
+  delay(500);
   
   Serial.println("\n\n========================================");
   Serial.println("ESP32-C6 Slave PCA9685 Controller - ESP-NOW");

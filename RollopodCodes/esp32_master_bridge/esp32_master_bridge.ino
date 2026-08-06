@@ -140,7 +140,10 @@ void setup() {
 
   // Initialize Serial communication with PC
   Serial.begin(115200);
-  delay(1000);
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && (ARDUINO_USB_CDC_ON_BOOT == 1)
+  Serial.setTxTimeoutMs(0); // 0ms timeout: Prevent Serial.print blocking on USB-CDC hardware
+#endif
+  delay(500);
 
   Serial.println("\n\n========================================");
 #if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
