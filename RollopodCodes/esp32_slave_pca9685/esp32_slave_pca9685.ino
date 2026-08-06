@@ -39,6 +39,7 @@
  * PCA9685 V+  -> External 5-6V power supply for servos
  */
 
+#include <esp_idf_version.h>
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 #include <esp_now.h>
@@ -50,7 +51,6 @@
 #define PCA9685_ADDRESS 0x40
 
 // Default PWM tick values (12-bit resolution: 0-4095)
-// These are reasonable defaults for most servos at 50Hz
 #define TICK_MIN_DEFAULT 102    // ~500us at 50Hz (102 ticks)
 #define TICK_MAX_DEFAULT 512    // ~2500us at 50Hz (512 ticks)
 
@@ -60,13 +60,33 @@
 // Create PCA9685 driver object
 Adafruit_PWMServoDriver pca = Adafruit_PWMServoDriver(PCA9685_ADDRESS);
 
-// MOSFET Power Control Pin (N-Channel low-side switch)
-// Labeled D5 on schematic (GPIO 19)
-#define MOSFET_PIN 19
+// ============================================================
+// PIN ASSIGNMENTS (Seeed Studio XIAO ESP32-C6 / EasyEDA Schematic)
+// ============================================================
+// MOSFET Power Control Pin (IRL84132PBF Gate control - EasyEDA Pin 1 / GPIO0)
+#define MOSFET_PIN 0
 
-// DC Motor Control Pins (Verified from schematic)
-#define MOTOR_PWM_PIN 32
-#define MOTOR_DIR_PIN 33
+// DC Motor Control Pins (MD13S Driver - EasyEDA Pin 8 / GPIO17 & Pin 9 / GPIO19)
+#define MOTOR_PWM_PIN 17
+#define MOTOR_DIR_PIN 19
+
+// I2C Bus Pins (EasyEDA Pin 4 / GPIO21 SDA & Pin 5 / GPIO22 SCL)
+#define I2C_SDA_PIN 21
+#define I2C_SCL_PIN 22
+
+// Internal RF Antenna Setup for Seeed Studio XIAO ESP32-C6
+void setupAntenna() {
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
+  pinMode(3, OUTPUT);
+  digitalWrite(3, LOW); // Turn on antenna selection circuit
+  delay(100);
+  pinMode(14, OUTPUT);
+  digitalWrite(14, LOW); // LOW = Built-in Internal PCB Antenna
+  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured (GPIO3=LOW, GPIO14=LOW)");
+#else
+  Serial.println("[ANTENNA] Standard ESP32 DevKit Board");
+#endif
+}
 
 // MPU6050 Configuration & Variables
 #define MPU6050_ADDRESS 0x68
@@ -146,6 +166,9 @@ void setTorque(int state);
 void sendTelemetry();
 
 void setup() {
+  // Initialize Internal RF Antenna for XIAO ESP32-C6
+  setupAntenna();
+
   // Configure and turn on MOSFET power control pin
   pinMode(MOSFET_PIN, OUTPUT);
   digitalWrite(MOSFET_PIN, LOW); // Start at No torque (fully off)
@@ -162,19 +185,19 @@ void setup() {
   delay(1000);
   
   Serial.println("\n\n========================================");
-  Serial.println("ESP32 Slave PCA9685 Controller - ESP-NOW");
+  Serial.println("ESP32-C6 Slave PCA9685 Controller - ESP-NOW");
   Serial.println("========================================");
+  
+  // Initialize ESP-NOW (Enables WiFi Station mode)
+  initESPNow();
   
   // Print MAC address (needed for master configuration)
   Serial.print("\n*** SLAVE MAC ADDRESS: ");
   printMacAddress();
   Serial.println("*** Copy this MAC to master ESP32 sketch ***\n");
   
-  // Initialize ESP-NOW
-  initESPNow();
-  
-  // Initialize I2C
-  Wire.begin();
+  // Initialize I2C with schematic pins (SDA=21, SCL=22)
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
   // Initialize MPU6050
   Serial.println("Initializing MPU6050...");
@@ -247,10 +270,15 @@ void initESPNow() {
 }
 
 // Callback when data is received via ESP-NOW
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
 void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len) {
+  const uint8_t *srcMac = recvInfo->src_addr;
+#else
+void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
+#endif
   // Save master MAC address for telemetry
   if (!hasMasterMac) {
-    memcpy(masterMac, recvInfo->src_addr, 6);
+    memcpy(masterMac, srcMac, 6);
     hasMasterMac = true;
     Serial.printf("Master MAC locked: %02X:%02X:%02X:%02X:%02X:%02X\n",
                   masterMac[0], masterMac[1], masterMac[2],
@@ -282,7 +310,7 @@ void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len)
     Serial.println(cmdStr);
     
     // Process command
-    processCommand(cmdStr, recvInfo->src_addr);
+    processCommand(cmdStr, srcMac);
   }
 }
 
@@ -316,15 +344,17 @@ void sendResponse(const char* response, const uint8_t *mac_addr) {
   Serial.println(myData.message);
 }
 
-// Print this device's MAC address
+// Print this device's MAC address directly from Wi-Fi hardware
 void printMacAddress() {
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  for (int i = 0; i < 6; i++) {
-    Serial.printf("%02X", mac[i]);
-    if (i < 5) Serial.print(":");
+  uint8_t baseMac[6];
+  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  if (ret == ESP_OK) {
+    Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n",
+                  baseMac[0], baseMac[1], baseMac[2],
+                  baseMac[3], baseMac[4], baseMac[5]);
+  } else {
+    Serial.println(WiFi.macAddress());
   }
-  Serial.println();
 }
 
 // ==================== Command Processing ====================
@@ -781,4 +811,6 @@ void sendTelemetry() {
   
   esp_now_send(masterMac, (uint8_t *)&myData, sizeof(myData));
 }
+
+
 

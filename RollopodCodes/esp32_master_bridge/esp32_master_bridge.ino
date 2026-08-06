@@ -22,15 +22,30 @@
  * https://randomnerdtutorials.com/esp-now-esp32-arduino-ide/
  */
 
+#include <esp_idf_version.h>
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+
+// Internal RF Antenna Setup for Seeed Studio XIAO ESP32-C6
+void setupAntenna() {
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
+  pinMode(3, OUTPUT);
+  digitalWrite(3, LOW); // Turn on antenna selection circuit
+  delay(100);
+  pinMode(14, OUTPUT);
+  digitalWrite(14, LOW); // LOW = Built-in Internal PCB Antenna
+  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured (GPIO3=LOW, GPIO14=LOW)");
+#else
+  Serial.println("[ANTENNA] Standard ESP32 DevKit Board");
+#endif
+}
 
 // ============================================================
 // IMPORTANT: Replace with your SLAVE ESP32's MAC Address
 // Get it by uploading the slave sketch and checking Serial Monitor
 // ============================================================
-uint8_t SLAVE_MAC_ADDRESS[] = { 0x84, 0x1F, 0xE8, 0x2B, 0x52, 0x60 };
+uint8_t SLAVE_MAC_ADDRESS[] = { 0x98, 0xA3, 0x16, 0x61, 0x1A, 0xC8 };
 // Example: {0x24, 0x6F, 0x28, 0xAB, 0xCD, 0xEF}
 
 // ESP-NOW peer info
@@ -81,7 +96,13 @@ void setup() {
   delay(1000);
 
   Serial.println("\n\n========================================");
-  Serial.println("ESP32 Master Bridge - Serial to ESP-NOW");
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
+  Serial.println("ESP32-C6 Master Bridge - Serial to ESP-NOW");
+  setupAntenna();
+#else
+  Serial.println("ESP32 DevKit Master Bridge - Serial to ESP-NOW");
+  Serial.println("[ANTENNA] Standard ESP32 DevKit Board (Built-in PCB Antenna)");
+#endif
   Serial.println("========================================");
 
   // Initialize ESP-NOW first so WiFi gets turned on
@@ -195,16 +216,23 @@ void initESPNow() {
 }
 
 // Callback when data is sent via ESP-NOW
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
 void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
+#else
+void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+#endif
   if (status != ESP_NOW_SEND_SUCCESS) {
     Serial.println("ERROR: ESP-NOW send failed!");
     Serial.println("Check if slave is powered on and in range");
   }
-  // Don't print success message to avoid cluttering output
 }
 
 // Callback when data is received via ESP-NOW
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
 void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *incomingData, int len) {
+#else
+void onDataRecv(const uint8_t *srcMac, const uint8_t *incomingData, int len) {
+#endif
   if (len == sizeof(telemetry_struct)) {
     memcpy(&myData, incomingData, sizeof(myData));
     
@@ -274,15 +302,17 @@ void sendCommandToSlave(String command) {
   }
 }
 
-// Print this device's MAC address
+// Print this device's MAC address directly from Wi-Fi hardware
 void printMacAddress() {
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  for (int i = 0; i < 6; i++) {
-    Serial.printf("%02X", mac[i]);
-    if (i < 5) Serial.print(":");
+  uint8_t baseMac[6];
+  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  if (ret == ESP_OK) {
+    Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n",
+                  baseMac[0], baseMac[1], baseMac[2],
+                  baseMac[3], baseMac[4], baseMac[5]);
+  } else {
+    Serial.println(WiFi.macAddress());
   }
-  Serial.println();
 }
 
 // Check if slave MAC address has been configured (not default FF:FF:FF:FF:FF:FF)
