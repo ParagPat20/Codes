@@ -1,0 +1,14 @@
+{
+    "leg_channels": {
+        "Front Coxa": 2,
+        "Front Femur": 1,
+        "Front Tibia": 0,
+        "Middle Coxa": 4,
+        "Middle Femur": 5,
+        "Middle Patella": 6,
+        "Middle Tibia": 7,
+        "Rear Coxa": 8,
+        "Rear Femur": 9,
+        "Rear Tibia": 10
+    }
+}

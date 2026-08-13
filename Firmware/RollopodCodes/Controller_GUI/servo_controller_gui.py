@@ -14,8 +14,22 @@ import serial
 import serial.tools.list_ports
 from PyQt6 import QtWidgets, QtCore, QtGui
 
+# -------------------------------------------------------------------------------
+# 10 LEG SERVOS DEFINITION
+# -------------------------------------------------------------------------------
+LEG_SERVOS = [
+    "Front Coxa",
+    "Front Femur",
+    "Front Tibia",
+    "Middle Coxa",
+    "Middle Femur",
+    "Middle Patella",
+    "Middle Tibia",
+    "Rear Coxa",
+    "Rear Femur",
+    "Rear Tibia"
+]
 
-# ===============================================================================
 # CUSTOM NO-WHEEL SLIDER (Ignores accidental mouse wheel scrolling)
 # ===============================================================================
 class NoWheelSlider(QtWidgets.QSlider):
@@ -117,15 +131,15 @@ class SerialWorkerThread(QtCore.QThread):
 class ServoChannelCard(QtWidgets.QFrame):
     angle_changed = QtCore.pyqtSignal(int, float)
     card_selected = QtCore.pyqtSignal(int)
+    servo_assignment_changed = QtCore.pyqtSignal(int, str)
 
-    def __init__(self, channel, min_tick=102, max_tick=512, parent=None):
+    def __init__(self, channel, parent=None):
         super().__init__(parent)
         self.channel = channel
-        self.min_tick = min_tick
-        self.max_tick = max_tick
         self.current_angle = 90.0
         self.last_send_time = 0.0
         self.is_selected = False
+        self.assigned_servo = "Unassigned"
 
         self.init_ui()
 
@@ -147,12 +161,31 @@ class ServoChannelCard(QtWidgets.QFrame):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(6)
 
-        # Header Row: Channel Title + Identify Wiggle Button + Large Angle Display
+        # Header Row: Channel Title + Leg Servo Dropdown + Identify Wiggle Button + Large Angle Display
         header_layout = QtWidgets.QHBoxLayout()
         
         self.lbl_title = QtWidgets.QLabel(f"CH {self.channel:02d}")
-        self.lbl_title.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 13px;")
+        self.lbl_title.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 13px;")
         header_layout.addWidget(self.lbl_title)
+
+        # Assigned Servo Selector ComboBox on Card
+        self.cmb_servo = QtWidgets.QComboBox()
+        self.cmb_servo.addItem("Unassigned")
+        self.cmb_servo.addItems(LEG_SERVOS)
+        self.cmb_servo.setToolTip("Assign Leg Servo to this PCA channel")
+        self.cmb_servo.setStyleSheet("""
+            QComboBox {
+                background-color: #11131C;
+                color: #00E676;
+                font-weight: bold;
+                font-size: 11px;
+                border: 1px solid #23283B;
+                border-radius: 4px;
+                padding: 1px 4px;
+            }
+        """)
+        self.cmb_servo.currentIndexChanged.connect(self.on_servo_combo_changed)
+        header_layout.addWidget(self.cmb_servo)
 
         # Wiggle / Identify Button
         self.btn_wiggle = QtWidgets.QPushButton("🔍 Wiggle ±4°")
@@ -240,28 +273,18 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.btn_inc.clicked.connect(self.increment_angle)
         slider_layout.addWidget(self.btn_inc)
 
-        # Direct Angle SpinBox Input (0-180°)
+        # Direct Angle SpinBox Input (0-180°) - Requires ENTER key to set for safety!
         self.spn_angle = QtWidgets.QSpinBox()
         self.spn_angle.setRange(0, 180)
         self.spn_angle.setValue(90)
         self.spn_angle.setFixedWidth(56)
-        self.spn_angle.setToolTip("Directly type angle (0-180°)")
+        self.spn_angle.setKeyboardTracking(False)  # Disables sending live commands on each digit typed
+        self.spn_angle.setToolTip("Type angle (0-180°) & press ENTER to set")
         self.spn_angle.setStyleSheet("background-color: #11131C; color: #00E5FF; font-weight: bold; font-size: 12px; border: 1px solid #23283B; border-radius: 4px; padding: 2px;")
-        self.spn_angle.valueChanged.connect(self.on_spinbox_angle_changed)
+        self.spn_angle.editingFinished.connect(self.on_spinbox_editing_finished)
         slider_layout.addWidget(self.spn_angle)
 
         layout.addLayout(slider_layout)
-
-        # Footer Row: Calculated Ticks Badge
-        footer_layout = QtWidgets.QHBoxLayout()
-        footer_layout.setSpacing(4)
-
-        self.lbl_ticks = QtWidgets.QLabel(f"{self.calc_tick(90.0)} Ticks")
-        self.lbl_ticks.setStyleSheet("color: #8E98B0; font-size: 10px; font-family: 'Consolas';")
-        footer_layout.addWidget(self.lbl_ticks)
-
-        footer_layout.addStretch()
-        layout.addLayout(footer_layout)
 
     def decrement_angle(self):
         val = max(0, int(self.current_angle) - 1)
@@ -271,18 +294,43 @@ class ServoChannelCard(QtWidgets.QFrame):
         val = min(180, int(self.current_angle) + 1)
         self.set_angle(val, emit_signal=True)
 
-    def on_spinbox_angle_changed(self, val):
+    def on_spinbox_editing_finished(self):
+        val = self.spn_angle.value()
         if int(self.current_angle) != val:
             self.set_angle(val, emit_signal=True)
 
-    def calc_tick(self, angle):
-        return int(self.min_tick + (angle / 180.0) * (self.max_tick - self.min_tick))
+    def on_servo_combo_changed(self, index):
+        servo_name = self.cmb_servo.currentText()
+        self.assigned_servo = servo_name
+        self.servo_assignment_changed.emit(self.channel, servo_name)
+
+    def set_assigned_servo(self, servo_name):
+        self.assigned_servo = servo_name
+        self.cmb_servo.blockSignals(True)
+        idx = self.cmb_servo.findText(servo_name)
+        if idx >= 0:
+            self.cmb_servo.setCurrentIndex(idx)
+        else:
+            self.cmb_servo.setCurrentIndex(0)
+        self.cmb_servo.blockSignals(False)
+
+    def update_card_title(self, view_mode="Leg Control"):
+        if view_mode == "Leg Control":
+            if self.assigned_servo != "Unassigned":
+                title_text = f"{self.assigned_servo} (CH {self.channel:02d})"
+            else:
+                title_text = f"Unassigned (CH {self.channel:02d})"
+        else:
+            if self.assigned_servo != "Unassigned":
+                title_text = f"CH {self.channel:02d} [{self.assigned_servo}]"
+            else:
+                title_text = f"CH {self.channel:02d}"
+        self.lbl_title.setText(title_text)
 
     def on_slider_moved(self, angle_int):
         angle = float(angle_int)
         self.current_angle = angle
         self.lbl_angle.setText(f"{int(angle)}°")
-        self.lbl_ticks.setText(f"{self.calc_tick(angle)} Ticks")
         self.spn_angle.blockSignals(True)
         self.spn_angle.setValue(int(angle))
         self.spn_angle.blockSignals(False)
@@ -302,17 +350,11 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.spn_angle.blockSignals(False)
         self.current_angle = float(angle)
         self.lbl_angle.setText(f"{int(round(angle))}°")
-        self.lbl_ticks.setText(f"{self.calc_tick(angle)} Ticks")
         if emit_signal:
             self.angle_changed.emit(self.channel, float(angle))
 
     def on_wiggle_clicked(self):
         self.card_selected.emit(self.channel)
-
-    def update_calibration(self, min_tick, max_tick):
-        self.min_tick = min_tick
-        self.max_tick = max_tick
-        self.lbl_ticks.setText(f"{self.calc_tick(self.current_angle)} Ticks")
 
 
 # ===============================================================================
@@ -332,6 +374,22 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.settings_file = "rollopod_servo_profile.json"
         self.cards = []
         self.selected_channel = 0
+        self.dashboard_view_mode = "Leg Control"
+
+        # Leg Servo Channel Mapping (Default: CH 0..9 mapped to the 10 leg servos)
+        self.leg_channel_map = {
+            "Front Coxa": 0,
+            "Front Femur": 1,
+            "Front Tibia": 2,
+            "Middle Coxa": 3,
+            "Middle Femur": 4,
+            "Middle Patella": 5,
+            "Middle Tibia": 6,
+            "Rear Coxa": 7,
+            "Rear Femur": 8,
+            "Rear Tibia": 9
+        }
+        self.leg_map_combos = {}
 
         self.init_ui()
         self.load_profile()
@@ -533,10 +591,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.init_dashboard_tab()
         self.tabs.addTab(self.tab_dashboard, "🎛️ Master Control Dashboard")
 
-        # Tab 2: Calibration & JSON Profiles
+        # Tab 2: Leg Servo Assignment & Profiles
         self.tab_calibration = QtWidgets.QWidget()
         self.init_calibration_tab()
-        self.tabs.addTab(self.tab_calibration, "⚙️ Servo Calibration & Profiles")
+        self.tabs.addTab(self.tab_calibration, "⚙️ Servo Assignment & Profiles")
 
         self.scan_ports()
 
@@ -548,29 +606,87 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(14)
 
-        # LEFT PANE: 16 Servo Channels Grid (Scrollable 2-Column Grid)
+        # LEFT PANE: Mode Toggle + Categorized Leg Controls or PCA Channels Grid
+        left_pane = QtWidgets.QWidget()
+        left_layout = QtWidgets.QVBoxLayout(left_pane)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
+
+        # Top Mode Bar: Toggle between "Categorized Leg Control" and "All PCA Channels"
+        mode_bar = QtWidgets.QHBoxLayout()
+        lbl_mode = QtWidgets.QLabel("VIEW MODE:")
+        lbl_mode.setStyleSheet("font-weight: bold; color: #8E98B0; font-size: 11px;")
+        mode_bar.addWidget(lbl_mode)
+
+        self.btn_mode_leg = QtWidgets.QPushButton("🦵 Categorized Leg Control")
+        self.btn_mode_leg.setCheckable(True)
+        self.btn_mode_leg.setChecked(True)
+        self.btn_mode_leg.setStyleSheet("""
+            QPushButton {
+                background-color: #212537;
+                color: #00E5FF;
+                border: 1px solid #2F354D;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:checked {
+                background-color: #00E5FF;
+                color: #12141E;
+                border-color: #00E5FF;
+            }
+        """)
+        self.btn_mode_leg.clicked.connect(lambda: self.set_dashboard_view_mode("Leg Control"))
+        mode_bar.addWidget(self.btn_mode_leg)
+
+        self.btn_mode_pca = QtWidgets.QPushButton("🎛️ All PCA Channels (0-15)")
+        self.btn_mode_pca.setCheckable(True)
+        self.btn_mode_pca.setChecked(False)
+        self.btn_mode_pca.setStyleSheet("""
+            QPushButton {
+                background-color: #212537;
+                color: #00E5FF;
+                border: 1px solid #2F354D;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:checked {
+                background-color: #00E5FF;
+                color: #12141E;
+                border-color: #00E5FF;
+            }
+        """)
+        self.btn_mode_pca.clicked.connect(lambda: self.set_dashboard_view_mode("PCA Channels"))
+        mode_bar.addWidget(self.btn_mode_pca)
+
+        mode_bar.addStretch()
+        left_layout.addLayout(mode_bar)
+
+        # Scrollable Container for Dynamic Cards Layout
         scroll_area = QtWidgets.QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
-        grid_widget = QtWidgets.QWidget()
-        grid_layout = QtWidgets.QGridLayout(grid_widget)
-        grid_layout.setContentsMargins(0, 0, 0, 0)
-        grid_layout.setSpacing(10)
+        self.dashboard_cards_widget = QtWidgets.QWidget()
+        self.dashboard_cards_layout = QtWidgets.QVBoxLayout(self.dashboard_cards_widget)
+        self.dashboard_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.dashboard_cards_layout.setSpacing(12)
 
         # Build 16 Servo Channel Cards
         for ch in range(16):
             card = ServoChannelCard(channel=ch)
             card.angle_changed.connect(self.on_channel_angle_changed)
             card.card_selected.connect(self.on_channel_selected)
-            
-            row = ch // 2
-            col = ch % 2
-            grid_layout.addWidget(card, row, col)
+            card.servo_assignment_changed.connect(self.on_card_servo_assignment_changed)
             self.cards.append(card)
 
-        scroll_area.setWidget(grid_widget)
-        layout.addWidget(scroll_area, stretch=3)
+        scroll_area.setWidget(self.dashboard_cards_widget)
+        left_layout.addWidget(scroll_area)
+
+        layout.addWidget(left_pane, stretch=3)
 
         # RIGHT PANE: Telemetry, 12V Power & DC Motor Controls
         right_panel = QtWidgets.QWidget()
@@ -688,98 +804,63 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(300, lambda: card.set_angle(orig_angle, emit_signal=True))
 
     # ---------------------------------------------------------------------------
-    # TAB 2: SERVO CALIBRATION & PROFILES
+    # TAB 2: SERVO ASSIGNMENT & PROFILES
     # ---------------------------------------------------------------------------
     def init_calibration_tab(self):
         layout = QtWidgets.QHBoxLayout(self.tab_calibration)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(14)
 
-        # Left Column: Detailed Channel Min/Max Calibration Table
-        box_cal = QtWidgets.QGroupBox("Channel Min / Max Tick Calibrations")
-        cal_layout = QtWidgets.QVBoxLayout(box_cal)
-        cal_layout.setContentsMargins(10, 18, 10, 10)
+        # Left Column: Leg Servos PCA Channel Assignment
+        box_leg_map = QtWidgets.QGroupBox("🦵 Leg Servos PCA Channel Assignment")
+        leg_layout = QtWidgets.QVBoxLayout(box_leg_map)
+        leg_layout.setContentsMargins(12, 18, 12, 12)
+        leg_layout.setSpacing(8)
 
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        channels_list = [f"CH {c:02d}" for c in range(16)] + ["Unassigned"]
 
-        cal_widget = QtWidgets.QWidget()
-        cal_grid = QtWidgets.QVBoxLayout(cal_widget)
-        cal_grid.setContentsMargins(0, 0, 0, 0)
-        cal_grid.setSpacing(6)
+        grid_leg = QtWidgets.QGridLayout()
+        grid_leg.setSpacing(8)
 
-        self.cal_spinboxes = []
+        for i, servo_name in enumerate(LEG_SERVOS):
+            row = i
+            lbl = QtWidgets.QLabel(f"{servo_name}:")
+            lbl.setStyleSheet("font-weight: bold; color: #00E5FF; font-size: 12px;")
+            grid_leg.addWidget(lbl, row, 0)
 
-        for ch in range(16):
-            row_frame = QtWidgets.QFrame()
-            row_frame.setStyleSheet("background-color: #1A1D2A; border: 1px solid #272C3F; border-radius: 6px;")
-            row_layout = QtWidgets.QHBoxLayout(row_frame)
-            row_layout.setContentsMargins(10, 6, 10, 6)
+            cmb = QtWidgets.QComboBox()
+            cmb.addItems(channels_list)
+            cmb.setStyleSheet("""
+                QComboBox {
+                    background-color: #11131C;
+                    color: #00E676;
+                    font-weight: bold;
+                    border: 1px solid #23283B;
+                    border-radius: 4px;
+                    padding: 3px 6px;
+                }
+            """)
+            cmb.currentTextChanged.connect(lambda text, s=servo_name: self.on_leg_map_combo_changed(s, text))
+            grid_leg.addWidget(cmb, row, 1)
 
-            lbl_ch = QtWidgets.QLabel(f"Channel {ch:02d}:")
-            lbl_ch.setStyleSheet("font-weight: bold; width: 80px;")
-            row_layout.addWidget(lbl_ch)
+            self.leg_map_combos[servo_name] = cmb
 
-            row_layout.addWidget(QtWidgets.QLabel("Min Tick:"))
-            spn_min = QtWidgets.QSpinBox()
-            spn_min.setRange(0, 4095)
-            spn_min.setValue(102)
-            row_layout.addWidget(spn_min)
+        leg_layout.addLayout(grid_leg)
 
-            row_layout.addWidget(QtWidgets.QLabel("Max Tick:"))
-            spn_max = QtWidgets.QSpinBox()
-            spn_max.setRange(0, 4095)
-            spn_max.setValue(512)
-            row_layout.addWidget(spn_max)
+        btn_auto_assign = QtWidgets.QPushButton("⚡ Auto-Assign (CH 00-09)")
+        btn_auto_assign.setStyleSheet("background-color: #212537; color: #00E5FF; border-color: #00E5FF; font-weight: bold; padding: 8px;")
+        btn_auto_assign.clicked.connect(self.auto_assign_leg_channels)
+        leg_layout.addWidget(btn_auto_assign)
 
-            btn_test_min = QtWidgets.QPushButton("Test Min")
-            btn_test_min.clicked.connect(lambda _, c=ch: self.test_tick(c, 'min'))
-            row_layout.addWidget(btn_test_min)
+        leg_layout.addStretch()
+        layout.addWidget(box_leg_map, stretch=2)
 
-            btn_test_max = QtWidgets.QPushButton("Test Max")
-            btn_test_max.clicked.connect(lambda _, c=ch: self.test_tick(c, 'max'))
-            row_layout.addWidget(btn_test_max)
-
-            self.cal_spinboxes.append((spn_min, spn_max))
-            cal_grid.addWidget(row_frame)
-
-        scroll.setWidget(cal_widget)
-        cal_layout.addWidget(scroll)
-        layout.addWidget(box_cal, stretch=2)
-
-        # Right Column: Bulk Operations & Profile File Manager
-        box_prof = QtWidgets.QGroupBox("Bulk Calibrations & JSON Profiles")
+        # Right Column: Profile File Manager
+        box_prof = QtWidgets.QGroupBox("JSON Profile Management")
         prof_layout = QtWidgets.QVBoxLayout(box_prof)
         prof_layout.setContentsMargins(14, 18, 14, 14)
         prof_layout.setSpacing(12)
 
-        prof_layout.addWidget(QtWidgets.QLabel("BULK CALIBRATION:"))
-
-        glob_row = QtWidgets.QHBoxLayout()
-        glob_row.addWidget(QtWidgets.QLabel("Global Min:"))
-        self.spn_glob_min = QtWidgets.QSpinBox()
-        self.spn_glob_min.setRange(0, 4095)
-        self.spn_glob_min.setValue(102)
-        glob_row.addWidget(self.spn_glob_min)
-
-        glob_row.addWidget(QtWidgets.QLabel("Global Max:"))
-        self.spn_glob_max = QtWidgets.QSpinBox()
-        self.spn_glob_max.setRange(0, 4095)
-        self.spn_glob_max.setValue(512)
-        glob_row.addWidget(self.spn_glob_max)
-
-        prof_layout.addLayout(glob_row)
-
-        btn_apply_glob = QtWidgets.QPushButton("⚡ Apply Min/Max to All Channels")
-        btn_apply_glob.clicked.connect(self.apply_global_calibration)
-        prof_layout.addWidget(btn_apply_glob)
-
-        btn_sync_all = QtWidgets.QPushButton("📡 Sync All 16 Calibrations to Robot")
-        btn_sync_all.clicked.connect(self.send_all_calibrations)
-        prof_layout.addWidget(btn_sync_all)
-
-        prof_layout.addSpacing(15)
         prof_layout.addWidget(QtWidgets.QLabel("PROFILE MANAGEMENT:"))
 
         btn_save = QtWidgets.QPushButton("💾 Save Profile JSON")
@@ -893,45 +974,216 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.lbl_motor_speed.setText("Speed: 0")
         self.send_command("MOTOR 0")
 
-    def test_tick(self, channel, mode):
-        spn_min, spn_max = self.cal_spinboxes[channel]
-        tick = spn_min.value() if mode == 'min' else spn_max.value()
-        self.send_command(f"TICK {channel} {tick}")
-
     # ---------------------------------------------------------------------------
-    # CALIBRATION PROFILES & BATCH OPERATORS
+    # LEG SERVO CHANNEL MAPPING LOGIC & DASHBOARD VIEW MODES
     # ---------------------------------------------------------------------------
-    def apply_global_calibration(self):
-        g_min = self.spn_glob_min.value()
-        g_max = self.spn_glob_max.value()
-        for ch in range(16):
-            spn_min, spn_max = self.cal_spinboxes[ch]
-            spn_min.setValue(g_min)
-            spn_max.setValue(g_max)
-            self.cards[ch].update_calibration(g_min, g_max)
-        QtWidgets.QMessageBox.information(self, "Success", "Global calibration applied to all 16 channels.")
+    def set_dashboard_view_mode(self, mode_name):
+        self.dashboard_view_mode = mode_name
+        if mode_name == "Leg Control":
+            self.btn_mode_leg.setChecked(True)
+            self.btn_mode_pca.setChecked(False)
+        else:
+            self.btn_mode_leg.setChecked(False)
+            self.btn_mode_pca.setChecked(True)
+        self.sync_leg_channel_ui()
 
-    def send_all_calibrations(self):
-        if not self.is_connected:
-            QtWidgets.QMessageBox.warning(self, "Connection Error", "Please connect to ESP32 first.")
+    def rebuild_dashboard_cards_layout(self):
+        if not hasattr(self, 'dashboard_cards_layout'):
             return
 
+        # Step 1: Detach cards from old containers
+        for card in self.cards:
+            card.setParent(None)
+
+        # Step 2: Remove and delete container groupboxes / frames from dashboard_cards_layout
+        while self.dashboard_cards_layout.count():
+            item = self.dashboard_cards_layout.takeAt(0)
+            if item.widget():
+                w = item.widget()
+                w.setParent(None)
+                w.deleteLater()
+            elif item.layout():
+                l = item.layout()
+                while l.count():
+                    child = l.takeAt(0)
+                    if child.widget() and child.widget() not in self.cards:
+                        child.widget().setParent(None)
+                        child.widget().deleteLater()
+
+        if self.dashboard_view_mode == "Leg Control":
+            # CATEGORIZED LEG CONTROL VIEW
+            LEG_CATEGORIES = [
+                ("🔴 FRONT LEG", ["Front Coxa", "Front Femur", "Front Tibia"]),
+                ("🟢 MIDDLE LEG", ["Middle Coxa", "Middle Femur", "Middle Patella", "Middle Tibia"]),
+                ("🔵 REAR LEG", ["Rear Coxa", "Rear Femur", "Rear Tibia"])
+            ]
+
+            assigned_channels = set()
+
+            for cat_title, servo_list in LEG_CATEGORIES:
+                box_cat = QtWidgets.QGroupBox(cat_title)
+                box_cat.setStyleSheet("""
+                    QGroupBox {
+                        background-color: #161926;
+                        border: 1px solid #272C3F;
+                        border-radius: 10px;
+                        margin-top: 12px;
+                        font-weight: bold;
+                        color: #00E5FF;
+                        font-size: 13px;
+                    }
+                    QGroupBox::title {
+                        subcontrol-origin: margin;
+                        left: 12px;
+                        padding: 0 6px;
+                    }
+                """)
+                cat_grid = QtWidgets.QGridLayout(box_cat)
+                cat_grid.setContentsMargins(10, 18, 10, 10)
+                cat_grid.setSpacing(10)
+
+                col = 0
+                row = 0
+                for s_name in servo_list:
+                    ch = self.leg_channel_map.get(s_name, -1)
+                    if 0 <= ch < 16:
+                        assigned_channels.add(ch)
+                        card = self.cards[ch]
+                        card.setParent(box_cat)
+                        card.update_card_title("Leg Control")
+                        card.setVisible(True)
+                        cat_grid.addWidget(card, row, col)
+                        col += 1
+                        if col >= 2:
+                            col = 0
+                            row += 1
+
+                if cat_grid.count() > 0:
+                    self.dashboard_cards_layout.addWidget(box_cat)
+
+            # Unassigned / Spare Channels
+            unassigned_chs = [ch for ch in range(16) if ch not in assigned_channels]
+            if unassigned_chs:
+                box_spare = QtWidgets.QGroupBox("⚪ SPARE / UNASSIGNED PCA CHANNELS")
+                box_spare.setStyleSheet("""
+                    QGroupBox {
+                        background-color: #161926;
+                        border: 1px solid #272C3F;
+                        border-radius: 10px;
+                        margin-top: 12px;
+                        font-weight: bold;
+                        color: #8E98B0;
+                        font-size: 12px;
+                    }
+                    QGroupBox::title {
+                        subcontrol-origin: margin;
+                        left: 12px;
+                        padding: 0 6px;
+                    }
+                """)
+                spare_grid = QtWidgets.QGridLayout(box_spare)
+                spare_grid.setContentsMargins(10, 18, 10, 10)
+                spare_grid.setSpacing(10)
+
+                for idx, ch in enumerate(unassigned_chs):
+                    r = idx // 2
+                    c = idx % 2
+                    card = self.cards[ch]
+                    card.setParent(box_spare)
+                    card.update_card_title("Leg Control")
+                    card.setVisible(True)
+                    spare_grid.addWidget(card, r, c)
+
+                self.dashboard_cards_layout.addWidget(box_spare)
+
+        else:
+            # FLAT ALL PCA CHANNELS VIEW (0..15)
+            grid_widget = QtWidgets.QWidget()
+            grid_layout = QtWidgets.QGridLayout(grid_widget)
+            grid_layout.setContentsMargins(0, 0, 0, 0)
+            grid_layout.setSpacing(10)
+
+            for ch in range(16):
+                card = self.cards[ch]
+                card.setParent(grid_widget)
+                card.update_card_title("PCA Channels")
+                card.setVisible(True)
+                r = ch // 2
+                c = ch % 2
+                grid_layout.addWidget(card, r, c)
+
+            self.dashboard_cards_layout.addWidget(grid_widget)
+
+        self.dashboard_cards_layout.addStretch()
+
+    # ---------------------------------------------------------------------------
+    # LEG SERVO CHANNEL MAPPING LOGIC
+    # ---------------------------------------------------------------------------
+    def on_card_servo_assignment_changed(self, channel, servo_name):
+        """Called when user changes servo assignment directly on a Channel Card dropdown"""
+        if servo_name != "Unassigned":
+            # If this servo was assigned to another channel, clear it
+            for s, ch in self.leg_channel_map.items():
+                if s == servo_name:
+                    self.leg_channel_map[s] = channel
+        else:
+            # Unassign whichever servo was assigned to this channel
+            for s, ch in list(self.leg_channel_map.items()):
+                if ch == channel:
+                    self.leg_channel_map[s] = -1
+
+        self.sync_leg_channel_ui()
+
+    def on_leg_map_combo_changed(self, servo_name, new_ch_str):
+        """Called when user changes channel assignment from the Tab 2 Leg Servo Assignment panel"""
+        if new_ch_str == "Unassigned" or not new_ch_str.startswith("CH "):
+            self.leg_channel_map[servo_name] = -1
+        else:
+            try:
+                ch = int(new_ch_str.split()[1])
+                self.leg_channel_map[servo_name] = ch
+            except ValueError:
+                self.leg_channel_map[servo_name] = -1
+
+        self.sync_leg_channel_ui()
+
+    def auto_assign_leg_channels(self):
+        """Quick reset/auto-assign CH 00..09 to the 10 leg servos"""
+        for i, s_name in enumerate(LEG_SERVOS):
+            self.leg_channel_map[s_name] = i
+        self.sync_leg_channel_ui()
+        QtWidgets.QMessageBox.information(self, "Auto-Assign Complete", "Assigned CH 00..09 to the 10 Leg Servos.")
+
+    def sync_leg_channel_ui(self):
+        """Synchronizes Card ComboBoxes and Calibration Tab ComboBoxes with self.leg_channel_map"""
+        # 1. Update Cards (0..15)
         for ch in range(16):
-            spn_min, spn_max = self.cal_spinboxes[ch]
-            self.send_command(f"CAL {ch} {spn_min.value()} {spn_max.value()}")
-            time.sleep(0.01)
-        QtWidgets.QMessageBox.information(self, "Success", "All 16 channel calibrations synced to robot.")
+            assigned_name = "Unassigned"
+            for s_name, assigned_ch in self.leg_channel_map.items():
+                if assigned_ch == ch:
+                    assigned_name = s_name
+                    break
+            if ch < len(self.cards):
+                self.cards[ch].set_assigned_servo(assigned_name)
+                self.cards[ch].update_card_title(self.dashboard_view_mode)
+
+        # 2. Update Calibration Tab Leg Servo Mapping ComboBoxes
+        for s_name, cmb in self.leg_map_combos.items():
+            ch = self.leg_channel_map.get(s_name, -1)
+            cmb.blockSignals(True)
+            if 0 <= ch < 16:
+                cmb.setCurrentText(f"CH {ch:02d}")
+            else:
+                cmb.setCurrentText("Unassigned")
+            cmb.blockSignals(False)
+
+        # 3. Rebuild Dashboard Cards Layout according to view mode
+        self.rebuild_dashboard_cards_layout()
 
     def save_profile(self):
         data = {
-            "channels": {}
+            "leg_channels": self.leg_channel_map
         }
-        for ch in range(16):
-            spn_min, spn_max = self.cal_spinboxes[ch]
-            data["channels"][str(ch)] = {
-                "tick_min": spn_min.value(),
-                "tick_max": spn_max.value()
-            }
         try:
             with open(self.settings_file, "w") as f:
                 json.dump(data, f, indent=4)
@@ -941,20 +1193,14 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
     def load_profile(self):
         if not os.path.exists(self.settings_file):
+            self.sync_leg_channel_ui()
             return
         try:
             with open(self.settings_file, "r") as f:
                 data = json.load(f)
-            ch_data = data.get("channels", {})
-            for ch in range(16):
-                c_str = str(ch)
-                if c_str in ch_data:
-                    min_t = ch_data[c_str].get("tick_min", 102)
-                    max_t = ch_data[c_str].get("tick_max", 512)
-                    spn_min, spn_max = self.cal_spinboxes[ch]
-                    spn_min.setValue(min_t)
-                    spn_max.setValue(max_t)
-                    self.cards[ch].update_calibration(min_t, max_t)
+            if "leg_channels" in data:
+                self.leg_channel_map.update(data["leg_channels"])
+            self.sync_leg_channel_ui()
             self.log_console(f"[PROFILE] Loaded profile from {self.settings_file}")
         except Exception as e:
             print(f"Error loading profile: {e}")
