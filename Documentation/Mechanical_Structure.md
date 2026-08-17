@@ -1,166 +1,434 @@
-# Rollopod Mechanical Structure & Coaxial Axle Topology
+# Rollopod Mechanical Structure — Authoritative Mechanical Design Context
 
-This document details the authoritative mechanical structure, mass distribution, and visual representation of the **Rollopod** transformable hexapod robot.
+> [!IMPORTANT]
+> **Authoritative Mechanical Architecture Summary:**
+> Rollopod consists of two approximately **5 kg transformable side wheel assemblies** connected through a **common rigid rotor/reaction rod**. Each side contains a DC motor whose **stator** is integrated into the 5 kg side assembly and whose **rotor/output shaft** is rigidly connected to the common central rod. The rod therefore forms one mechanically coupled rotating rotor system between both sides. The approximately **1 kg central pod** is suspended **below the rod** using **at least two bearings**, allowing the rod to rotate freely through the pod while the pod remains mechanically decoupled from rod rotation and hangs downward like a pendulum. The three servo-driven leg modules on each side transform into approximately one-third of a circular wheel ($\varnothing 400\text{ mm}$) for rolling mode or unfold into walking legs for hexapod mode.
 
 ---
 
-## 1. Linear Coaxial Axle Topology
+## 1. Overall Mechanical Architecture & Mass Distribution
 
-The entire Rollopod mechanical structure is arranged along a **single continuous coaxial axle**. Unlike hierarchical or stacked tree designs, all drive motors, side disks, transforming leg wheels, and the central body pod are mechanically aligned along one primary horizontal axis.
+The system mass distribution is structured as follows:
 
-```
-<------------------ LEFT ASSEMBLY (5 kg) ------------------>   <-- CENTRAL POD (1 kg) -->   <------------------ RIGHT ASSEMBLY (5 kg) ------------------>
-[ LSW ]  ===  [ LSD ]  ===  [ LM ]  -- ( LMS ) -- [ ROD_START ] ======= [ MID ] ======= [ ROD_END ] -- ( RMS ) -- [ RM ]  ===  [ RSD ]  ===  [ RSW ]
-```
-
-### Component Legend & Mass Specifications
-
-| Symbol | Component Name | Description / Specifications | Mass / Sub-Assembly |
+| Assembly Component | Mass (kg) | Mass Percentage | Internal Sub-components |
 | :--- | :--- | :--- | :--- |
-| **LSW** | Left Side Wheel | Transformed outer wheel formed by 3-leg servo assembly (Left). | Combined **5.0 kg**<br/>*(LSW + LSD + LM)* |
-| **LSD** | Left Side Disk | Mounting and structural guide disk attached to the left wheel assembly. | |
-| **LM** | Left DC Motor | Primary drive motor (100 RPM, 25 kg·cm high torque). | |
-| **LMS** | Left Motor Shaft | Mechanical output shaft of the left DC motor. | Axle Coupling |
-| **ROD_START** | Central Shaft Rod (Left Start) | Left mounting point connecting the motor shaft to the central pod axle rod. | Axle Coupling |
-| **MID** | Central Pod | Suspended central body housing ESP32 controllers, IMU, PWM drivers, & battery. | **1.0 kg** |
-| **ROD_END** | Central Shaft Rod (Right End) | Right mounting point connecting the central pod axle rod to the right motor shaft. | Axle Coupling |
-| **RMS** | Right Motor Shaft | Mechanical output shaft of the right DC motor. | Axle Coupling |
-| **RM** | Right DC Motor | Primary drive motor (100 RPM, 25 kg·cm high torque). | Combined **5.0 kg**<br/>*(RSW + RSD + RM)* |
-| **RSD** | Right Side Disk | Mounting and structural guide disk attached to the right wheel assembly. | |
-| **RSW** | Right Side Wheel | Transformed outer wheel formed by 3-leg servo assembly (Right). | |
-| **TOTAL** | **Entire Robot** | **Total Operational Mass of Rollopod Structure** | **11.0 kg Total** |
+| **Left Side Assembly** | **~5.0 kg** | 45.45% | 3x Servo-Leg Modules, Left Side Structural Disk, Left DC Motor Stator |
+| **Right Side Assembly** | **~5.0 kg** | 45.45% | 3x Servo-Leg Modules, Right Side Structural Disk, Right DC Motor Stator |
+| **Central Suspended Pod** | **~1.0 kg** | 9.10% | ESP32 Controllers, IMU, PCA9685 Drivers, Battery Unit, Bearing Housings |
+| **Total System Mass** | **~11.0 kg** | **100.0%** | **Complete Rollopod Robotics System** |
+
+### Transformable Dual-Mode Mechanisms
+The left and right side assemblies are **transformable wheel/leg mechanisms**, not conventional fixed wheels:
+
+* **Walking Mode (Hexapod)**: The three servo-leg assemblies on each side deploy as articulated walking legs (6 total).
+* **Rolling Mode (Dual-Wheel)**: The three servo-leg assemblies fold into approximately one-third of a circular wheel arc each, aligning edge-to-edge to form a continuous circular rolling surface of **$\varnothing 400\text{ mm}$** on each side.
 
 ---
 
-## 2. Graphical Representation (ASCII Block Diagram)
+## 2. Central Mechanical Axis / Rigid Rotor Rod
 
-```
-===================================================================================================================================
-                                      ROLLOPOD COAXIAL MECHANICAL ASSEMBLY (TOTAL MASS: 11 kg)
-===================================================================================================================================
+A single continuous rigid rod runs horizontally through the entire mechanism.
 
-       LEFT SIDE WHEEL ASSEMBLY              LEFT DRIVE ENGINE                 CENTRAL AXLE POD FRAME               RIGHT DRIVE ENGINE            RIGHT SIDE WHEEL ASSEMBLY
-      [ Mass: 5.0 kg Total ]                                                  [ Mass: 1.0 kg Total ]                                                  [ Mass: 5.0 kg Total ]
-  +--------------------------------+      +---------------------+      +-----------------------------------+      +---------------------+      +--------------------------------+
-  |                                |      |                     |      |                                   |      |                     |      |                                |
-  |   +------------------------+   |      |   +-------------+   |      |   +---------------------------+   |      |   +-------------+   |      |   +------------------------+   |
-  |   |          LSW           |   |      |   |     LM      |   |      |   |            MID            |   |      |   |     RM      |   |      |   |          RSW           |   |
-  |   |    Left Side Wheel     |   |      |   |  DC Motor   |   |      |   |        Central Pod        |   |      |   |  DC Motor   |   |      |   |    Right Side Wheel    |   |
-  |   |  (3x Servo Leg Wheel)  |===|======|===| 100RPM/25kgcm|===|======|===|  (ESP32, Battery, IMU)    |===|======|===| 100RPM/25kgcm|===|======|===|  (3x Servo Leg Wheel)  |   |
-  |   +-----------+------------+   |      |   +------+------+   |      |   +-------------+-------------+   |      |   +------+------+   |      |   +-----------+------------+   |
-  |               |                |      |          |          |      |                 |                 |      |          |          |      |               |                |
-  |               v                |      |       ( LMS )       |      |                 v                 |      |       ( RMS )       |      |               v                |
-  |   +------------------------+   |      |   Left Motor Shaft  |      |         Central Axle Rod          |      |  Right Motor Shaft  |      |   +------------------------+   |
-  |   |          LSD           |   |      +----------+----------+      |   +---------------------------+   |      +----------+----------+      |   |          RSD           |   |
-  |   |     Left Side Disk     |===|=================|=================|===| [ROD_START] --- [ROD_END] |===|=================|=================|===|    Right Side Disk     |   |
-  |   +------------------------+   |                                   |   +---------------------------+   |                                   |   +------------------------+   |
-  |                                |                                   |                                   |                                   |                                |
-  +--------------------------------+                                   +-----------------------------------+                                   +--------------------------------+
-  \________________________________/                                                                                                           \________________________________/
-     Left Transforming Assembly (5kg)                                                                                                             Right Transforming Assembly (5kg)
+> [!CAUTION]
+> **Mechanical Topology Constraint:**
+> This rod is **rigidly connected to both motor rotor shafts**. The rod and the two motor rotors form **one single mechanically coupled rotating assembly**.
+>
+> - The rod is **NOT** a stationary structural axle.
+> - The rod is **NOT** fixed to the ground.
+> - The rod is **NOT** independently fixed or bolted to the central pod.
+> - The rod is allowed to **rotate freely** as part of the rotor/shaft system.
 
-  <=================================================================== SINGLE COAXIAL AXLE ===================================================================>
+### Rotor/Rod Coupling Topology
+
+```text
+LEFT SIDE                                  RIGHT SIDE
+
+5 kg assembly                              5 kg assembly
+     │                                           │
+  LEFT MOTOR                                  RIGHT MOTOR
+     │                                           │
+  LEFT ROTOR ═══════════ RIGID ROD ═══════════ RIGHT ROTOR
 ```
 
 ---
 
-## 3. Interactive Structural Diagram (Mermaid)
+## 3. Central Pod Support & Bearing Decoupling
+
+The central 1 kg pod is **NOT** rigidly attached to the rotating rod. Instead, the pod is mounted around the rod using **at least two precision bearings**.
+
+```text
+              RIGID ROTOR ROD
+══════════════════════════════════════════
+                  ↻
+              [ Bearing ]
+                  │
+              [ Bearing ]
+                  │
+             ┌─────────┐
+             │  1 kg   │
+             │   POD   │
+             │         │
+             │         │
+             └────●────┘
+                  ↓
+                 CG
+```
+
+### Decoupled Rotational Dynamics:
+- The central rod rotates freely driven by the motor rotors.
+- Both motor rotors rotate synchronously with the rod.
+- The central pod does **not** have to rotate with the rod.
+- The pod remains approximately upright because it is mechanically decoupled from rod rotation via the bearing pair.
+
+---
+
+## 4. Pod Center of Gravity (CG) & Pendulum Geometry
+
+The entire ~1 kg central pod is positioned predominantly **below the central rod/axis**.
+
+```text
+                ROTATING ROD
+═══════════════════●══════════════════
+                   │
+                bearings
+                   │
+             ┌───────────┐
+             │           │
+             │  CENTRAL  │
+             │    POD    │
+             │   ~1 kg   │
+             │           │
+             └─────●─────┘
+                   ↓
+                  CG
+```
+
+### Design Intent:
+- The central pod acts as a **suspended pendulum** hanging from the rotating rod axis.
+- Gravity naturally pulls the center of mass (CG) downward, keeping the pod stabilized beneath the axis while the rod spins freely inside the supporting bearings.
+- **Rule:** The CG is kept below the rod. The pod is **never** placed above the rod, nor is the pod rigidly locked to the rod.
+
+---
+
+## 5. Motor Arrangement & Stator/Rotor Integration
+
+Each DC motor is integrated into the mechanical assembly as follows:
+- **Stator / Motor Body**: Rigidly attached to its respective 5 kg side transforming assembly.
+- **Rotor / Output Shaft**: Rigidly connected to the common central rigid rod.
+
+```text
+LEFT:
+
+5 kg SIDE
+   │
+   │ rigid
+   ▼
+[MOTOR STATOR]
+      │
+   [ROTOR]
+      │
+      ═══════════ RIGID ROD ═══════════
+                                     
+                                  [ROTOR]
+                                     │
+                              [MOTOR STATOR]
+                                     │
+                                     ▼
+                                5 kg SIDE
+```
+
+---
+
+## 6. Comprehensive Authoritative Topology Diagram
+
+```text
+              LEFT 5 kg ASSEMBLY
+                     │
+               MOTOR STATOR
+                     │
+                 LEFT ROTOR
+                     │
+                     ║
+═════════════════════╬═════════════════════
+        COMMON RIGID ROTOR / REACTION ROD
+═════════════════════╬═════════════════════
+                     │
+                RIGHT ROTOR
+                     │
+               MOTOR STATOR
+                     │
+              RIGHT 5 kg ASSEMBLY
+
+
+                     ↑
+                ROD ROTATES
+
+               [BEARING]
+                   │
+               [BEARING]
+                   │
+              ┌─────────┐
+              │ 1 kg    │
+              │ CENTRAL │
+              │   POD   │
+              └────●────┘
+                   ↓
+                  CG
+```
+
+### Interactive Structural Diagram (Mermaid)
 
 ```mermaid
 graph LR
-    subgraph Left_Assembly ["Left Assembly (5 kg Total)"]
-        LSW["<b>LSW</b><br/>Left Side Wheel<br/><i>(3 Servo-Leg Formation)</i>"]
+    subgraph Left_Assembly ["Left Side Assembly (~5.0 kg)"]
+        LSW["<b>LSW</b><br/>3x Servo Legs<br/><i>(Ø 400 mm Wheel)</i>"]
         LSD["<b>LSD</b><br/>Left Side Disk"]
-        LM["<b>LM</b><br/>Left DC Motor<br/><i>(100 RPM / 25 kg·cm)</i>"]
+        LM_STATOR["<b>LM STATOR</b><br/>Left Motor Housing<br/><i>(100 RPM, 25 kg·cm)</i>"]
     end
 
-    subgraph Left_Drive ["Left Shaft Coupling"]
-        LMS("<b>LMS</b><br/>Left Motor Shaft")
+    subgraph Coupled_Rotor_System ["Coupled Rotating Rotor Axle"]
+        LMS_ROTOR("● <b>LEFT ROTOR</b>")
+        RIGID_ROD["════ <b>COMMON RIGID ROTOR ROD</b> ════<br/><i>(Rotates Freely inside Pod Bearings)</i>"]
+        RMS_ROTOR("● <b>RIGHT ROTOR</b>")
     end
 
-    subgraph Central_Core ["Central Axle & Pod (1 kg)"]
-        ROD_START["<b>ROD_START</b><br/>Shaft Rod Start"]
-        MID["<b>MID</b><br/>Central Pod (1 kg)<br/><i>(Control, IMU, Battery)</i>"]
-        ROD_END["<b>ROD_END</b><br/>Shaft Rod End"]
+    subgraph Suspended_Payload ["Decoupled Suspended Payload"]
+        BEARINGS["<b>BEARING PAIR</b><br/><i>(Allows independent rod spin)</i>"]
+        MID_POD["<b>CENTRAL POD (~1.0 kg)</b><br/><i>(Control, IMU, Battery)</i><br/><b>↓ CG Below Rod Axis</b>"]
     end
 
-    subgraph Right_Drive ["Right Shaft Coupling"]
-        RMS("<b>RMS</b><br/>Right Motor Shaft")
-    end
-
-    subgraph Right_Assembly ["Right Assembly (5 kg Total)"]
-        RM["<b>RM</b><br/>Right DC Motor<br/><i>(100 RPM / 25 kg·cm)</i>"]
+    subgraph Right_Assembly ["Right Side Assembly (~5.0 kg)"]
+        RM_STATOR["<b>RM STATOR</b><br/>Right Motor Housing<br/><i>(100 RPM, 25 kg·cm)</i>"]
         RSD["<b>RSD</b><br/>Right Side Disk"]
-        RSW["<b>RSW</b><br/>Right Side Wheel<br/><i>(3 Servo-Leg Formation)</i>"]
+        RSW["<b>RSW</b><br/>Right Side Wheel<br/><i>(Ø 400 mm Wheel)</i>"]
     end
 
-    %% Coaxial Axis Connections
+    %% Kinematic Connections
     LSW === LSD
-    LSD === LM
-    LM === LMS
-    LMS === ROD_START
-    ROD_START === MID
-    MID === ROD_END
-    ROD_END === RMS
-    RMS === RM
-    RM === RSD
+    LSD === LM_STATOR
+    LM_STATOR -. Rigid Rotor Shaft .-> LMS_ROTOR
+    LMS_ROTOR === RIGID_ROD
+    RIGID_ROD === RMS_ROTOR
+    RMS_ROTOR -. Rigid Rotor Shaft .- RM_STATOR
+    RM_STATOR === RSD
     RSD === RSW
 
+    %% Bearing Suspended Coupling
+    RIGID_ROD -.- BEARINGS
+    BEARINGS === MID_POD
+
     %% Visual Styling
-    style Central_Core fill:#1f2937,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style Coupled_Rotor_System fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#fff
+    style Suspended_Payload fill:#0f172a,stroke:#a855f7,stroke-width:2px,color:#fff
     style Left_Assembly fill:#111827,stroke:#10b981,stroke-width:2px,color:#fff
     style Right_Assembly fill:#111827,stroke:#10b981,stroke-width:2px,color:#fff
-    style Left_Drive fill:#1f2937,stroke:#f59e0b,stroke-width:2px,color:#fff
-    style Right_Drive fill:#1f2937,stroke:#f59e0b,stroke-width:2px,color:#fff
 ```
 
 ---
 
-## 4. Mass Distribution & Physical Dynamics
+## 7. Separation of Mechanical Load Paths
 
-The **11 kg total mass** is distributed symmetrically around the central pod axis:
+To analyze stresses and dynamic stability, the system separates into two distinct load paths:
 
+### 1. Rotational / Drive Load Path
+```text
+Motor Rotor (Left)
+     ↓
+Common Rigid Rod
+     ↓
+Motor Rotor (Right)
+     ↓
+Side Assembly Reaction (Stator / Wheel Assembly)
+     ↓
+Wheel-Ground Traction Interaction
 ```
-  Left Wheel Assembly (5 kg) <------ 1 kg Central Pod ------> Right Wheel Assembly (5 kg)
-  [==== 45.45% Mass ====]           [== 9.1% Mass ==]           [==== 45.45% Mass ====]
+
+### 2. Pod Support Load Path
+```text
+Central Pod (~1 kg)
+     ↓
+Bearing Pair Support
+     ↓
+Common Rigid Rod
 ```
-
-1. **Left Side Assembly (`LSW + LSD + LM`) = 5.0 kg (45.45%)**:
-   Contains the 3 left leg modules, servos, outer structural side disk, and the left 25 kg·cm DC motor drive.
-2. **Central Pod (`MID`) = 1.0 kg (9.1%)**:
-   Houses lightweight control electronics (ESP32), IMU, PCA9685 PWM drivers, and core logic power. Keeps the central payload extremely lightweight to minimize sag on the coaxial axle rod.
-3. **Right Side Assembly (`RSW + RSD + RM`) = 5.0 kg (45.45%)**:
-   Contains the 3 right leg modules, servos, outer structural side disk, and the right 25 kg·cm DC motor drive.
-
-### Physical Advantages of this Mass Breakdown:
-- **Perfect Lateral Balance**: Left and Right assemblies match at exactly 5 kg each, ensuring identical moment of inertia and straight rolling trajectory without drift.
-- **Low Central Load**: The 1 kg central pod (`MID`) suspended between two heavy 5 kg wheel assemblies lowers central axis strain and allows the high-torque DC motors (25 kg·cm) to efficiently propel the robot in rolling mode.
-- **High Traction & Ground Contact**: The 5 kg weight on each side wheel provides solid downward force for tread grip in both walking hexapod mode and transformation rolling mode.
 
 ---
 
-## 5. Mechanical Structure Correction & Comparison
+## 8. Rolling-Mode Physics & Differential Torque Mechanics
 
-### ❌ Incorrect Tree Topology (Previous Misconception)
-In previous diagrams, the structure was incorrectly portrayed as a vertical hierarchy where the Central Pod was mounted above, branching down into motor drives, central shafts, and separate left/right assemblies.
+When both motor rotors are commanded with equal angular velocity and direction, the two rotors and the rigid rod rotate together. However, equal motor commands do not automatically guarantee useful forward rolling because the system is a **coupled mechanical reaction framework**.
 
+### Differential Torque Mechanics
+Because both rotor shafts are rigidly connected by the same central rod, altering the relative motor torque creates torsional reaction loading across the coupled system.
+
+#### Left Torque Dominance State:
+```text
+LEFT MOTOR TORQUE      RIGHT MOTOR TORQUE
+
+      ↑                       ↓
+    higher                  lower
+
+        ╲                   ╱
+         ╲                 ╱
+          ═══ RIGID ROD ═══
 ```
-       [ CENTRAL POD ] (1 kg)
-              |
-        [ MOTOR/DRIVE ]
-              |
-       [ CENTRAL SHAFT ]
-        /             \
-   [LEFT SIDE]    [RIGHT SIDE]
-     (5 kg)          (5 kg)
+
+#### Right Torque Dominance State:
+```text
+LEFT MOTOR TORQUE      RIGHT MOTOR TORQUE
+
+      ↓                       ↑
+    lower                  higher
+
+          ═══ RIGID ROD ═══
 ```
 
-### ✅ Correct Coaxial Topology (Actual Mechanical Hardware)
-The actual Rollopod physical hardware is built on a **continuous horizontal coaxial axis**:
+An alternating torque imbalance creates a controlled torsional oscillation that interacts with the ground-contact geometry of the transforming leg wheels to produce net forward displacement. The exact frequency, waveform, and amplitude are parameters to be determined experimentally or through dynamic modeling.
 
-1. **Coaxial Alignment:** Every major mechanical component (`LSW`, `LSD`, `LM`, `LMS`, `ROD`, `MID`, `RMS`, `RM`, `RSD`, `RSW`) shares the exact same horizontal axle line.
-2. **Central Pod (MID) Integration:** The 1 kg central pod sits suspended in the middle of the axle rod (`ROD_START --- MID --- ROD_END`).
-3. **Direct Drive Coupling:**
-   - The **Left DC Motor (LM)** couples through its shaft (**LMS**) to drive the **Left Side Disk (LSD)** and **Left Wheel (LSW)** (5 kg total left mass).
-   - The **Right DC Motor (RM)** couples through its shaft (**RMS**) to drive the **Right Side Disk (RSD)** and **Right Wheel (RSW)** (5 kg total right mass).
-4. **Transforming Legs:** The outer side wheels (`LSW` and `RSW`) are formed by 3 servo-driven leg modules on each side that fold into continuous circular rolling wheels in rolling mode or unfold into hexapod walking legs in walking mode.
+---
+
+## 9. Continuous Motor Drive & Low-Frequency Modulation
+
+To maintain continuous drive without aggressive switching stress, the DC motors should **not** be hard-switched ($100\% \rightarrow 0\% \rightarrow 100\%$). Instead, both motors remain continuously powered with an added differential modulation term:
+
+$$\text{LEFT\_CMD}(t) = \text{Base\_PWM} + A \cdot \sin(2\pi f t)$$
+
+$$\text{RIGHT\_CMD}(t) = \text{Base\_PWM} - A \cdot \sin(2\pi f t)$$
+
+Where:
+- $\text{Base\_PWM}$: Average baseline motor drive command (e.g., 50% - 60% PWM baseline)
+- $A$: Differential torque command amplitude (e.g., $\pm 5\%$ to $\pm 15\%$)
+- $f$: Low-frequency differential torque modulation frequency (e.g., $1.5\text{ Hz} - 3.0\text{ Hz}$, or up to $5\text{ Hz}$)
+
+> [!NOTE]
+> The motor driver's internal PWM carrier switching frequency remains high (e.g., $10\text{ kHz} - 20\text{ kHz}$). The low-frequency $f$ refers to the changing torque command modulation demand over time.
+
+---
+
+## 10. Motor & Driver Hardware Specifications
+
+### Motor Specifications (x2 DC Motors)
+- **Nominal Speed**: **100 RPM**
+- **Rated Torque**: **25 kg·cm** ($\approx \mathbf{2.45\text{ N·m}}$ per motor)
+- **Total Combined Torque**: $\approx \mathbf{4.90\text{ N·m}}$
+
+### Motor Drivers (x2 Single-Channel Drivers)
+- **Driver Type**: Individual single-channel Cytron DC motor drivers
+- **Continuous Current Rating**: **~13 A continuous** per channel
+- **Peak Current Capability**: Higher short-duration peak allowance (stall current and supply voltage must be validated prior to hardware commissioning).
+
+---
+
+## 11. Wheel Geometry & Kinematics
+
+Each transformable side wheel mechanism has the following parameters:
+
+| Geometry Parameter | Formula / Symbol | Metric Value | Conversion / Equivalent |
+| :--- | :--- | :--- | :--- |
+| **Wheel Outer Diameter** | $D$ | **400 mm** ($0.40\text{ m}$) | 15.75 inches |
+| **Wheel Outer Radius** | $R$ | **200 mm** ($0.20\text{ m}$) | 7.87 inches |
+| **Wheel Circumference** | $C = \pi \cdot D$ | **1.2566 m** | $1256.6\text{ mm}$ |
+| **Segment Arc per Leg (3 legs)** | $S = C / 3$ | **0.4189 m** | $418.9\text{ mm}$ per leg arc |
+| **Nominal Speed** | $N$ | **100 RPM** | $1.667\text{ rev/s}$ |
+
+### Maximum Circumferential Speed:
+$$v = \frac{N}{60} \cdot (\pi \cdot D) = \frac{100}{60} \cdot (3.14159 \cdot 0.40\text{ m}) \approx \mathbf{2.09\text{ m/s}} \quad (\mathbf{7.54\text{ km/h}})$$
+*(Before accounting for slip, ground deformation, or transmission losses).*
+
+---
+
+## 12. Zero-Radius Steering Capability
+
+The presence of the rigid common rotor rod **does NOT prevent zero-radius in-place turning**.
+
+When the two DC motors receive opposite direction commands:
+$$\text{LEFT\_MOTOR} = \text{CW} \quad \text{and} \quad \text{RIGHT\_MOTOR} = \text{CCW}$$
+
+The two 5 kg side assemblies rotate in opposite rolling directions around the central axis. Provided sufficient ground traction is present, Rollopod executes a **zero-radius / in-place turn**. The rigid rod couples the rotors, but opposite stator reactions drive differential rotation of the side assemblies.
+
+---
+
+## 13. Central Pod Decoupling During Rolling
+
+Because the central pod is suspended on bearings around the rigid rod:
+
+```text
+ROD ROTATION:
+↻ ↻ ↻ ↻ ↻  (Rotates freely)
+
+CENTRAL POD:
+↓  (Remains suspended / hangs downward due to low CG)
+```
+
+- The pod does **not** rotate at the same angular velocity as the rod.
+- Gravity pulls the low CG downward, maintaining an upright orientation.
+- **Contrast**: This is fundamentally distinct from a Segway-style inverted pendulum chassis. Rollopod does **not** require inverted-pendulum balancing to remain upright during rolling mode.
+
+---
+
+## 14. Advanced Locomotion & Control Architecture
+
+### 1. Central Pod Isolation & Tail-less Rolling Dynamics
+
+Unlike traditional reconnaissance robots that require an external ground-contact tail (skid) to counteract stator reaction torque, Rollopod operates entirely without external bracing.
+
+* **Bearing-Decoupled Suspension**: The central 1 kg payload pod is mounted strictly on high-grade radial ball bearings over the continuous rigid rotor rod. This ensures the rod can rotate at high angular velocities without transferring twisting mechanical drag to the pod.
+* **Gravity-Biased Stabilization**: Because the pod's Center of Gravity (CG) is concentrated below the axle, it acts as a passive pendulum. It remains mechanically decoupled and points forward horizontally, completely isolated from the rotational violence of the transforming 5 kg side assemblies.
+* **Stator-Driven Locomotion**: With the central rod acting as a rigid torsional lock between the left and right motor rotors, the internal reaction torque has no free axis to escape. The motor stators are physically forced to rotate the heavy 5 kg side rings against ground friction, resulting in forward locomotion without needing a stabilizing tail.
+
+---
+
+### 2. Dynamic Torque Anchoring (The Waddle-Roll Gait)
+
+To achieve straight-line forward rolling without a stationary central anchor, the robot utilizes a **Phase-Shifted Differential Torque Gait** rather than rigid on/off pulses.
+
+* **The Physics**: By constantly varying the torque differential between the left and right DC motors, the system uses the internal gearbox resistance and mass inertia of one wheel as a temporary "dynamic anchor" for the opposite wheel to push against.
+* **The Waveform**: Both 100 RPM, 25 kg·cm motors operate continuously on a base DC duty cycle (e.g., 50% - 60%), overlaid with a $180^\circ$ phase-shifted sinusoidal wave at a frequency of **1.5 Hz to 3.0 Hz** (or up to 5 Hz for micro-stepping).
+* **Mathematical Command**:
+
+$$\text{LEFT\_CMD}(t) = \text{Base\_PWM} + A \cdot \sin(2\pi f t)$$
+
+$$\text{RIGHT\_CMD}(t) = \text{Base\_PWM} - A \cdot \sin(2\pi f t)$$
+
+This continuous oscillation shifts the reaction brace smoothly from left to right, allowing the 11 kg total system to step forward in a fluid, continuous rolling motion.
+
+---
+
+### 3. ESP-NOW Parametric Synchronization (Wireless Control)
+
+Rollopod utilizes an advanced distributed control architecture to prevent mechanical wire-twisting. The system separates control into a PC-tethered ESP32 Master and isolated ESP32-C6 Slaves on the robot.
+
+```text
+[ PC GUI ] ──(USB Serial)──> [ ESP32 Master Bridge ] 
+                                      │
+                         (ESP-NOW Wireless Broadcast)
+                         MAC: FF:FF:FF:FF:FF:FF
+                                      │
+              ┌───────────────────────┴───────────────────────┐
+              ▼                                               ▼
+   [ Left ESP32-C6 Slave ]                         [ Right ESP32-C6 Slave ]
+  Timer Reset: t=0 @ micros()                     Timer Reset: t=0 @ micros()
+  Local Math: Base + A·sin(2πft)                  Local Math: Base - A·sin(2πft)
+              │                                               │
+              ▼                                               ▼
+     [ Left Cytron Driver ]                          [ Right Cytron Driver ]
+```
+
+* **The Packet Jitter Problem**: Sending raw, high-frequency PWM values over a wireless network to physically isolated left and right drive modules introduces packet latency (10 - 30 ms). A dropped packet would cause the left and right sinusoidal waves to fall out of sync, leading to mechanical stall across the rigid central rod.
+* **Parametric Broadcast Strategy**: Instead of streaming real-time PWM duties, the ESP32 Master broadcasts a single configuration packet to a universal Broadcast MAC Address (`FF:FF:FF:FF:FF:FF`).
+* **Edge Calculation**: The packet contains only the gait parameters: `Base_PWM`, `Amplitude (A)`, `Frequency (f)`, and `Run_State`.
+* **Local Timer Execution**: Upon receiving the broadcast, both isolated ESP32-C6 modules reset their internal hardware timers (`micros()`) to $t=0$ simultaneously. The sinusoidal PWM math is calculated locally on the edge. This guarantees that even if the wireless link drops temporarily, both motors remain in absolute mathematical lockstep, preserving the integrity of the rigid rotor rod.
+
+---
+
+## 15. Summary of Key Architectural Rules
+
+> [!WARNING]
+> **Strict Design Rules to Maintain:**
+> 1. **Do NOT** treat the central rod as a fixed, stationary, or chassis-locked axle.
+> 2. **Do NOT** rigidly bolt or lock the central pod to the rod.
+> 3. **Do NOT** place the central pod CG above the rod axis.
+> 4. **Do NOT** assume inverted-pendulum (Segway) balancing is required for forward rolling.
+> 5. **Do NOT** remove the rigid coupling between the left and right motor rotors.
+> 6. **Do NOT** treat the 3-leg transforming side assemblies as standard fixed circular wheels.
+> 7. **Do NOT** assume a specific PWM frequency waveform is mathematically proven without empirical field testing.
