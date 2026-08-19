@@ -2,7 +2,7 @@
 """
 ===============================================================================
   ROLLOPOD ESP32-C6 DUAL CONTROLLER GUI (Left & Right Boards)
-  Dark Soft Neumorphism Theme + Dual MPU Telemetry, Dual Motors & Servo Presets
+  Dark Soft Neumorphism Theme + Waddling Gait Generator with Configurable Ramp
 ===============================================================================
 """
 
@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import os
+import math
 import serial
 import serial.tools.list_ports
 from PyQt6 import QtWidgets, QtCore, QtGui
@@ -41,6 +42,16 @@ LEG_SERVOS = [
     "Right Rear Femur",
     "Right Rear Tibia"
 ]
+
+# DEFAULT ROLLING POSE ANGLES FROM HARDWARE CALIBRATION
+DEFAULT_ROLLING_POSE = {
+    "L:CH 00": 152.0, "L:CH 01": 0.0,   "L:CH 02": 180.0,
+    "L:CH 04": 12.0,  "L:CH 05": 157.0, "L:CH 06": 63.0,  "L:CH 07": 71.0,
+    "L:CH 08": 35.0,  "L:CH 09": 0.0,   "L:CH 10": 180.0,
+    "R:CH 02": 154.0, "R:CH 01": 0.0,   "R:CH 00": 175.0,
+    "R:CH 04": 180.0, "R:CH 05": 180.0, "R:CH 06": 90.0,  "R:CH 07": 78.0,
+    "R:CH 08": 24.0,  "R:CH 09": 13.0,  "R:CH 10": 2.0
+}
 
 # CUSTOM NO-WHEEL SLIDER (Ignores accidental mouse wheel scrolling)
 class NoWheelSlider(QtWidgets.QSlider):
@@ -138,17 +149,19 @@ class SerialWorkerThread(QtCore.QThread):
             except Exception:
                 pass
 
-# SINGLE SERVO CHANNEL CARD (Compact Modern Soft UI Design)
+# SINGLE SERVO CHANNEL CARD (Compact Modern Soft UI Design with Individual Standing Save)
 class ServoChannelCard(QtWidgets.QFrame):
     angle_changed = QtCore.pyqtSignal(str, int, float)
     card_selected = QtCore.pyqtSignal(str, int)
     servo_assignment_changed = QtCore.pyqtSignal(str, int, str)
+    stand_saved = QtCore.pyqtSignal(str, int, float)
 
     def __init__(self, board='L', channel=0, parent=None):
         super().__init__(parent)
         self.board = board  # 'L' for Left, 'R' for Right
         self.channel = channel
         self.current_angle = 90.0
+        self.stand_angle = 90.0  # Individual Standing Pose Angle
         self.last_send_time = 0.0
         self.is_selected = False
         self.assigned_servo = "Unassigned"
@@ -164,7 +177,7 @@ class ServoChannelCard(QtWidgets.QFrame):
             QFrame#ChannelCard {{
                 background-color: #171A26;
                 border: 1px solid #23273A;
-                border-radius: 8px;
+                border-radius: 6px;
             }}
             QFrame#ChannelCard:hover {{
                 border-color: {border_color};
@@ -173,12 +186,12 @@ class ServoChannelCard(QtWidgets.QFrame):
         """)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(6, 5, 6, 5)
+        layout.setSpacing(3)
 
-        # Header Row: Channel ID Badge + Assigned Servo Combo + Wiggle + Angle Display
+        # Header Row: Channel ID Badge + Assigned Servo Combo + Wiggle + Save Stand + Angle Display
         header_layout = QtWidgets.QHBoxLayout()
-        header_layout.setSpacing(4)
+        header_layout.setSpacing(3)
         
         self.lbl_title = QtWidgets.QLabel(self.get_card_id())
         color_code = "#00E5FF" if self.board == 'L' else "#FF9100"
@@ -196,14 +209,15 @@ class ServoChannelCard(QtWidgets.QFrame):
                 font-size: 10px;
                 border: 1px solid #202436;
                 border-radius: 4px;
-                padding: 1px 3px;
+                padding: 1px 2px;
             }
         """)
         self.cmb_servo.currentIndexChanged.connect(self.on_servo_combo_changed)
-        header_layout.addWidget(self.cmb_servo)
+        header_layout.addWidget(self.cmb_servo, stretch=1)
 
+        # Wiggle Button
         self.btn_wiggle = QtWidgets.QPushButton("🔍")
-        self.btn_wiggle.setFixedWidth(24)
+        self.btn_wiggle.setFixedWidth(22)
         self.btn_wiggle.setToolTip("Wiggle servo ±4° to identify hardware channel")
         self.btn_wiggle.setStyleSheet("""
             QPushButton {
@@ -222,21 +236,61 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.btn_wiggle.clicked.connect(self.on_wiggle_clicked)
         header_layout.addWidget(self.btn_wiggle)
 
-        header_layout.addStretch()
+        # Individual Standing Pose Save Button
+        self.btn_save_stand = QtWidgets.QPushButton("📌")
+        self.btn_save_stand.setFixedWidth(22)
+        self.btn_save_stand.setToolTip("Save current slider value as Standing Pose angle for this servo")
+        self.btn_save_stand.setStyleSheet("""
+            QPushButton {
+                background-color: #202436;
+                color: #00E676;
+                border: 1px solid #2B3148;
+                border-radius: 4px;
+                padding: 1px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #00E676;
+                color: #12141E;
+            }
+        """)
+        self.btn_save_stand.clicked.connect(self.on_save_stand_clicked)
+        header_layout.addWidget(self.btn_save_stand)
+
+        # Return to Standing Pose Button
+        self.btn_go_stand = QtWidgets.QPushButton("🏠")
+        self.btn_go_stand.setFixedWidth(22)
+        self.btn_go_stand.setToolTip("Move this servo to its saved Standing Pose position")
+        self.btn_go_stand.setStyleSheet("""
+            QPushButton {
+                background-color: #202436;
+                color: #FF9100;
+                border: 1px solid #2B3148;
+                border-radius: 4px;
+                padding: 1px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #FF9100;
+                color: #12141E;
+            }
+        """)
+        self.btn_go_stand.clicked.connect(self.go_to_stand_position)
+        header_layout.addWidget(self.btn_go_stand)
 
         self.lbl_angle = QtWidgets.QLabel("90°")
-        self.lbl_angle.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 14px; font-family: 'Consolas', 'Courier New';")
+        self.lbl_angle.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 13px; font-family: 'Consolas', 'Courier New'; margin-left: 2px;")
         header_layout.addWidget(self.lbl_angle)
 
         layout.addLayout(header_layout)
 
         # Slider Row: [-] + Slider + [+] + SpinBox
         slider_layout = QtWidgets.QHBoxLayout()
-        slider_layout.setSpacing(4)
+        slider_layout.setSpacing(3)
 
         self.btn_dec = QtWidgets.QPushButton("-")
-        self.btn_dec.setFixedWidth(22)
-        self.btn_dec.setStyleSheet("padding: 1px 0px; font-weight: bold; font-size: 12px; background-color: #1F2335;")
+        self.btn_dec.setFixedWidth(20)
+        self.btn_dec.setStyleSheet("padding: 1px 0px; font-weight: bold; font-size: 11px; background-color: #1F2335;")
         self.btn_dec.clicked.connect(self.decrement_angle)
         slider_layout.addWidget(self.btn_dec)
 
@@ -257,16 +311,16 @@ class ServoChannelCard(QtWidgets.QFrame):
         slider_layout.addWidget(self.slider)
 
         self.btn_inc = QtWidgets.QPushButton("+")
-        self.btn_inc.setFixedWidth(22)
-        self.btn_inc.setStyleSheet("padding: 1px 0px; font-weight: bold; font-size: 12px; background-color: #1F2335;")
+        self.btn_inc.setFixedWidth(20)
+        self.btn_inc.setStyleSheet("padding: 1px 0px; font-weight: bold; font-size: 11px; background-color: #1F2335;")
         self.btn_inc.clicked.connect(self.increment_angle)
         slider_layout.addWidget(self.btn_inc)
 
         self.spn_angle = QtWidgets.QSpinBox()
         self.spn_angle.setRange(0, 180)
         self.spn_angle.setValue(90)
-        self.spn_angle.setFixedWidth(48)
-        self.spn_angle.setKeyboardTracking(False)  # Requires ENTER key to prevent dangerous intermediate angles
+        self.spn_angle.setFixedWidth(44)
+        self.spn_angle.setKeyboardTracking(False)
         self.spn_angle.setToolTip("Type angle & press ENTER to set")
         self.spn_angle.setStyleSheet("background-color: #0F111A; color: #00E5FF; font-weight: bold; font-size: 11px; border: 1px solid #202436; border-radius: 4px; padding: 1px;")
         self.spn_angle.editingFinished.connect(self.on_spinbox_editing_finished)
@@ -304,17 +358,7 @@ class ServoChannelCard(QtWidgets.QFrame):
 
     def update_card_title(self, view_mode="Leg Control"):
         cid = f"{self.board}:CH {self.channel:02d}"
-        if view_mode == "Leg Control":
-            if self.assigned_servo != "Unassigned":
-                title_text = f"{self.assigned_servo} ({cid})"
-            else:
-                title_text = f"Unassigned ({cid})"
-        else:
-            if self.assigned_servo != "Unassigned":
-                title_text = f"{cid} [{self.assigned_servo}]"
-            else:
-                title_text = cid
-        self.lbl_title.setText(title_text)
+        self.lbl_title.setText(cid)
 
     def on_slider_moved(self, angle_int):
         angle = float(angle_int)
@@ -344,11 +388,19 @@ class ServoChannelCard(QtWidgets.QFrame):
     def on_wiggle_clicked(self):
         self.card_selected.emit(self.board, self.channel)
 
+    def on_save_stand_clicked(self):
+        self.stand_angle = float(self.current_angle)
+        self.btn_save_stand.setToolTip(f"Standing position saved: {int(self.stand_angle)}°")
+        self.stand_saved.emit(self.board, self.channel, self.stand_angle)
+
+    def go_to_stand_position(self):
+        self.set_angle(self.stand_angle, emit_signal=True)
+
 # MAIN APPLICATION WINDOW
 class RollopodMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Rollopod Dual ESP32 Controller - Modern Dual-Telemetry & Dual DC Motor UI")
+        self.setWindowTitle("Rollopod Dual ESP32 Controller - Waddling Gait Generator & Dual Telemetry")
         self.resize(1380, 940)
 
         self.worker_thread = None
@@ -359,6 +411,18 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.settings_file = "rollopod_servo_profile.json"
         self.cards = []
         self.dashboard_view_mode = "Leg Control"
+
+        # Waddling Gait Engine Parameters
+        self.waddling = False
+        self.waddle_timer = QtCore.QTimer(self)
+        self.waddle_timer.setInterval(20)  # 50Hz update loop
+        self.waddle_timer.timeout.connect(self.update_waddling_gait)
+        self.waddle_start_time = 0.0
+        self.waddle_base_speed = 120
+        self.waddle_frequency = 2.0  # Hz
+        self.waddle_amplitude_pct = 50.0  # %
+        self.waddle_ramp_time = 1.0  # Ramp duration in seconds
+        self.waddle_ramp_factor = 0.0
 
         self.leg_channel_map = {
             "Left Front Coxa": "L:CH 00", "Left Front Femur": "L:CH 01", "Left Front Tibia": "L:CH 02",
@@ -448,7 +512,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         # COMPACT COLLAPSIBLE LIVE SERIAL LOG STREAM
         box_log = QtWidgets.QGroupBox("LIVE SERIAL LOG STREAM")
-        box_log.setFixedHeight(100)
+        box_log.setFixedHeight(95)
         log_layout = QtWidgets.QVBoxLayout(box_log)
         log_layout.setContentsMargins(6, 12, 6, 6)
         self.txt_console = QtWidgets.QPlainTextEdit()
@@ -472,6 +536,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.init_dashboard_tab()
         self.tabs.addTab(self.tab_dashboard, "🎛️ Master Control Dashboard")
 
+        self.tab_waddling = QtWidgets.QWidget()
+        self.init_waddling_tab()
+        self.tabs.addTab(self.tab_waddling, "🚶 Waddling Gait Generator")
+
         self.tab_calibration = QtWidgets.QWidget()
         self.init_calibration_tab()
         self.tabs.addTab(self.tab_calibration, "⚙️ Servo Assignment & Profiles")
@@ -488,7 +556,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
-        # TOP BAR: VIEW FILTER & SERVO 90° RESET QUICK PRESETS
+        # TOP BAR: VIEW FILTER & SERVO PRESETS (STAND POSE, ROLLING POSE & 90° NEUTRAL)
         mode_bar = QtWidgets.QHBoxLayout()
         lbl_mode = QtWidgets.QLabel("VIEW FILTER:")
         lbl_mode.setStyleSheet("font-weight: bold; color: #8E98B0; font-size: 11px;")
@@ -520,22 +588,22 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         mode_bar.addSpacing(10)
 
-        # SEND ALL 90° PRESET BUTTONS FOR LEFT, RIGHT, AND ALL SERVOS
-        btn_preset_l90 = QtWidgets.QPushButton("🎯 Left 90°")
-        btn_preset_l90.setToolTip("Set all 16 Left Board servos to 90° neutral position")
-        btn_preset_l90.setStyleSheet("background-color: #1F2335; color: #00E5FF; border: 1px solid #00E5FF; font-size: 11px; font-weight: bold;")
-        btn_preset_l90.clicked.connect(self.set_left_servos_90)
-        mode_bar.addWidget(btn_preset_l90)
+        # SEND SAVED STANDING POSE & ROLLING POSE PRESET BUTTONS
+        btn_stand_all = QtWidgets.QPushButton("📌 STAND ALL 32")
+        btn_stand_all.setToolTip("Set ALL 32 Servos to their saved individual Standing Pose angles")
+        btn_stand_all.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 11px; font-weight: bold;")
+        btn_stand_all.clicked.connect(self.set_all_servos_stand)
+        mode_bar.addWidget(btn_stand_all)
 
-        btn_preset_r90 = QtWidgets.QPushButton("🎯 Right 90°")
-        btn_preset_r90.setToolTip("Set all 16 Right Board servos to 90° neutral position")
-        btn_preset_r90.setStyleSheet("background-color: #1F2335; color: #FF9100; border: 1px solid #FF9100; font-size: 11px; font-weight: bold;")
-        btn_preset_r90.clicked.connect(self.set_right_servos_90)
-        mode_bar.addWidget(btn_preset_r90)
+        btn_roll_all = QtWidgets.QPushButton("🌀 Rolling Pose")
+        btn_roll_all.setToolTip("Set Servos to Calibrated Rolling Pose configuration")
+        btn_roll_all.setStyleSheet("background-color: #00E5FF; color: #12141E; font-size: 11px; font-weight: bold;")
+        btn_roll_all.clicked.connect(self.set_rolling_pose)
+        mode_bar.addWidget(btn_roll_all)
 
-        btn_preset_all90 = QtWidgets.QPushButton("🎯 ALL 32 90°")
-        btn_preset_all90.setToolTip("Set ALL 32 Servos across Left & Right boards to 90° neutral position")
-        btn_preset_all90.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 11px; font-weight: bold;")
+        btn_preset_all90 = QtWidgets.QPushButton("🎯 All 90° Neutral")
+        btn_preset_all90.setToolTip("Reset ALL 32 Servos to 90° default neutral position")
+        btn_preset_all90.setStyleSheet("background-color: #24293E; color: #E1E4EC; border: 1px solid #363D56; font-size: 11px; font-weight: bold;")
         btn_preset_all90.clicked.connect(self.set_all_servos_90)
         mode_bar.addWidget(btn_preset_all90)
 
@@ -544,6 +612,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         scroll_area = QtWidgets.QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
         self.dashboard_cards_widget = QtWidgets.QWidget()
@@ -556,6 +625,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             card.angle_changed.connect(self.on_channel_angle_changed)
             card.card_selected.connect(self.on_channel_selected)
             card.servo_assignment_changed.connect(self.on_card_servo_assignment_changed)
+            card.stand_saved.connect(self.on_card_stand_saved)
             self.cards.append(card)
 
         for ch in range(16):
@@ -563,6 +633,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             card.angle_changed.connect(self.on_channel_angle_changed)
             card.card_selected.connect(self.on_channel_selected)
             card.servo_assignment_changed.connect(self.on_card_servo_assignment_changed)
+            card.stand_saved.connect(self.on_card_stand_saved)
             self.cards.append(card)
 
         scroll_area.setWidget(self.dashboard_cards_widget)
@@ -746,6 +817,254 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         layout.addWidget(right_panel, stretch=1)
 
+    # ---------------------------------------------------------------------------
+    # TAB 2: WADDLING GAIT GENERATOR (Differential Sine Wave Motor Controller)
+    # ---------------------------------------------------------------------------
+    def init_waddling_tab(self):
+        layout = QtWidgets.QHBoxLayout(self.tab_waddling)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(14)
+
+        # LEFT PANE: CONTROLS & SLIDERS
+        box_ctrl = QtWidgets.QGroupBox("🚶 Waddling Gait Parameters & Differential Sine Generator")
+        ctrl_layout = QtWidgets.QVBoxLayout(box_ctrl)
+        ctrl_layout.setContentsMargins(14, 18, 14, 14)
+        ctrl_layout.setSpacing(10)
+
+        # 1. Base Forward Speed Slider
+        h_base = QtWidgets.QHBoxLayout()
+        lbl_b_title = QtWidgets.QLabel("Base Speed (V_base):")
+        lbl_b_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_base.addWidget(lbl_b_title)
+
+        self.lbl_w_base_val = QtWidgets.QLabel("120")
+        self.lbl_w_base_val.setStyleSheet("color: #00E676; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_base.addWidget(self.lbl_w_base_val)
+        ctrl_layout.addLayout(h_base)
+
+        self.slider_w_base = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_w_base.setRange(-255, 255)
+        self.slider_w_base.setValue(120)
+        self.slider_w_base.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E676; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
+        self.slider_w_base.valueChanged.connect(self.on_waddle_param_changed)
+        ctrl_layout.addWidget(self.slider_w_base)
+
+        # 2. Oscillation Frequency (Hz)
+        h_freq = QtWidgets.QHBoxLayout()
+        lbl_f_title = QtWidgets.QLabel("Differential Frequency (Hz):")
+        lbl_f_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_freq.addWidget(lbl_f_title)
+
+        self.lbl_w_freq_val = QtWidgets.QLabel("2.0 Hz")
+        self.lbl_w_freq_val.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_freq.addWidget(self.lbl_w_freq_val)
+        ctrl_layout.addLayout(h_freq)
+
+        self.slider_w_freq = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_w_freq.setRange(1, 50)  # 0.1 Hz to 5.0 Hz (val/10)
+        self.slider_w_freq.setValue(20)     # 2.0 Hz
+        self.slider_w_freq.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
+        self.slider_w_freq.valueChanged.connect(self.on_waddle_param_changed)
+        ctrl_layout.addWidget(self.slider_w_freq)
+
+        # Frequency Preset Quick Buttons (1Hz, 2Hz, 3Hz, 4Hz, 5Hz)
+        freq_btn_layout = QtWidgets.QHBoxLayout()
+        freq_btn_layout.addWidget(QtWidgets.QLabel("Freq Presets:"))
+        for hz in [1, 2, 3, 4, 5]:
+            btn_hz = QtWidgets.QPushButton(f"{hz} Hz")
+            btn_hz.setFixedWidth(48)
+            btn_hz.setStyleSheet("background-color: #1F2335; color: #00E5FF; border: 1px solid #00E5FF; font-weight: bold; font-size: 10px; padding: 3px;")
+            btn_hz.clicked.connect(lambda _, h=hz: self.set_waddle_freq_preset(h))
+            freq_btn_layout.addWidget(btn_hz)
+        freq_btn_layout.addStretch()
+        ctrl_layout.addLayout(freq_btn_layout)
+
+        # 3. Differential Amplitude (0% - 100%)
+        h_amp = QtWidgets.QHBoxLayout()
+        lbl_a_title = QtWidgets.QLabel("Differential Amplitude (%):")
+        lbl_a_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_amp.addWidget(lbl_a_title)
+
+        self.lbl_w_amp_val = QtWidgets.QLabel("50%")
+        self.lbl_w_amp_val.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_amp.addWidget(self.lbl_w_amp_val)
+        ctrl_layout.addLayout(h_amp)
+
+        self.slider_w_amp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_w_amp.setRange(0, 100)  # 0% to 100%
+        self.slider_w_amp.setValue(50)
+        self.slider_w_amp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
+        self.slider_w_amp.valueChanged.connect(self.on_waddle_param_changed)
+        ctrl_layout.addWidget(self.slider_w_amp)
+
+        # 4. Configurable Acceleration Ramp Time Control (0.1s - 5.0s)
+        h_ramp = QtWidgets.QHBoxLayout()
+        lbl_r_title = QtWidgets.QLabel("Acceleration Ramp Duration (s):")
+        lbl_r_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_ramp.addWidget(lbl_r_title)
+
+        self.lbl_w_ramp_val = QtWidgets.QLabel("1.0 s")
+        self.lbl_w_ramp_val.setStyleSheet("color: #E040FB; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_ramp.addWidget(self.lbl_w_ramp_val)
+        ctrl_layout.addLayout(h_ramp)
+
+        self.slider_w_ramp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_w_ramp.setRange(1, 50)  # 0.1s to 5.0s (val/10)
+        self.slider_w_ramp.setValue(10)     # 1.0s
+        self.slider_w_ramp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #E040FB; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
+        self.slider_w_ramp.valueChanged.connect(self.on_waddle_param_changed)
+        ctrl_layout.addWidget(self.slider_w_ramp)
+
+        # Ramp Duration Preset Quick Buttons (0.5s, 1.0s, 2.0s, 3.0s)
+        ramp_btn_layout = QtWidgets.QHBoxLayout()
+        ramp_btn_layout.addWidget(QtWidgets.QLabel("Ramp Presets:"))
+        for r_sec in [0.5, 1.0, 2.0, 3.0]:
+            btn_r = QtWidgets.QPushButton(f"{r_sec}s")
+            btn_r.setFixedWidth(48)
+            btn_r.setStyleSheet("background-color: #1F2335; color: #E040FB; border: 1px solid #E040FB; font-weight: bold; font-size: 10px; padding: 3px;")
+            btn_r.clicked.connect(lambda _, s=r_sec: self.set_waddle_ramp_preset(s))
+            ramp_btn_layout.addWidget(btn_r)
+        ramp_btn_layout.addStretch()
+        ctrl_layout.addLayout(ramp_btn_layout)
+
+        # START / STOP GAIT TOGGLE BUTTONS
+        gait_action_layout = QtWidgets.QHBoxLayout()
+        self.btn_start_waddle = QtWidgets.QPushButton("🚀 START WADDLING GAIT")
+        self.btn_start_waddle.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 14px; font-weight: bold; padding: 12px;")
+        self.btn_start_waddle.clicked.connect(self.toggle_waddling_gait)
+        gait_action_layout.addWidget(self.btn_start_waddle)
+
+        btn_stop_waddle = QtWidgets.QPushButton("🛑 STOP GAIT")
+        btn_stop_waddle.setStyleSheet("background-color: #FF0055; color: #FFFFFF; font-size: 14px; font-weight: bold; padding: 12px;")
+        btn_stop_waddle.clicked.connect(self.stop_waddling_gait)
+        gait_action_layout.addWidget(btn_stop_waddle)
+        ctrl_layout.addLayout(gait_action_layout)
+
+        layout.addWidget(box_ctrl, stretch=2)
+
+        # RIGHT PANE: REALTIME VISUAL OSCILLOSCOPE GAUGES
+        box_vis = QtWidgets.QGroupBox("📊 Realtime Differential Sine Speed Meters")
+        vis_layout = QtWidgets.QVBoxLayout(box_vis)
+        vis_layout.setContentsMargins(14, 18, 14, 14)
+        vis_layout.setSpacing(12)
+
+        # Left Motor Sine Speed Gauge
+        vis_layout.addWidget(QtWidgets.QLabel("LEFT MOTOR POWER SINE WAVE:"))
+        self.bar_l_motor = QtWidgets.QProgressBar()
+        self.bar_l_motor.setRange(-255, 255)
+        self.bar_l_motor.setValue(0)
+        self.bar_l_motor.setTextVisible(True)
+        self.bar_l_motor.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 6px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 13px; background-color: #0E1018; height: 32px; } QProgressBar::chunk { background-color: #00E5FF; border-radius: 5px; }")
+        vis_layout.addWidget(self.bar_l_motor)
+
+        # Right Motor Sine Speed Gauge
+        vis_layout.addWidget(QtWidgets.QLabel("RIGHT MOTOR POWER SINE WAVE:"))
+        self.bar_r_motor = QtWidgets.QProgressBar()
+        self.bar_r_motor.setRange(-255, 255)
+        self.bar_r_motor.setValue(0)
+        self.bar_r_motor.setTextVisible(True)
+        self.bar_r_motor.setStyleSheet("QProgressBar { border: 1px solid #FF9100; border-radius: 6px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 13px; background-color: #0E1018; height: 32px; } QProgressBar::chunk { background-color: #FF9100; border-radius: 5px; }")
+        vis_layout.addWidget(self.bar_r_motor)
+
+        # Live Gait Information Box
+        self.txt_waddle_info = QtWidgets.QPlainTextEdit()
+        self.txt_waddle_info.setReadOnly(True)
+        self.txt_waddle_info.setPlainText("Waddling Gait Generator Idle.\nPress 'START WADDLING GAIT' to begin differential sine oscillation.")
+        vis_layout.addWidget(self.txt_waddle_info)
+
+        layout.addWidget(box_vis, stretch=1)
+
+    def set_waddle_freq_preset(self, hz):
+        self.slider_w_freq.setValue(int(hz * 10))
+        self.on_waddle_param_changed()
+
+    def set_waddle_ramp_preset(self, ramp_sec):
+        self.slider_w_ramp.setValue(int(ramp_sec * 10))
+        self.on_waddle_param_changed()
+
+    def on_waddle_param_changed(self):
+        self.waddle_base_speed = self.slider_w_base.value()
+        self.waddle_frequency = self.slider_w_freq.value() / 10.0
+        self.waddle_amplitude_pct = float(self.slider_w_amp.value())
+        self.waddle_ramp_time = self.slider_w_ramp.value() / 10.0
+
+        self.lbl_w_base_val.setText(str(self.waddle_base_speed))
+        self.lbl_w_freq_val.setText(f"{self.waddle_frequency:.1f} Hz")
+        self.lbl_w_amp_val.setText(f"{int(self.waddle_amplitude_pct)}%")
+        self.lbl_w_ramp_val.setText(f"{self.waddle_ramp_time:.1f} s")
+
+    def toggle_waddling_gait(self):
+        if not self.waddling:
+            self.waddling = True
+            self.waddle_start_time = time.time()
+            self.waddle_ramp_factor = 0.0
+            self.waddle_timer.start()
+            self.btn_start_waddle.setText("⏸ PAUSE WADDLING GAIT")
+            self.btn_start_waddle.setStyleSheet("background-color: #FF9100; color: #12141E; font-size: 14px; font-weight: bold; padding: 12px;")
+            self.log_console(f"[GAIT] Started Waddling Gait (Ramp = {self.waddle_ramp_time:.1f}s)")
+        else:
+            self.stop_waddling_gait()
+
+    def stop_waddling_gait(self):
+        self.waddling = False
+        self.waddle_timer.stop()
+        self.btn_start_waddle.setText("🚀 START WADDLING GAIT")
+        self.btn_start_waddle.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 14px; font-weight: bold; padding: 12px;")
+        self.stop_all_motors()
+        self.bar_l_motor.setValue(0)
+        self.bar_r_motor.setValue(0)
+        self.txt_waddle_info.setPlainText("Waddling Gait Stopped. Motors safely reset to 0.")
+        self.log_console("[GAIT] Stopped Waddling Gait")
+
+    def update_waddling_gait(self):
+        if not self.waddling:
+            return
+
+        t = time.time() - self.waddle_start_time
+
+        # Ramp up factor smoothly over user-configured waddle_ramp_time seconds (50Hz update loop = 0.02s per step)
+        if self.waddle_ramp_time > 0.0:
+            ramp_step = 0.02 / self.waddle_ramp_time
+        else:
+            ramp_step = 1.0
+
+        if self.waddle_ramp_factor < 1.0:
+            self.waddle_ramp_factor = min(1.0, self.waddle_ramp_factor + ramp_step)
+
+        # Differential Sine Wave Calculation
+        max_diff_amp = abs(self.waddle_base_speed) if self.waddle_base_speed != 0 else 128.0
+        diff_val = (self.waddle_amplitude_pct / 100.0) * max_diff_amp * math.sin(2.0 * math.pi * self.waddle_frequency * t)
+        
+        target_l_speed = (self.waddle_base_speed + diff_val) * self.waddle_ramp_factor
+        target_r_speed = (self.waddle_base_speed - diff_val) * self.waddle_ramp_factor
+
+        # Clamp speeds
+        l_speed = max(-255, min(255, int(round(target_l_speed))))
+        r_speed = max(-255, min(255, int(round(target_r_speed))))
+
+        # Apply Direction Inversion Polarity
+        eff_l_speed = -l_speed if self.chk_invert_l_motor.isChecked() else l_speed
+        eff_r_speed = -r_speed if self.chk_invert_r_motor.isChecked() else r_speed
+
+        # Update Visual Bar Gauges
+        self.bar_l_motor.setValue(l_speed)
+        self.bar_l_motor.setFormat(f"LEFT MOTOR: {l_speed}")
+        self.bar_r_motor.setValue(r_speed)
+        self.bar_r_motor.setFormat(f"RIGHT MOTOR: {r_speed}")
+
+        # Update Info Log
+        self.txt_waddle_info.setPlainText(
+            f"Waddling Gait Active ({self.waddle_frequency:.1f}Hz @ {int(self.waddle_amplitude_pct)}% Amp | Ramp: {self.waddle_ramp_factor*100:.0f}%)\n"
+            f"T = {t:.2f}s | Ramp Target: {self.waddle_ramp_time:.1f}s | Sine Diff: {diff_val:+.1f}\n"
+            f"Left Motor Power : {l_speed:+} (Tx: {eff_l_speed:+})\n"
+            f"Right Motor Power: {r_speed:+} (Tx: {eff_r_speed:+})"
+        )
+
+        # Transmit Motor Commands over Serial
+        if self.is_connected and self.realtime_enabled:
+            self.send_command(f"L MOTOR {eff_l_speed}")
+            self.send_command(f"R MOTOR {eff_r_speed}")
+
     def get_mode_btn_style(self):
         return """
             QPushButton {
@@ -764,25 +1083,39 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             }
         """
 
-    def set_left_servos_90(self):
+    def set_left_servos_stand(self):
         left_cards = [c for c in self.cards if c.board == 'L']
         for c in left_cards:
-            c.set_angle(90.0, emit_signal=False)
-        self.send_command("L ANGLE ALL 90")
-        self.log_console("[SYSTEM] Sent 90° neutral position to all 16 Left Board Servos")
+            c.go_to_stand_position()
+        self.log_console("[SYSTEM] Sent saved Standing Pose to all 16 Left Board Servos")
 
-    def set_right_servos_90(self):
+    def set_right_servos_stand(self):
         right_cards = [c for c in self.cards if c.board == 'R']
         for c in right_cards:
-            c.set_angle(90.0, emit_signal=False)
-        self.send_command("R ANGLE ALL 90")
-        self.log_console("[SYSTEM] Sent 90° neutral position to all 16 Right Board Servos")
+            c.go_to_stand_position()
+        self.log_console("[SYSTEM] Sent saved Standing Pose to all 16 Right Board Servos")
+
+    def set_all_servos_stand(self):
+        for c in self.cards:
+            c.go_to_stand_position()
+        self.log_console("[SYSTEM] Sent saved Standing Pose to ALL 32 Servos across Left & Right Boards")
 
     def set_all_servos_90(self):
         for c in self.cards:
-            c.set_angle(90.0, emit_signal=False)
-        self.send_command("B ANGLE ALL 90")
-        self.log_console("[SYSTEM] Sent 90° neutral position to ALL 32 Servos across Left & Right Boards")
+            c.set_angle(90.0, emit_signal=True)
+        self.log_console("[SYSTEM] Reset ALL 32 Servos to 90° default neutral position")
+
+    def set_rolling_pose(self):
+        for card in self.cards:
+            cid = card.get_card_id()
+            if cid in DEFAULT_ROLLING_POSE:
+                card.set_angle(DEFAULT_ROLLING_POSE[cid], emit_signal=True)
+        self.log_console("[SYSTEM] Sent Calibrated Rolling Pose to Servos")
+
+    def on_card_stand_saved(self, board, channel, stand_angle):
+        cid = f"{board}:CH {channel:02d}"
+        self.log_console(f"[STAND] Saved Standing Pose for {cid}: {int(stand_angle)}°")
+        self.save_profile()
 
     def on_channel_selected(self, board, channel):
         self.wiggle_servo(board, channel)
@@ -916,6 +1249,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.update_connection_ui(connected, msg)
         if connected:
             self.telemetry_active = True
+            # STRICT RULE: Connecting ONLY turns telemetry on. NEVER auto-sends GUI servo angles!
             self.send_command("B TELEMETRY 1")
 
     def update_connection_ui(self, connected, msg):
@@ -975,12 +1309,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             self.send_command(f"{board} ANGLE {channel} {int(angle)}")
 
     def on_motor_dir_invert_changed(self, state):
-        # Re-dispatch current slider positions with new direction polarity settings
-        self.on_l_motor_slider_moved(self.slider_l_motor.value())
-        if not self.chk_sync_motors.isChecked():
-            self.on_r_motor_slider_moved(self.slider_r_motor.value())
+        if not self.waddling:
+            self.on_l_motor_slider_moved(self.slider_l_motor.value())
+            if not self.chk_sync_motors.isChecked():
+                self.on_r_motor_slider_moved(self.slider_r_motor.value())
 
     def on_l_motor_slider_moved(self, raw_speed):
+        if self.waddling: return
         eff_l_speed = -raw_speed if self.chk_invert_l_motor.isChecked() else raw_speed
         self.lbl_l_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_l_motor.isChecked() else 'Nor'})")
         
@@ -1002,6 +1337,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 self.send_command(f"L MOTOR {eff_l_speed}")
 
     def on_r_motor_slider_moved(self, raw_speed):
+        if self.waddling: return
         eff_r_speed = -raw_speed if self.chk_invert_r_motor.isChecked() else raw_speed
         self.lbl_r_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_r_motor.isChecked() else 'Nor'})")
         
@@ -1066,25 +1402,25 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             split_container = QtWidgets.QWidget()
             split_layout = QtWidgets.QHBoxLayout(split_container)
             split_layout.setContentsMargins(0, 0, 0, 0)
-            split_layout.setSpacing(10)
+            split_layout.setSpacing(8)
 
             # Left Side Legs Pane
-            left_side_box = QtWidgets.QGroupBox("🔴 LEFT SIDE LEGS (FRONT / MIDDLE / REAR)")
+            left_side_box = QtWidgets.QGroupBox("🔴 LEFT SIDE LEGS")
             left_side_box.setStyleSheet("""
                 QGroupBox {
                     background-color: #121520;
                     border: 1px solid #00E5FF;
                     border-radius: 8px;
-                    margin-top: 10px;
+                    margin-top: 8px;
                     font-weight: bold;
                     color: #00E5FF;
-                    font-size: 12px;
+                    font-size: 11px;
                 }
-                QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
+                QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }
             """)
             left_leg_layout = QtWidgets.QVBoxLayout(left_side_box)
-            left_leg_layout.setContentsMargins(8, 14, 8, 8)
-            left_leg_layout.setSpacing(8)
+            left_leg_layout.setContentsMargins(6, 12, 6, 6)
+            left_leg_layout.setSpacing(6)
 
             LEFT_LEG_CATEGORIES = [
                 ("Left Front Leg", ["Left Front Coxa", "Left Front Femur", "Left Front Tibia"]),
@@ -1097,9 +1433,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             for sub_title, s_list in LEFT_LEG_CATEGORIES:
                 sub_box = QtWidgets.QGroupBox(sub_title)
                 sub_box.setStyleSheet("QGroupBox { background-color: #161A28; border: 1px solid #23273A; border-radius: 6px; font-weight: bold; color: #FFFFFF; font-size: 11px; }")
-                sub_grid = QtWidgets.QGridLayout(sub_box)
-                sub_grid.setContentsMargins(6, 12, 6, 6); sub_grid.setSpacing(6)
-                for idx, s_name in enumerate(s_list):
+                sub_layout = QtWidgets.QVBoxLayout(sub_box)
+                sub_layout.setContentsMargins(4, 10, 4, 4)
+                sub_layout.setSpacing(4)
+                for s_name in s_list:
                     key_str = self.leg_channel_map.get(s_name, "Unassigned")
                     card = self.get_card_by_key(key_str)
                     if card:
@@ -1107,29 +1444,28 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                         card.setParent(sub_box)
                         card.update_card_title("Leg Control")
                         card.setVisible(True)
-                        r = idx // 2; c = idx % 2
-                        sub_grid.addWidget(card, r, c)
+                        sub_layout.addWidget(card)
                 left_leg_layout.addWidget(sub_box)
 
             split_layout.addWidget(left_side_box, stretch=1)
 
             # Right Side Legs Pane
-            right_side_box = QtWidgets.QGroupBox("🟢 RIGHT SIDE LEGS (FRONT / MIDDLE / REAR)")
+            right_side_box = QtWidgets.QGroupBox("🟢 RIGHT SIDE LEGS")
             right_side_box.setStyleSheet("""
                 QGroupBox {
                     background-color: #121520;
                     border: 1px solid #FF9100;
                     border-radius: 8px;
-                    margin-top: 10px;
+                    margin-top: 8px;
                     font-weight: bold;
                     color: #FF9100;
-                    font-size: 12px;
+                    font-size: 11px;
                 }
-                QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
+                QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }
             """)
             right_leg_layout = QtWidgets.QVBoxLayout(right_side_box)
-            right_leg_layout.setContentsMargins(8, 14, 8, 8)
-            right_leg_layout.setSpacing(8)
+            right_leg_layout.setContentsMargins(6, 12, 6, 6)
+            right_leg_layout.setSpacing(6)
 
             RIGHT_LEG_CATEGORIES = [
                 ("Right Front Leg", ["Right Front Coxa", "Right Front Femur", "Right Front Tibia"]),
@@ -1140,9 +1476,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             for sub_title, s_list in RIGHT_LEG_CATEGORIES:
                 sub_box = QtWidgets.QGroupBox(sub_title)
                 sub_box.setStyleSheet("QGroupBox { background-color: #161A28; border: 1px solid #23273A; border-radius: 6px; font-weight: bold; color: #FFFFFF; font-size: 11px; }")
-                sub_grid = QtWidgets.QGridLayout(sub_box)
-                sub_grid.setContentsMargins(6, 12, 6, 6); sub_grid.setSpacing(6)
-                for idx, s_name in enumerate(s_list):
+                sub_layout = QtWidgets.QVBoxLayout(sub_box)
+                sub_layout.setContentsMargins(4, 10, 4, 4)
+                sub_layout.setSpacing(4)
+                for s_name in s_list:
                     key_str = self.leg_channel_map.get(s_name, "Unassigned")
                     card = self.get_card_by_key(key_str)
                     if card:
@@ -1150,8 +1487,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                         card.setParent(sub_box)
                         card.update_card_title("Leg Control")
                         card.setVisible(True)
-                        r = idx // 2; c = idx % 2
-                        sub_grid.addWidget(card, r, c)
+                        sub_layout.addWidget(card)
                 right_leg_layout.addWidget(sub_box)
 
             split_layout.addWidget(right_side_box, stretch=1)
@@ -1162,10 +1498,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 box_spare = QtWidgets.QGroupBox("⚪ SPARE / UNASSIGNED PCA CHANNELS")
                 box_spare.setStyleSheet("QGroupBox { background-color: #141724; border: 1px solid #23273A; border-radius: 8px; margin-top: 8px; font-weight: bold; color: #8E98B0; font-size: 11px; }")
                 spare_grid = QtWidgets.QGridLayout(box_spare)
-                spare_grid.setContentsMargins(8, 14, 8, 8); spare_grid.setSpacing(6)
+                spare_grid.setContentsMargins(6, 12, 6, 6); spare_grid.setSpacing(4)
                 for idx, card in enumerate(unassigned_cards):
-                    r = idx // 3
-                    c = idx % 3
+                    r = idx // 2
+                    c = idx % 2
                     card.setParent(box_spare)
                     card.update_card_title("Leg Control")
                     card.setVisible(True)
@@ -1189,8 +1525,8 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
             """)
             board_grid = QtWidgets.QGridLayout(box_board)
-            board_grid.setContentsMargins(8, 14, 8, 8)
-            board_grid.setSpacing(6)
+            board_grid.setContentsMargins(6, 12, 6, 6)
+            board_grid.setSpacing(4)
 
             board_cards = [c for c in self.cards if c.board == target_board]
             for ch, card in enumerate(board_cards):
@@ -1207,13 +1543,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             all_container = QtWidgets.QWidget()
             all_layout = QtWidgets.QHBoxLayout(all_container)
             all_layout.setContentsMargins(0, 0, 0, 0)
-            all_layout.setSpacing(10)
+            all_layout.setSpacing(8)
 
             # Left Board Column
             box_left_all = QtWidgets.QGroupBox("⬅️ LEFT BOARD CHANNELS (L:CH 00-15)")
             box_left_all.setStyleSheet("QGroupBox { background-color: #141724; border: 1px solid #00E5FF; border-radius: 8px; font-weight: bold; color: #00E5FF; font-size: 11px; }")
             grid_l = QtWidgets.QGridLayout(box_left_all)
-            grid_l.setContentsMargins(6, 14, 6, 6); grid_l.setSpacing(6)
+            grid_l.setContentsMargins(4, 12, 4, 4); grid_l.setSpacing(4)
 
             for ch, card in enumerate([c for c in self.cards if c.board == 'L']):
                 card.setParent(box_left_all)
@@ -1227,7 +1563,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             box_right_all = QtWidgets.QGroupBox("➡️ RIGHT BOARD CHANNELS (R:CH 00-15)")
             box_right_all.setStyleSheet("QGroupBox { background-color: #141724; border: 1px solid #FF9100; border-radius: 8px; font-weight: bold; color: #FF9100; font-size: 11px; }")
             grid_r = QtWidgets.QGridLayout(box_right_all)
-            grid_r.setContentsMargins(6, 14, 6, 6); grid_r.setSpacing(6)
+            grid_r.setContentsMargins(4, 12, 4, 4); grid_r.setSpacing(4)
 
             for ch, card in enumerate([c for c in self.cards if c.board == 'R']):
                 card.setParent(box_right_all)
@@ -1295,8 +1631,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.rebuild_dashboard_cards_layout()
 
     def save_profile(self):
+        standing_dict = {card.get_card_id(): card.stand_angle for card in self.cards}
         data = {
             "leg_channels": self.leg_channel_map,
+            "standing_angles": standing_dict,
             "invert_left_motor": self.chk_invert_l_motor.isChecked(),
             "invert_right_motor": self.chk_invert_r_motor.isChecked(),
             "sync_motors": self.chk_sync_motors.isChecked()
@@ -1304,12 +1642,17 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         try:
             with open(self.settings_file, "w") as f:
                 json.dump(data, f, indent=4)
-            self.log_console(f"[PROFILE] Saved dual profile & motor settings to {self.settings_file}")
+            self.log_console(f"[PROFILE] Saved dual profile & standing pose angles to {self.settings_file}")
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Save Error", str(e))
 
     def load_profile(self):
         if not os.path.exists(self.settings_file):
+            # Populate default rolling pose angles without emitting signals
+            for card in self.cards:
+                cid = card.get_card_id()
+                if cid in DEFAULT_ROLLING_POSE:
+                    card.set_angle(DEFAULT_ROLLING_POSE[cid], emit_signal=False)
             self.sync_leg_channel_ui()
             return
         try:
@@ -1317,6 +1660,17 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 data = json.load(f)
             if "leg_channels" in data:
                 self.leg_channel_map.update(data["leg_channels"])
+            if "standing_angles" in data:
+                for card in self.cards:
+                    cid = card.get_card_id()
+                    if cid in data["standing_angles"]:
+                        card.stand_angle = float(data["standing_angles"][cid])
+                        card.btn_save_stand.setToolTip(f"Standing position saved: {int(card.stand_angle)}°")
+            # Set default angles cleanly WITHOUT emitting serial signals on load!
+            for card in self.cards:
+                cid = card.get_card_id()
+                if cid in DEFAULT_ROLLING_POSE:
+                    card.set_angle(DEFAULT_ROLLING_POSE[cid], emit_signal=False)
             if "invert_left_motor" in data:
                 self.chk_invert_l_motor.setChecked(data["invert_left_motor"])
             if "invert_right_motor" in data:

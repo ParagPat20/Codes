@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **Authoritative Mechanical Architecture Summary:**
-> Rollopod consists of two approximately **5 kg transformable side wheel assemblies** connected through a **common rigid rotor/reaction rod**. Each side contains a DC motor whose **stator** is integrated into the 5 kg side assembly and whose **rotor/output shaft** is rigidly connected to the common central rod. The rod therefore forms one mechanically coupled rotating rotor system between both sides. The approximately **1 kg central pod** is suspended **below the rod** using **at least two bearings**, allowing the rod to rotate freely through the pod while the pod remains mechanically decoupled from rod rotation and hangs downward like a pendulum. The three servo-driven leg modules on each side transform into approximately one-third of a circular wheel ($\varnothing 400\text{ mm}$) for rolling mode or unfold into walking legs for hexapod mode.
+> Rollopod consists of two approximately **5 kg transformable side wheel assemblies** connected through a **common rigid rotor/reaction rod**. Each side contains a DC motor whose **stator** is integrated into the 5 kg side assembly and whose **rotor/output shaft** is rigidly connected to the common central rod. The rod therefore forms one mechanically coupled rotating rotor system between both sides. The approximately **1 kg central pod** is suspended **below the rod** using **at least two bearings**, allowing the rod to rotate relative to the pod while the pod remains mechanically decoupled from rod rotation and hangs downward like a pendulum. The three servo-driven leg modules on each side transform into approximately one-third of a circular wheel ($\varnothing 400\text{ mm}$) for rolling mode or unfold into walking legs for hexapod mode.
 
 ---
 
@@ -36,7 +36,7 @@ A single continuous rigid rod runs horizontally through the entire mechanism.
 > - The rod is **NOT** a stationary structural axle.
 > - The rod is **NOT** fixed to the ground.
 > - The rod is **NOT** independently fixed or bolted to the central pod.
-> - The rod is allowed to **rotate freely** as part of the rotor/shaft system.
+> - The rod's rotation is **strictly constrained and driven** as part of the coupled rotor/shaft assembly (it does NOT spin freely like an unconstrained idler).
 
 ### Rotor/Rod Coupling Topology
 
@@ -75,7 +75,7 @@ The central 1 kg pod is **NOT** rigidly attached to the rotating rod. Instead, t
 ```
 
 ### Decoupled Rotational Dynamics:
-- The central rod rotates freely driven by the motor rotors.
+- The central rod rotates relative to the central pod, driven directly by the coupled motor rotors.
 - Both motor rotors rotate synchronously with the rod.
 - The central pod does **not** have to rotate with the rod.
 - The pod remains approximately upright because it is mechanically decoupled from rod rotation via the bearing pair.
@@ -105,7 +105,7 @@ The entire ~1 kg central pod is positioned predominantly **below the central rod
 
 ### Design Intent:
 - The central pod acts as a **suspended pendulum** hanging from the rotating rod axis.
-- Gravity naturally pulls the center of mass (CG) downward, keeping the pod stabilized beneath the axis while the rod spins freely inside the supporting bearings.
+- Gravity naturally pulls the center of mass (CG) downward, keeping the pod stabilized beneath the axis while the rod rotates relative to the pod inside the supporting bearings.
 - **Rule:** The CG is kept below the rod. The pod is **never** placed above the rod, nor is the pod rigidly locked to the rod.
 
 ---
@@ -188,12 +188,12 @@ graph LR
 
     subgraph Coupled_Rotor_System ["Coupled Rotating Rotor Axle"]
         LMS_ROTOR("● <b>LEFT ROTOR</b>")
-        RIGID_ROD["════ <b>COMMON RIGID ROTOR ROD</b> ════<br/><i>(Rotates Freely inside Pod Bearings)</i>"]
+        RIGID_ROD["════ <b>COMMON RIGID ROTOR ROD</b> ════<br/><i>(Rigidly Locked to Rotors; Rotates Relative to Pod)</i>"]
         RMS_ROTOR("● <b>RIGHT ROTOR</b>")
     end
 
     subgraph Suspended_Payload ["Decoupled Suspended Payload"]
-        BEARINGS["<b>BEARING PAIR</b><br/><i>(Allows independent rod spin)</i>"]
+        BEARINGS["<b>BEARING PAIR</b><br/><i>(Allows relative rotational decoupling)</i>"]
         MID_POD["<b>CENTRAL POD (~1.0 kg)</b><br/><i>(Control, IMU, Battery)</i><br/><b>↓ CG Below Rod Axis</b>"]
     end
 
@@ -302,6 +302,20 @@ Where:
 
 > [!NOTE]
 > The motor driver's internal PWM carrier switching frequency remains high (e.g., $10\text{ kHz} - 20\text{ kHz}$). The low-frequency $f$ refers to the changing torque command modulation demand over time.
+
+### Controlled Acceleration Ramping
+
+To protect the $25\text{ kg·cm}$ gearboxes, transforming leg-wheel joints, and Cytron MD13S drivers from sudden mechanical shock or current spikes during gait start/stop transitions, motor commands are dynamically modulated through a **Controlled Acceleration Ramp**:
+
+$$\text{Ramp\_Factor}(t) = \min\left(1.0, \frac{t - t_{\text{start}}}{T_{\text{ramp}}}\right)$$
+
+$$\text{LEFT\_CMD}(t) = \text{Ramp\_Factor}(t) \cdot \left[ \text{Base\_PWM} + A \cdot \sin(2\pi f t) \right]$$
+
+$$\text{RIGHT\_CMD}(t) = \text{Ramp\_Factor}(t) \cdot \left[ \text{Base\_PWM} - A \cdot \sin(2\pi f t) \right]$$
+
+Where:
+- $T_{\text{ramp}}$: Configurable acceleration ramp duration (e.g., $0.1\text{ s}$ to $5.0\text{ s}$, default $1.0\text{ s}$)
+- Ramping ensures smooth speed scaling from standstill ($0\%$) to full operational waddling gait power without tipping or drive train jerk.
 
 ---
 
