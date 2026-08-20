@@ -1,4 +1,74 @@
+# VS Code & IDEs
 .vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
 
-# Ignore 3D Model Files
+# OS files
+.DS_Store
+Thumbs.db
+
+# 3D Model Files
 /KiBee/3D_Model_Files/
+
+# Speech & AI/ML Models (Vosk / Kaldi / Kokoro / ONNX)
+*.onnx
+*.bin
+*.weights
+*.pth
+*.pt
+*.tflite
+*.pkl
+*.h5
+*.carpa
+*.fst
+*.mdl
+*.ie
+*.stats
+/Scripts/rollopod_voice_brain/models/
+/Firmware/LCD_Cyberpunk_Visualizer/model/
+/Firmware/LCD_Cyberpunk_Visualizer/model_in/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Environment and Secret configs
+.env
+.env.*
+!*.example
+*firebase-adminsdk*.json
+
+# Flutter & Dart Build Artifacts
+**/build/
+**/.dart_tool/
+**/.pub-cache/
+**/.pub/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+/coverage/
+
+# Flutter Platform Ephemeral / Generated files
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/linux/flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.*
+**/windows/flutter/ephemeral/
+**/windows/flutter/generated_plugin_registrant.*
+**/windows/flutter/generated_plugins.cmake
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/local.properties

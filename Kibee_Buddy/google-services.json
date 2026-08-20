@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "595759214417",
+    "firebase_url": "https://rollopod-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "rollopod",
+    "storage_bucket": "rollopod.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595759214417:android:2fcd69e836d702550e2d70",
+        "android_client_info": {
+          "package_name": "com.rollopod.companion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzY3O0ofwLRsd5_1xGdHfOT-n6mFZp_NY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
