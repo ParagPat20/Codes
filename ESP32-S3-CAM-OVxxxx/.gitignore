@@ -1,0 +1,38 @@
+# Build directories and artifacts
+build/
+build_*/
+.pio/
+.pioenvs/
+.piolibdeps/
+managed_components/
+
+# Binary files
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.a
+*.d
+
+# ESP-IDF specific
+sdkconfig.old
+sdkconfig.ci
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.workspace
+*.project
+*.cproject
+
+# OS & Environment
+.DS_Store
+Thumbs.db
+Desktop.ini
+.env
+.env.*
+
+# Python Cache (if build scripts are used)
+__pycache__/
+*.py[cod]
