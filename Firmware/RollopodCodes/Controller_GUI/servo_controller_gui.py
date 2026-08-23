@@ -1182,8 +1182,8 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         )
 
         if self.is_connected and self.realtime_enabled:
-            self.send_command(f"L MOTOR {eff_l_speed}")
-            self.send_command(f"R MOTOR {eff_r_speed}")
+            self.send_command(f"L RPM {eff_l_speed}")
+            self.send_command(f"R RPM {eff_r_speed}")
 
     def get_mode_btn_style(self):
         return """
@@ -1449,13 +1449,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             
             if self.realtime_enabled:
                 if eff_l_speed == eff_r_speed:
-                    self.send_command(f"B MOTOR {eff_l_speed}")
+                    self.send_command(f"B RPM {eff_l_speed}")
                 else:
-                    self.send_command(f"L MOTOR {eff_l_speed}")
-                    self.send_command(f"R MOTOR {eff_r_speed}")
+                    self.send_command(f"L RPM {eff_l_speed}")
+                    self.send_command(f"R RPM {eff_r_speed}")
         else:
             if self.realtime_enabled:
-                self.send_command(f"L MOTOR {eff_l_speed}")
+                self.send_command(f"L RPM {eff_l_speed}")
 
     def on_r_motor_slider_moved(self, raw_speed):
         if self.waddling: return
@@ -1471,13 +1471,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             
             if self.realtime_enabled:
                 if eff_l_speed == eff_r_speed:
-                    self.send_command(f"B MOTOR {eff_l_speed}")
+                    self.send_command(f"B RPM {eff_l_speed}")
                 else:
-                    self.send_command(f"L MOTOR {eff_l_speed}")
-                    self.send_command(f"R MOTOR {eff_r_speed}")
+                    self.send_command(f"L RPM {eff_l_speed}")
+                    self.send_command(f"R RPM {eff_r_speed}")
         else:
             if self.realtime_enabled:
-                self.send_command(f"R MOTOR {eff_r_speed}")
+                self.send_command(f"R RPM {eff_r_speed}")
 
     def stop_all_motors(self):
         self.slider_l_motor.blockSignals(True)
@@ -1488,7 +1488,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.lbl_r_motor_speed.setText("Target RPM: 0")
         self.slider_l_motor.blockSignals(False)
         self.slider_r_motor.blockSignals(False)
-        self.send_command("B MOTOR 0")
+        self.send_command("B RPM 0")
 
     def set_dashboard_view_mode(self, mode_name):
         self.dashboard_view_mode = mode_name

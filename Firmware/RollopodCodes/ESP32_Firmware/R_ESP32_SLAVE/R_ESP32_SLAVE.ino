@@ -428,8 +428,9 @@ void processCommand(String command, const uint8_t *senderMac) {
         sendResponse(responseBuffer, senderMac);
       }
     }
-  } else if (command.startsWith("MOTOR ")) {
-    int speed = command.substring(6).toInt();
+  } else if (command.startsWith("MOTOR ") || command.startsWith("RPM ")) {
+    int spaceIdx = command.indexOf(' ');
+    int speed = command.substring(spaceIdx + 1).toInt();
     if (speed >= -255 && speed <= 255) {
       targetRPM = (float)speed;
       if (targetRPM == 0.0f) {
