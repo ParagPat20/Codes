@@ -79,7 +79,10 @@ bool isHoldingPosition = false;
 
 void setMotorHardwareSpeed(int speed) {
   speed = constrain(speed, -255, 255);
-  if (speed >= 0) {
+  if (speed == 0) {
+    digitalWrite(MOTOR_DIR_PIN, LOW);
+    analogWrite(MOTOR_PWM_PIN, 0);
+  } else if (speed > 0) {
     digitalWrite(MOTOR_DIR_PIN, HIGH);
     analogWrite(MOTOR_PWM_PIN, speed);
   } else {
@@ -122,6 +125,13 @@ void updateClosedLoopControl() {
       lastPidError = 0.0f;
     }
     long posError = targetHoldPos - currentTicks;
+    // Deadband: ignore noise/vibration within +-3 encoder ticks
+    if (labs(posError) <= 3) {
+      setMotorHardwareSpeed(0);
+      pidIntegral = 0.0f;
+      lastPidError = 0.0f;
+      return;
+    }
     error = (float)posError * 0.5f; // Scale position error to equivalent RPM correction
   } else {
     isHoldingPosition = false;
@@ -308,6 +318,10 @@ void setup() {
     servoConfigs[i].lastAngle = 90.0;
     setServoAngle(i, 90.0);
   }
+
+    targetHoldPos = encoderTicks;
+  isHoldingPosition = true;
+  setMotorHardwareSpeed(0);
 
   Serial.println("Slave initialization complete - waiting for ESP-NOW commands...");
 }
