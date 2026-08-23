@@ -276,19 +276,15 @@ void setup() {
 #endif
   delay(500);
 
-  Serial.println("
-
-========================================");
+  Serial.println("\n\n========================================");
   Serial.println("ESP32-C6 Slave PCA9685 & Encoder PID Controller - ESP-NOW");
   Serial.println("========================================");
 
   initESPNow();
 
-  Serial.print("
-*** SLAVE MAC ADDRESS: ");
+  Serial.print("\n*** SLAVE MAC ADDRESS: ");
   printMacAddress();
-  Serial.println("*** Copy this MAC to master ESP32 sketch ***
-");
+  Serial.println("*** Copy this MAC to master ESP32 sketch ***\n");
 
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
@@ -355,8 +351,7 @@ void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
   if (!hasMasterMac) {
     memcpy(masterMac, srcMac, 6);
     hasMasterMac = true;
-    Serial.printf("Master MAC locked: %02X:%02X:%02X:%02X:%02X:%02X
-",
+    Serial.printf("Master MAC locked: %02X:%02X:%02X:%02X:%02X:%02X\n",
                   masterMac[0], masterMac[1], masterMac[2], masterMac[3],
                   masterMac[4], masterMac[5]);
   }
@@ -366,8 +361,7 @@ void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
     slaveBurstToggles += 6;
     processCommand(String(cmd->command), srcMac);
   } else {
-    Serial.printf("Received invalid data length: %d (expected %d)
-", len, sizeof(cmd_struct));
+    Serial.printf("Received invalid data length: %d (expected %d)\n", len, sizeof(cmd_struct));
   }
 }
 
@@ -390,8 +384,7 @@ void sendResponse(const char *response, const uint8_t *mac_addr) {
 void printMacAddress() {
   uint8_t mac[6];
   WiFi.macAddress(mac);
-  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X
-", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 void processCommand(String command, const uint8_t *senderMac) {
@@ -399,8 +392,7 @@ void processCommand(String command, const uint8_t *senderMac) {
   char responseBuffer[128];
 
   if (command == "PING") {
-    sendResponse("PONG
-", senderMac);
+    sendResponse("PONG\n", senderMac);
   } else if (command.startsWith("TICK ")) {
     int space1 = command.indexOf(' ');
     int space2 = command.indexOf(' ', space1 + 1);
@@ -409,12 +401,10 @@ void processCommand(String command, const uint8_t *senderMac) {
       int tickValue = command.substring(space2 + 1).toInt();
       if (channel >= 0 && channel < 16 && tickValue >= 0 && tickValue <= 4095) {
         setServoPWM(channel, tickValue);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %d ticks
-", channel, tickValue);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %d ticks\n", channel, tickValue);
         sendResponse(responseBuffer, senderMac);
       } else {
-        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)
-", senderMac);
+        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)\n", senderMac);
       }
     }
   } else if (command.startsWith("ANGLE ")) {
@@ -425,19 +415,16 @@ void processCommand(String command, const uint8_t *senderMac) {
       float angle = command.substring(space2 + 1).toFloat();
       if (channel >= 0 && channel < 16 && angle >= 0.0 && angle <= 180.0) {
         setServoAngle(channel, angle);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %.1f deg
-", channel, angle);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %.1f deg\n", channel, angle);
         sendResponse(responseBuffer, senderMac);
       } else {
-        sendResponse("ERROR: Invalid channel (0-15) or angle (0-180)
-", senderMac);
+        sendResponse("ERROR: Invalid channel (0-15) or angle (0-180)\n", senderMac);
       }
     } else if (command.startsWith("ANGLE ALL ")) {
       float angle = command.substring(10).toFloat();
       if (angle >= 0.0 && angle <= 180.0) {
         for (int i = 0; i < 16; i++) setServoAngle(i, angle);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: All 16 channels set to %.1f deg
-", angle);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: All 16 channels set to %.1f deg\n", angle);
         sendResponse(responseBuffer, senderMac);
       }
     }
@@ -448,45 +435,38 @@ void processCommand(String command, const uint8_t *senderMac) {
       if (targetRPM == 0.0f) {
         isHoldingPosition = false;
       }
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Motor target set to %d RPM (ClosedLoop=%s)
-", speed, closedLoopEnabled ? "ON" : "OFF");
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Motor target set to %d RPM (ClosedLoop=%s)\n", speed, closedLoopEnabled ? "ON" : "OFF");
       sendResponse(responseBuffer, senderMac);
     } else {
-      sendResponse("ERROR: Speed must be between -255 and 255
-", senderMac);
+      sendResponse("ERROR: Speed must be between -255 and 255\n", senderMac);
     }
   } else if (command.startsWith("SET_PID ")) {
     float p = 0, i = 0, d = 0;
     if (sscanf(command.c_str() + 8, "%f %f %f", &p, &i, &d) == 3) {
       Kp = p; Ki = i; Kd = d;
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: PID set to Kp=%.2f Ki=%.2f Kd=%.2f
-", Kp, Ki, Kd);
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: PID set to Kp=%.2f Ki=%.2f Kd=%.2f\n", Kp, Ki, Kd);
       sendResponse(responseBuffer, senderMac);
     } else {
-      sendResponse("ERROR: Usage SET_PID <kp> <ki> <kd>
-", senderMac);
+      sendResponse("ERROR: Usage SET_PID <kp> <ki> <kd>\n", senderMac);
     }
   } else if (command.startsWith("SET_CPR ")) {
     float cpr = command.substring(8).toFloat();
     if (cpr > 0.0f) {
       encoderCPR = cpr;
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Encoder CPR set to %.1f
-", encoderCPR);
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Encoder CPR set to %.1f\n", encoderCPR);
       sendResponse(responseBuffer, senderMac);
     }
   } else if (command.startsWith("CLOSED_LOOP ")) {
     int mode = command.substring(12).toInt();
     closedLoopEnabled = (mode != 0);
-    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Closed loop PID %s
-", closedLoopEnabled ? "ENABLED" : "DISABLED");
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Closed loop PID %s\n", closedLoopEnabled ? "ENABLED" : "DISABLED");
     sendResponse(responseBuffer, senderMac);
   } else if (command == "GET_ENCODER") {
     long currentTicks;
     noInterrupts();
     currentTicks = encoderTicks;
     interrupts();
-    snprintf(responseBuffer, sizeof(responseBuffer), "ENCODER_DATA %ld %.1f %.1f
-", currentTicks, measuredRPM, targetRPM);
+    snprintf(responseBuffer, sizeof(responseBuffer), "ENCODER_DATA %ld %.1f %.1f\n", currentTicks, measuredRPM, targetRPM);
     sendResponse(responseBuffer, senderMac);
   } else if (command == "ENCODER_RESET") {
     noInterrupts();
@@ -494,14 +474,12 @@ void processCommand(String command, const uint8_t *senderMac) {
     interrupts();
     targetHoldPos = 0;
     lastEncoderTicks = 0;
-    sendResponse("OK: Encoder ticks reset to 0
-", senderMac);
+    sendResponse("OK: Encoder ticks reset to 0\n", senderMac);
   } else if (command.startsWith("TORQUE ")) {
     int state = command.substring(7).toInt();
     if (state == 0 || state == 1) {
       setTorque(state);
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s
-", state ? "HIGH" : "LOW");
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s\n", state ? "HIGH" : "LOW");
       sendResponse(responseBuffer, senderMac);
     }
   } else if (command == "RESET_MPU") {
@@ -512,29 +490,24 @@ void processCommand(String command, const uint8_t *senderMac) {
     } else {
       filteredAngle = 0.0;
     }
-    sendResponse("OK: MPU6050 angles reset
-", senderMac);
+    sendResponse("OK: MPU6050 angles reset\n", senderMac);
   } else if (command == "GET_MPU") {
     if (!mpuInitialized) {
-      sendResponse("ERROR: MPU6050 not initialized
-", senderMac);
+      sendResponse("ERROR: MPU6050 not initialized\n", senderMac);
     } else {
       char mpuBuffer[64];
-      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f
-", filteredAngle, accelAngle, gyroAngle);
+      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f\n", filteredAngle, accelAngle, gyroAngle);
       sendResponse(mpuBuffer, senderMac);
     }
   } else if (command.startsWith("TELEMETRY ")) {
     int enable = command.substring(10).toInt();
     telemetryEnabled = (enable != 0);
-    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s
-", telemetryEnabled ? "ENABLED" : "DISABLED");
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s\n", telemetryEnabled ? "ENABLED" : "DISABLED");
     sendResponse(responseBuffer, senderMac);
   } else if (command == "INFO") {
     printInfo(senderMac);
   } else {
-    sendResponse("ERROR: Unknown command
-", senderMac);
+    sendResponse("ERROR: Unknown command\n", senderMac);
   }
 }
 
@@ -583,8 +556,7 @@ void setAllCalibrations(uint16_t minTick, uint16_t maxTick) {
 void getCalibration(uint8_t channel, const uint8_t *senderMac) {
   if (channel >= 16) return;
   char buffer[128];
-  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d
-", channel, servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
+  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d\n", channel, servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
   sendResponse(buffer, senderMac);
 }
 
@@ -606,16 +578,13 @@ void resetToDefaults() {
 
 void printInfo(const uint8_t *senderMac) {
   char buffer[128];
-  snprintf(buffer, sizeof(buffer), "=== ESP32 Slave PCA9685 Info ===
-");
+  snprintf(buffer, sizeof(buffer), "=== ESP32 Slave PCA9685 Info ===\n");
   sendResponse(buffer, senderMac);
   delay(10);
-  snprintf(buffer, sizeof(buffer), "PWM Frequency: %d Hz
-", pwmFrequency);
+  snprintf(buffer, sizeof(buffer), "PWM Frequency: %d Hz\n", pwmFrequency);
   sendResponse(buffer, senderMac);
   delay(10);
-  snprintf(buffer, sizeof(buffer), "Closed Loop PID: %s (Kp=%.2f Ki=%.2f Kd=%.2f)
-", closedLoopEnabled ? "ENABLED" : "DISABLED", Kp, Ki, Kd);
+  snprintf(buffer, sizeof(buffer), "Closed Loop PID: %s (Kp=%.2f Ki=%.2f Kd=%.2f)\n", closedLoopEnabled ? "ENABLED" : "DISABLED", Kp, Ki, Kd);
   sendResponse(buffer, senderMac);
   delay(10);
 }
