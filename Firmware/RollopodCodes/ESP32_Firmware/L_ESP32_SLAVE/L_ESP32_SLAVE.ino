@@ -1,10 +1,11 @@
 /*
- * ESP32 Slave PCA9685 16-Channel Servo Controller & Closed-Loop Motor PID (ESP-NOW Version)
+ * ESP32 Slave PCA9685 16-Channel Servo Controller & Closed-Loop Motor PID
+ * (ESP-NOW Version)
  *
  * Controls up to 16 servos via PCA9685 PWM driver board.
  * Receives commands via ESP-NOW from master ESP32 (connected to PC).
- * Includes Closed-Loop PID Motor Speed Control & Active Zero-Speed Position Hold
- * using Quadrature Encoder on GPIO 1 (Encoder A) and GPIO 0 (Encoder B).
+ * Includes Closed-Loop PID Motor Speed Control & Active Zero-Speed Position
+ * Hold using Quadrature Encoder on GPIO 1 (Encoder A) and GPIO 0 (Encoder B).
  *
  * Wiring:
  * ENCODER A  -> GPIO 1 (Input Pullup, Interrupt)
@@ -54,17 +55,19 @@ void IRAM_ATTR encoderISR() {
   int currState = (a << 1) | b;
   int sum = (encoderState << 2) | currState;
 
-  if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderTicks++;
-  if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderTicks--;
+  if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011)
+    encoderTicks++;
+  if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000)
+    encoderTicks--;
 
   encoderState = currState;
 }
 
-// Closed-Loop PID Parameters & Control Variables
-float Kp = 1.2f;
-float Ki = 0.15f;
-float Kd = 0.05f;
-float encoderCPR = 330.0f; // Encoder Counts Per Rev
+// Closed-Loop PID Parameters & Control Variables (Rhino IG32 Planetary Motor 9048 CPR @ 12V)
+float Kp = 1.8f;
+float Ki = 0.25f;
+float Kd = 0.03f;
+float encoderCPR = 9048.0f; // High Torque Quad Encoder CPR
 
 bool closedLoopEnabled = true;
 float targetRPM = 0.0f;
@@ -94,7 +97,8 @@ void setMotorHardwareSpeed(int speed) {
 void updateClosedLoopControl() {
   unsigned long now = millis();
   float dt = (now - lastPidTime) / 1000.0f;
-  if (dt < 0.02f) return; // 50Hz update loop (every 20ms)
+  if (dt < 0.02f)
+    return; // 50Hz update loop (every 20ms)
   lastPidTime = now;
 
   long currentTicks;
@@ -105,59 +109,76 @@ void updateClosedLoopControl() {
   long dTicks = currentTicks - lastEncoderTicks;
   lastEncoderTicks = currentTicks;
 
-  // Calculate actual measured RPM
+  // Calculate actual measured RPM from High-Resolution 9048 CPR Encoder (GPIO 0 & 1)
   measuredRPM = ((float)dTicks / encoderCPR) * (60.0f / dt);
 
-  if (!closedLoopEnabled) {
-    setMotorHardwareSpeed((int)targetRPM);
-    return;
-  }
-
-  float error = 0.0f;
-  float outputPWM = 0.0f;
-
+  // Active Zero-Speed High-Resolution Encoder Position Lock (9048 CPR - 1 deg = 25 ticks)
   if (targetRPM == 0.0f) {
-    // Active Zero-Speed Position Hold Mode
     if (!isHoldingPosition) {
       targetHoldPos = currentTicks;
       isHoldingPosition = true;
       pidIntegral = 0.0f;
       lastPidError = 0.0f;
     }
+
     long posError = targetHoldPos - currentTicks;
-    // Deadband: ignore noise/vibration within +-3 encoder ticks
-    if (labs(posError) <= 3) {
+
+    // High-precision deadband (25 ticks = 1 degree of wheel angle = ~3.4mm movement on 40cm wheel)
+    if (labs(posError) <= 25) {
       setMotorHardwareSpeed(0);
       pidIntegral = 0.0f;
       lastPidError = 0.0f;
       return;
     }
-    error = (float)posError * 0.5f; // Scale position error to equivalent RPM correction
+
+    // High-resolution position counter-torque with 24 PWM gearhead static friction feedforward
+    float pErr = (float)posError;
+    pidIntegral += pErr * dt;
+    pidIntegral = constrain(pidIntegral, -100.0f, 100.0f); // Anti-heating integral cap
+    float dError = (pErr - lastPidError) / dt;
+    lastPidError = pErr;
+
+    float dirSign = (pErr > 0) ? 1.0f : -1.0f;
+    float baseFrictionPWM = dirSign * 24.0f; // Continuous breakaway threshold for Rhino IG32
+    float outputPWM = baseFrictionPWM + (pErr * 0.18f) + (pidIntegral * 0.02f) + (dError * 0.001f);
+    outputPWM = constrain(outputPWM, -160.0f, 160.0f);
+
+    setMotorHardwareSpeed((int)outputPWM);
+    return;
   } else {
     isHoldingPosition = false;
-    error = targetRPM - measuredRPM;
   }
 
+  if (!closedLoopEnabled) {
+    setMotorHardwareSpeed((int)targetRPM);
+    return;
+  }
+
+  // Closed-Loop Encoder Speed Control for Target RPM (With Feedforward for 100RPM/255PWM)
+  float error = targetRPM - measuredRPM;
   pidIntegral += error * dt;
-  pidIntegral = constrain(pidIntegral, -255.0f, 255.0f); // Anti-windup
+  pidIntegral = constrain(pidIntegral, -150.0f, 150.0f); // Anti-windup
 
   float dError = (error - lastPidError) / dt;
   lastPidError = error;
 
-  outputPWM = (Kp * error) + (Ki * pidIntegral) + (Kd * dError);
+  float feedforwardPWM = targetRPM * 2.1f; // ~2.1 PWM units per RPM feedforward
+  float outputPWM = feedforwardPWM + (Kp * error) + (Ki * pidIntegral) + (Kd * dError);
   outputPWM = constrain(outputPWM, -255.0f, 255.0f);
 
   setMotorHardwareSpeed((int)outputPWM);
 }
 
 void setupAntenna() {
-#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
+#if defined(CONFIG_IDF_TARGET_ESP32C6) ||                                      \
+    defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
   pinMode(3, OUTPUT);
   digitalWrite(3, LOW);
   delay(100);
   pinMode(14, OUTPUT);
   digitalWrite(14, LOW);
-  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured (GPIO3=LOW, GPIO14=LOW)");
+  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured "
+                 "(GPIO3=LOW, GPIO14=LOW)");
 #else
   Serial.println("[ANTENNA] Standard ESP32 DevKit Board");
 #endif
@@ -186,7 +207,8 @@ void updateSlaveLed() {
     return;
   }
 
-  bool isMasterAvailable = (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
+  bool isMasterAvailable =
+      (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
 
   if (!isMasterAvailable) {
     digitalWrite(LED_BUILTIN, LOW);
@@ -241,7 +263,8 @@ uint16_t pwmFrequency = SERVO_FREQ_DEFAULT;
 String commandBuffer = "";
 
 void initESPNow();
-void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len);
+void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data,
+                int len);
 void sendResponse(const char *response, const uint8_t *mac_addr);
 void printMacAddress();
 void setServoPWM(uint8_t channel, uint16_t tickValue);
@@ -274,7 +297,8 @@ void setup() {
   digitalWrite(MOTOR_DIR_PIN, LOW);
   analogWrite(MOTOR_PWM_PIN, 0);
 
-  // Configure Encoder Pins & Attach Interrupts (GPIO1 = Encoder A, GPIO0 = Encoder B)
+  // Configure Encoder Pins & Attach Interrupts (GPIO1 = Encoder A, GPIO0 =
+  // Encoder B)
   pinMode(ENCODER_A_PIN, INPUT_PULLUP);
   pinMode(ENCODER_B_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), encoderISR, CHANGE);
@@ -319,11 +343,12 @@ void setup() {
     setServoAngle(i, 90.0);
   }
 
-    targetHoldPos = encoderTicks;
+  targetHoldPos = encoderTicks;
   isHoldingPosition = true;
   setMotorHardwareSpeed(0);
 
-  Serial.println("Slave initialization complete - waiting for ESP-NOW commands...");
+  Serial.println(
+      "Slave initialization complete - waiting for ESP-NOW commands...");
 }
 
 void loop() {
@@ -334,7 +359,8 @@ void loop() {
   // Update Closed-Loop PID & Active Zero-Speed Position Hold Controller (50Hz)
   updateClosedLoopControl();
 
-  if (telemetryEnabled && hasMasterMac && (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL)) {
+  if (telemetryEnabled && hasMasterMac &&
+      (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL)) {
     lastTelemetryTime = millis();
     sendTelemetry();
   }
@@ -355,7 +381,8 @@ void initESPNow() {
 }
 
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
-void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len) {
+void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data,
+                int len) {
   const uint8_t *srcMac = recvInfo->src_addr;
 #else
 void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
@@ -375,12 +402,14 @@ void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
     slaveBurstToggles += 6;
     processCommand(String(cmd->command), srcMac);
   } else {
-    Serial.printf("Received invalid data length: %d (expected %d)\n", len, sizeof(cmd_struct));
+    Serial.printf("Received invalid data length: %d (expected %d)\n", len,
+                  sizeof(cmd_struct));
   }
 }
 
 void sendResponse(const char *response, const uint8_t *mac_addr) {
-  if (!mac_addr) return;
+  if (!mac_addr)
+    return;
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, mac_addr, 6);
   peerInfo.channel = 0;
@@ -398,7 +427,8 @@ void sendResponse(const char *response, const uint8_t *mac_addr) {
 void printMacAddress() {
   uint8_t mac[6];
   WiFi.macAddress(mac);
-  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n", mac[0], mac[1], mac[2],
+                mac[3], mac[4], mac[5]);
 }
 
 void processCommand(String command, const uint8_t *senderMac) {
@@ -415,10 +445,12 @@ void processCommand(String command, const uint8_t *senderMac) {
       int tickValue = command.substring(space2 + 1).toInt();
       if (channel >= 0 && channel < 16 && tickValue >= 0 && tickValue <= 4095) {
         setServoPWM(channel, tickValue);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %d ticks\n", channel, tickValue);
+        snprintf(responseBuffer, sizeof(responseBuffer),
+                 "OK: Channel %d set to %d ticks\n", channel, tickValue);
         sendResponse(responseBuffer, senderMac);
       } else {
-        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)\n", senderMac);
+        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)\n",
+                     senderMac);
       }
     }
   } else if (command.startsWith("ANGLE ")) {
@@ -429,16 +461,20 @@ void processCommand(String command, const uint8_t *senderMac) {
       float angle = command.substring(space2 + 1).toFloat();
       if (channel >= 0 && channel < 16 && angle >= 0.0 && angle <= 180.0) {
         setServoAngle(channel, angle);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %.1f deg\n", channel, angle);
+        snprintf(responseBuffer, sizeof(responseBuffer),
+                 "OK: Channel %d set to %.1f deg\n", channel, angle);
         sendResponse(responseBuffer, senderMac);
       } else {
-        sendResponse("ERROR: Invalid channel (0-15) or angle (0-180)\n", senderMac);
+        sendResponse("ERROR: Invalid channel (0-15) or angle (0-180)\n",
+                     senderMac);
       }
     } else if (command.startsWith("ANGLE ALL ")) {
       float angle = command.substring(10).toFloat();
       if (angle >= 0.0 && angle <= 180.0) {
-        for (int i = 0; i < 16; i++) setServoAngle(i, angle);
-        snprintf(responseBuffer, sizeof(responseBuffer), "OK: All 16 channels set to %.1f deg\n", angle);
+        for (int i = 0; i < 16; i++)
+          setServoAngle(i, angle);
+        snprintf(responseBuffer, sizeof(responseBuffer),
+                 "OK: All 16 channels set to %.1f deg\n", angle);
         sendResponse(responseBuffer, senderMac);
       }
     }
@@ -450,7 +486,9 @@ void processCommand(String command, const uint8_t *senderMac) {
       if (targetRPM == 0.0f) {
         isHoldingPosition = false;
       }
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Motor target set to %d RPM (ClosedLoop=%s)\n", speed, closedLoopEnabled ? "ON" : "OFF");
+      snprintf(responseBuffer, sizeof(responseBuffer),
+               "OK: Motor target set to %d RPM (ClosedLoop=%s)\n", speed,
+               closedLoopEnabled ? "ON" : "OFF");
       sendResponse(responseBuffer, senderMac);
     } else {
       sendResponse("ERROR: Speed must be between -255 and 255\n", senderMac);
@@ -458,8 +496,11 @@ void processCommand(String command, const uint8_t *senderMac) {
   } else if (command.startsWith("SET_PID ")) {
     float p = 0, i = 0, d = 0;
     if (sscanf(command.c_str() + 8, "%f %f %f", &p, &i, &d) == 3) {
-      Kp = p; Ki = i; Kd = d;
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: PID set to Kp=%.2f Ki=%.2f Kd=%.2f\n", Kp, Ki, Kd);
+      Kp = p;
+      Ki = i;
+      Kd = d;
+      snprintf(responseBuffer, sizeof(responseBuffer),
+               "OK: PID set to Kp=%.2f Ki=%.2f Kd=%.2f\n", Kp, Ki, Kd);
       sendResponse(responseBuffer, senderMac);
     } else {
       sendResponse("ERROR: Usage SET_PID <kp> <ki> <kd>\n", senderMac);
@@ -468,20 +509,24 @@ void processCommand(String command, const uint8_t *senderMac) {
     float cpr = command.substring(8).toFloat();
     if (cpr > 0.0f) {
       encoderCPR = cpr;
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Encoder CPR set to %.1f\n", encoderCPR);
+      snprintf(responseBuffer, sizeof(responseBuffer),
+               "OK: Encoder CPR set to %.1f\n", encoderCPR);
       sendResponse(responseBuffer, senderMac);
     }
   } else if (command.startsWith("CLOSED_LOOP ")) {
     int mode = command.substring(12).toInt();
     closedLoopEnabled = (mode != 0);
-    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Closed loop PID %s\n", closedLoopEnabled ? "ENABLED" : "DISABLED");
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Closed loop PID %s\n",
+             closedLoopEnabled ? "ENABLED" : "DISABLED");
     sendResponse(responseBuffer, senderMac);
   } else if (command == "GET_ENCODER") {
     long currentTicks;
     noInterrupts();
     currentTicks = encoderTicks;
     interrupts();
-    snprintf(responseBuffer, sizeof(responseBuffer), "ENCODER_DATA %ld %.1f %.1f\n", currentTicks, measuredRPM, targetRPM);
+    snprintf(responseBuffer, sizeof(responseBuffer),
+             "ENCODER_DATA %ld %.1f %.1f\n", currentTicks, measuredRPM,
+             targetRPM);
     sendResponse(responseBuffer, senderMac);
   } else if (command == "ENCODER_RESET") {
     noInterrupts();
@@ -494,7 +539,8 @@ void processCommand(String command, const uint8_t *senderMac) {
     int state = command.substring(7).toInt();
     if (state == 0 || state == 1) {
       setTorque(state);
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s\n", state ? "HIGH" : "LOW");
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s\n",
+               state ? "HIGH" : "LOW");
       sendResponse(responseBuffer, senderMac);
     }
   } else if (command == "RESET_MPU") {
@@ -511,13 +557,15 @@ void processCommand(String command, const uint8_t *senderMac) {
       sendResponse("ERROR: MPU6050 not initialized\n", senderMac);
     } else {
       char mpuBuffer[64];
-      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f\n", filteredAngle, accelAngle, gyroAngle);
+      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f\n",
+               filteredAngle, accelAngle, gyroAngle);
       sendResponse(mpuBuffer, senderMac);
     }
   } else if (command.startsWith("TELEMETRY ")) {
     int enable = command.substring(10).toInt();
     telemetryEnabled = (enable != 0);
-    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s\n", telemetryEnabled ? "ENABLED" : "DISABLED");
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s\n",
+             telemetryEnabled ? "ENABLED" : "DISABLED");
     sendResponse(responseBuffer, senderMac);
   } else if (command == "INFO") {
     printInfo(senderMac);
@@ -527,40 +575,49 @@ void processCommand(String command, const uint8_t *senderMac) {
 }
 
 void setServoPWM(uint8_t channel, uint16_t tickValue) {
-  if (channel >= 16 || tickValue > 4095) return;
+  if (channel >= 16 || tickValue > 4095)
+    return;
   servoConfigs[channel].currentTick = tickValue;
   pca.setPWM(channel, 0, tickValue);
 }
 
 void setServoAngle(uint8_t channel, float angle) {
-  if (channel >= 16 || angle < 0.0 || angle > 180.0) return;
+  if (channel >= 16 || angle < 0.0 || angle > 180.0)
+    return;
   servoConfigs[channel].lastAngle = angle;
   uint16_t tickMin = servoConfigs[channel].tickMin;
   uint16_t tickMax = servoConfigs[channel].tickMax;
   float tickFloat = tickMin + (angle / 180.0) * (tickMax - tickMin);
   uint16_t tickValue = (uint16_t)(tickFloat + 0.5);
-  if (tickValue < tickMin) tickValue = tickMin;
-  if (tickValue > tickMax) tickValue = tickMax;
-  if (tickValue > 4095) tickValue = 4095;
+  if (tickValue < tickMin)
+    tickValue = tickMin;
+  if (tickValue > tickMax)
+    tickValue = tickMax;
+  if (tickValue > 4095)
+    tickValue = 4095;
   setServoPWM(channel, tickValue);
 }
 
 void setPWMFrequency(uint16_t freq) {
-  if (freq < 40 || freq > 1000) return;
+  if (freq < 40 || freq > 1000)
+    return;
   pwmFrequency = freq;
   pca.setPWMFreq(freq);
-  for (int i = 0; i < 16; i++) setServoAngle(i, servoConfigs[i].lastAngle);
+  for (int i = 0; i < 16; i++)
+    setServoAngle(i, servoConfigs[i].lastAngle);
 }
 
 void setCalibration(uint8_t channel, uint16_t minTick, uint16_t maxTick) {
-  if (channel >= 16 || minTick >= maxTick || maxTick > 4095) return;
+  if (channel >= 16 || minTick >= maxTick || maxTick > 4095)
+    return;
   servoConfigs[channel].tickMin = minTick;
   servoConfigs[channel].tickMax = maxTick;
   setServoAngle(channel, servoConfigs[channel].lastAngle);
 }
 
 void setAllCalibrations(uint16_t minTick, uint16_t maxTick) {
-  if (minTick >= maxTick || maxTick > 4095) return;
+  if (minTick >= maxTick || maxTick > 4095)
+    return;
   for (int i = 0; i < 16; i++) {
     servoConfigs[i].tickMin = minTick;
     servoConfigs[i].tickMax = maxTick;
@@ -569,14 +626,17 @@ void setAllCalibrations(uint16_t minTick, uint16_t maxTick) {
 }
 
 void getCalibration(uint8_t channel, const uint8_t *senderMac) {
-  if (channel >= 16) return;
+  if (channel >= 16)
+    return;
   char buffer[128];
-  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d\n", channel, servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
+  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d\n", channel,
+           servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
   sendResponse(buffer, senderMac);
 }
 
 void getAllCalibrations(const uint8_t *senderMac) {
-  for (int i = 0; i < 16; i++) getCalibration(i, senderMac);
+  for (int i = 0; i < 16; i++)
+    getCalibration(i, senderMac);
 }
 
 void resetToDefaults() {
@@ -599,7 +659,9 @@ void printInfo(const uint8_t *senderMac) {
   snprintf(buffer, sizeof(buffer), "PWM Frequency: %d Hz\n", pwmFrequency);
   sendResponse(buffer, senderMac);
   delay(10);
-  snprintf(buffer, sizeof(buffer), "Closed Loop PID: %s (Kp=%.2f Ki=%.2f Kd=%.2f)\n", closedLoopEnabled ? "ENABLED" : "DISABLED", Kp, Ki, Kd);
+  snprintf(buffer, sizeof(buffer),
+           "Closed Loop PID: %s (Kp=%.2f Ki=%.2f Kd=%.2f)\n",
+           closedLoopEnabled ? "ENABLED" : "DISABLED", Kp, Ki, Kd);
   sendResponse(buffer, senderMac);
   delay(10);
 }
@@ -616,7 +678,8 @@ void updateMPU() {
   unsigned long now = millis();
   float dt = (now - lastMpuUpdate) / 1000.0;
   lastMpuUpdate = now;
-  if (dt <= 0.0) dt = 0.001;
+  if (dt <= 0.0)
+    dt = 0.001;
 
   mpu.update();
   float accX = mpu.getAccX();
@@ -634,12 +697,11 @@ void setMotorSpeed(int speed) {
   }
 }
 
-void setTorque(int state) {
-  digitalWrite(MOSFET_PIN, state ? HIGH : LOW);
-}
+void setTorque(int state) { digitalWrite(MOSFET_PIN, state ? HIGH : LOW); }
 
 void sendTelemetry() {
-  if (!hasMasterMac) return;
+  if (!hasMasterMac)
+    return;
 
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, masterMac, 6);
@@ -655,7 +717,8 @@ void sendTelemetry() {
   noInterrupts();
   currentTicks = encoderTicks;
   interrupts();
-  snprintf(myData.message, sizeof(myData.message), "ENC %ld %.1f %.1f", currentTicks, measuredRPM, targetRPM);
+  snprintf(myData.message, sizeof(myData.message), "ENC %ld %.1f %.1f",
+           currentTicks, measuredRPM, targetRPM);
 
   esp_now_send(masterMac, (uint8_t *)&myData, sizeof(myData));
 }

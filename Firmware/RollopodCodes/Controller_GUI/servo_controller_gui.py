@@ -1026,22 +1026,22 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         grid_pid.addWidget(QtWidgets.QLabel("Proportional Gain (Kp):"), 0, 0)
         self.spn_kp = QtWidgets.QDoubleSpinBox()
-        self.spn_kp.setRange(0.0, 50.0); self.spn_kp.setValue(1.2); self.spn_kp.setSingleStep(0.1)
+        self.spn_kp.setRange(0.0, 50.0); self.spn_kp.setValue(1.8); self.spn_kp.setSingleStep(0.1)
         grid_pid.addWidget(self.spn_kp, 0, 1)
 
         grid_pid.addWidget(QtWidgets.QLabel("Integral Gain (Ki):"), 1, 0)
         self.spn_ki = QtWidgets.QDoubleSpinBox()
-        self.spn_ki.setRange(0.0, 50.0); self.spn_ki.setValue(0.15); self.spn_ki.setSingleStep(0.05)
+        self.spn_ki.setRange(0.0, 50.0); self.spn_ki.setValue(0.25); self.spn_ki.setSingleStep(0.05)
         grid_pid.addWidget(self.spn_ki, 1, 1)
 
         grid_pid.addWidget(QtWidgets.QLabel("Derivative Gain (Kd):"), 2, 0)
         self.spn_kd = QtWidgets.QDoubleSpinBox()
-        self.spn_kd.setRange(0.0, 50.0); self.spn_kd.setValue(0.05); self.spn_kd.setSingleStep(0.01)
+        self.spn_kd.setRange(0.0, 50.0); self.spn_kd.setValue(0.03); self.spn_kd.setSingleStep(0.01)
         grid_pid.addWidget(self.spn_kd, 2, 1)
 
         grid_pid.addWidget(QtWidgets.QLabel("Encoder CPR (Counts/Rev):"), 3, 0)
         self.spn_cpr = QtWidgets.QDoubleSpinBox()
-        self.spn_cpr.setRange(1.0, 10000.0); self.spn_cpr.setValue(330.0); self.spn_cpr.setSingleStep(10.0)
+        self.spn_cpr.setRange(1.0, 20000.0); self.spn_cpr.setValue(9048.0); self.spn_cpr.setSingleStep(100.0)
         grid_pid.addWidget(self.spn_cpr, 3, 1)
 
         pid_layout.addLayout(grid_pid)

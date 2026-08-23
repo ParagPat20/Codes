@@ -60,11 +60,11 @@ void IRAM_ATTR encoderISR() {
   encoderState = currState;
 }
 
-// Closed-Loop PID Parameters & Control Variables
-float Kp = 1.2f;
-float Ki = 0.15f;
-float Kd = 0.05f;
-float encoderCPR = 330.0f; // Encoder Counts Per Rev
+// Closed-Loop PID Parameters & Control Variables (Rhino IG32 Planetary Motor 9048 CPR @ 12V)
+float Kp = 1.8f;
+float Ki = 0.25f;
+float Kd = 0.03f;
+float encoderCPR = 9048.0f; // High Torque Quad Encoder CPR
 
 bool closedLoopEnabled = true;
 float targetRPM = 0.0f;
@@ -105,46 +105,61 @@ void updateClosedLoopControl() {
   long dTicks = currentTicks - lastEncoderTicks;
   lastEncoderTicks = currentTicks;
 
-  // Calculate actual measured RPM
+  // Calculate actual measured RPM from High-Resolution 9048 CPR Encoder (GPIO 0 & 1)
   measuredRPM = ((float)dTicks / encoderCPR) * (60.0f / dt);
 
-  if (!closedLoopEnabled) {
-    setMotorHardwareSpeed((int)targetRPM);
-    return;
-  }
-
-  float error = 0.0f;
-  float outputPWM = 0.0f;
-
+  // Active Zero-Speed High-Resolution Encoder Position Lock (9048 CPR - 1 deg = 25 ticks)
   if (targetRPM == 0.0f) {
-    // Active Zero-Speed Position Hold Mode
     if (!isHoldingPosition) {
       targetHoldPos = currentTicks;
       isHoldingPosition = true;
       pidIntegral = 0.0f;
       lastPidError = 0.0f;
     }
+
     long posError = targetHoldPos - currentTicks;
-    // Deadband: ignore noise/vibration within +-3 encoder ticks
-    if (labs(posError) <= 3) {
+
+    // High-precision deadband (25 ticks = 1 degree of wheel angle = ~3.4mm movement on 40cm wheel)
+    if (labs(posError) <= 25) {
       setMotorHardwareSpeed(0);
       pidIntegral = 0.0f;
       lastPidError = 0.0f;
       return;
     }
-    error = (float)posError * 0.5f; // Scale position error to equivalent RPM correction
+
+    // High-resolution position counter-torque with 24 PWM gearhead static friction feedforward
+    float pErr = (float)posError;
+    pidIntegral += pErr * dt;
+    pidIntegral = constrain(pidIntegral, -100.0f, 100.0f); // Anti-heating integral cap
+    float dError = (pErr - lastPidError) / dt;
+    lastPidError = pErr;
+
+    float dirSign = (pErr > 0) ? 1.0f : -1.0f;
+    float baseFrictionPWM = dirSign * 24.0f; // Continuous breakaway threshold for Rhino IG32
+    float outputPWM = baseFrictionPWM + (pErr * 0.18f) + (pidIntegral * 0.02f) + (dError * 0.001f);
+    outputPWM = constrain(outputPWM, -160.0f, 160.0f);
+
+    setMotorHardwareSpeed((int)outputPWM);
+    return;
   } else {
     isHoldingPosition = false;
-    error = targetRPM - measuredRPM;
   }
 
+  if (!closedLoopEnabled) {
+    setMotorHardwareSpeed((int)targetRPM);
+    return;
+  }
+
+  // Closed-Loop Encoder Speed Control for Target RPM (With Feedforward for 100RPM/255PWM)
+  float error = targetRPM - measuredRPM;
   pidIntegral += error * dt;
-  pidIntegral = constrain(pidIntegral, -255.0f, 255.0f); // Anti-windup
+  pidIntegral = constrain(pidIntegral, -150.0f, 150.0f); // Anti-windup
 
   float dError = (error - lastPidError) / dt;
   lastPidError = error;
 
-  outputPWM = (Kp * error) + (Ki * pidIntegral) + (Kd * dError);
+  float feedforwardPWM = targetRPM * 2.1f; // ~2.1 PWM units per RPM feedforward
+  float outputPWM = feedforwardPWM + (Kp * error) + (Ki * pidIntegral) + (Kd * dError);
   outputPWM = constrain(outputPWM, -255.0f, 255.0f);
 
   setMotorHardwareSpeed((int)outputPWM);
