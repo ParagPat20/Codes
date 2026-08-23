@@ -435,6 +435,26 @@ Rollopod utilizes an advanced distributed control architecture to prevent mechan
 
 ---
 
+## 10. Closed-Loop Quadrature Encoder Speed PID & Active Position Hold
+
+To eliminate uncontrolled back-driving caused by the rigid rotor shaft coupling during differential waddling, each motor is equipped with a Quadrature Encoder interfaced directly to the ESP32-C6 Slave:
+
+* **Hardware Wiring**:
+  * **Encoder A**: GPIO 1 (Interrupt on Change)
+  * **Encoder B**: GPIO 0 (Input Pullup)
+* **Measured Feedback Loop**: Real-time tick counting calculates actual shaft velocity ($\text{RPM}_{\text{measured}}$) at 50 Hz.
+* **RPM Following PID**:
+  When a target RPM $V_{\text{target}}$ is issued from the Master/GUI, a 50Hz PID controller adjusts motor PWM dynamically:
+  
+  $$e(t) = V_{\text{target}} - \text{RPM}_{\text{measured}}$$
+  
+  $$\text{PWM}_{\text{out}}(t) = K_p \cdot e(t) + K_i \int e(t) dt + K_d \frac{de(t)}{dt}$$
+
+* **Active Zero-Speed Position Hold against Central Rod Torque**:
+  When $V_{\text{target}} = 0$, the controller latches the current tick position $P_{\text{hold}}$. If the opposite motor spinning at high speed tries to force-rotate the unpowered motor through the rigid central reaction rod, position error $e_{\text{pos}} = P_{\text{hold}} - P_{\text{current}}$ applies instantaneous counter-torque PWM to lock the motor shaft firmly in place.
+
+---
+
 ## 15. Summary of Key Architectural Rules
 
 > [!WARNING]

@@ -2,7 +2,7 @@
 """
 ===============================================================================
   ROLLOPOD ESP32-C6 DUAL CONTROLLER GUI (Left & Right Boards)
-  Dark Soft Neumorphism Theme + Waddling Gait Generator with Configurable Ramp
+  Dark Soft Neumorphism Theme + Waddling Gait Generator & Closed-Loop Encoder PID
 ===============================================================================
 """
 
@@ -74,12 +74,14 @@ class ClickRefreshComboBox(QtWidgets.QComboBox):
             self.setCurrentIndex(0)
         super().showPopup()
 
-# BACKGROUND SERIAL WORKER THREAD WITH DUAL MPU TELEMETRY PARSING
+# BACKGROUND SERIAL WORKER THREAD WITH DUAL MPU & ENCODER TELEMETRY PARSING
 class SerialWorkerThread(QtCore.QThread):
     data_received = QtCore.pyqtSignal(str)
     status_changed = QtCore.pyqtSignal(bool, str)
     telemetry_left_pitch = QtCore.pyqtSignal(float)
     telemetry_right_pitch = QtCore.pyqtSignal(float)
+    telemetry_left_encoder = QtCore.pyqtSignal(int, float, float)   # ticks, measured_rpm, target_rpm
+    telemetry_right_encoder = QtCore.pyqtSignal(int, float, float)  # ticks, measured_rpm, target_rpm
 
     def __init__(self, port_name, baud_rate=115200):
         super().__init__()
@@ -137,6 +139,28 @@ class SerialWorkerThread(QtCore.QThread):
                                             self.telemetry_right_pitch.emit(pitch)
                                     except ValueError:
                                         pass
+
+                        # Parse Encoder telemetry stream ("ENC <ticks> <measured_rpm> <target_rpm>")
+                        if "ENC" in line or "ENCODER_DATA" in line:
+                            parts = line.split()
+                            is_left = "[LEFT]" in line or "LEFT" in line
+                            is_right = "[RIGHT]" in line or "RIGHT" in line
+
+                            for i, p in enumerate(parts):
+                                if (p == "ENC" or p == "ENCODER_DATA") and i + 3 < len(parts):
+                                    try:
+                                        ticks = int(parts[i + 1])
+                                        m_rpm = float(parts[i + 2])
+                                        t_rpm = float(parts[i + 3])
+                                        if is_left:
+                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm)
+                                        elif is_right:
+                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm)
+                                        else:
+                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm)
+                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm)
+                                    except ValueError:
+                                        pass
                 else:
                     time.sleep(0.002)
             except Exception as e:
@@ -189,7 +213,6 @@ class ServoChannelCard(QtWidgets.QFrame):
         layout.setContentsMargins(6, 5, 6, 5)
         layout.setSpacing(3)
 
-        # Header Row: Channel ID Badge + Assigned Servo Combo + Wiggle + Save Stand + Angle Display
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.setSpacing(3)
         
@@ -215,7 +238,6 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.cmb_servo.currentIndexChanged.connect(self.on_servo_combo_changed)
         header_layout.addWidget(self.cmb_servo, stretch=1)
 
-        # Wiggle Button
         self.btn_wiggle = QtWidgets.QPushButton("🔍")
         self.btn_wiggle.setFixedWidth(22)
         self.btn_wiggle.setToolTip("Wiggle servo ±4° to identify hardware channel")
@@ -236,7 +258,6 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.btn_wiggle.clicked.connect(self.on_wiggle_clicked)
         header_layout.addWidget(self.btn_wiggle)
 
-        # Individual Standing Pose Save Button
         self.btn_save_stand = QtWidgets.QPushButton("📌")
         self.btn_save_stand.setFixedWidth(22)
         self.btn_save_stand.setToolTip("Save current slider value as Standing Pose angle for this servo")
@@ -257,7 +278,6 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.btn_save_stand.clicked.connect(self.on_save_stand_clicked)
         header_layout.addWidget(self.btn_save_stand)
 
-        # Return to Standing Pose Button
         self.btn_go_stand = QtWidgets.QPushButton("🏠")
         self.btn_go_stand.setFixedWidth(22)
         self.btn_go_stand.setToolTip("Move this servo to its saved Standing Pose position")
@@ -284,7 +304,6 @@ class ServoChannelCard(QtWidgets.QFrame):
 
         layout.addLayout(header_layout)
 
-        # Slider Row: [-] + Slider + [+] + SpinBox
         slider_layout = QtWidgets.QHBoxLayout()
         slider_layout.setSpacing(3)
 
@@ -400,8 +419,8 @@ class ServoChannelCard(QtWidgets.QFrame):
 class RollopodMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Rollopod Dual ESP32 Controller - Waddling Gait Generator & Dual Telemetry")
-        self.resize(1380, 940)
+        self.setWindowTitle("Rollopod Dual ESP32 Controller - Closed-Loop Encoder PID & Waddling Generator")
+        self.resize(1400, 960)
 
         self.worker_thread = None
         self.is_connected = False
@@ -423,6 +442,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.waddle_amplitude_pct = 50.0  # %
         self.waddle_ramp_time = 1.0  # Ramp duration in seconds
         self.waddle_ramp_factor = 0.0
+
+        # Encoder Telemetry Memory
+        self.l_enc_ticks = 0; self.l_measured_rpm = 0.0; self.l_target_rpm = 0.0
+        self.r_enc_ticks = 0; self.r_measured_rpm = 0.0; self.r_target_rpm = 0.0
 
         self.leg_channel_map = {
             "Left Front Coxa": "L:CH 00", "Left Front Femur": "L:CH 01", "Left Front Tibia": "L:CH 02",
@@ -540,6 +563,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.init_waddling_tab()
         self.tabs.addTab(self.tab_waddling, "🚶 Waddling Gait Generator")
 
+        self.tab_pid_tuning = QtWidgets.QWidget()
+        self.init_pid_tab()
+        self.tabs.addTab(self.tab_pid_tuning, "🎯 Encoder PID Tuning & Hold")
+
         self.tab_calibration = QtWidgets.QWidget()
         self.init_calibration_tab()
         self.tabs.addTab(self.tab_calibration, "⚙️ Servo Assignment & Profiles")
@@ -556,7 +583,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
 
-        # TOP BAR: VIEW FILTER & SERVO PRESETS (STAND POSE, ROLLING POSE & 90° NEUTRAL)
         mode_bar = QtWidgets.QHBoxLayout()
         lbl_mode = QtWidgets.QLabel("VIEW FILTER:")
         lbl_mode.setStyleSheet("font-weight: bold; color: #8E98B0; font-size: 11px;")
@@ -588,7 +614,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         mode_bar.addSpacing(10)
 
-        # SEND SAVED STANDING POSE & ROLLING POSE PRESET BUTTONS
         btn_stand_all = QtWidgets.QPushButton("📌 STAND ALL 32")
         btn_stand_all.setToolTip("Set ALL 32 Servos to their saved individual Standing Pose angles")
         btn_stand_all.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 11px; font-weight: bold;")
@@ -640,7 +665,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(scroll_area)
         layout.addWidget(left_pane, stretch=3)
 
-        # RIGHT CONTROL SIDEBAR: DUAL TELEMETRY + DUAL POWER + DUAL DC MOTORS
+        # RIGHT CONTROL SIDEBAR: DUAL TELEMETRY + DUAL POWER + DUAL DC MOTORS & ENCODER FEEDBACK
         right_panel = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -655,7 +680,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         gauges_layout = QtWidgets.QHBoxLayout()
         gauges_layout.setSpacing(8)
 
-        # Left MPU Pitch Display Box
         box_left_pitch = QtWidgets.QFrame()
         box_left_pitch.setStyleSheet("background-color: #0E1018; border: 1px solid #00E5FF; border-radius: 8px; padding: 4px;")
         l_pitch_layout = QtWidgets.QVBoxLayout(box_left_pitch)
@@ -671,7 +695,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         l_pitch_layout.addWidget(self.lbl_pitch_left)
         gauges_layout.addWidget(box_left_pitch)
 
-        # Right MPU Pitch Display Box
         box_right_pitch = QtWidgets.QFrame()
         box_right_pitch.setStyleSheet("background-color: #0E1018; border: 1px solid #FF9100; border-radius: 8px; padding: 4px;")
         r_pitch_layout = QtWidgets.QVBoxLayout(box_right_pitch)
@@ -731,19 +754,18 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         torque_layout.addWidget(btn_torque_all_off)
         right_layout.addWidget(box_torque)
 
-        # 3. DUAL DC MOTOR CONTROLLER (LEFT & RIGHT MD13S DRIVERS WITH INVERT DIRECTION)
-        box_motor = QtWidgets.QGroupBox("⚙️ DUAL DC MOTOR CONTROL (MD13S)")
+        # 3. DUAL DC MOTOR CONTROLLER (WITH CLOSED-LOOP ENCODER RPM & POSITION HOLD)
+        box_motor = QtWidgets.QGroupBox("⚙️ DUAL DC MOTOR PID & ENCODERS (GPIO 0 & 1)")
         motor_layout = QtWidgets.QVBoxLayout(box_motor)
         motor_layout.setContentsMargins(10, 14, 10, 10)
         motor_layout.setSpacing(8)
 
-        # Sync Both Motors Checkbox
         self.chk_sync_motors = QtWidgets.QCheckBox("🔗 Sync / Link Both Motors")
         self.chk_sync_motors.setChecked(True)
         self.chk_sync_motors.setStyleSheet("color: #00E676; font-weight: bold; font-size: 11px;")
         motor_layout.addWidget(self.chk_sync_motors)
 
-        # LEFT MOTOR CONTROL PANEL (WITH INVERT DIRECTION TOGGLE)
+        # LEFT MOTOR CONTROL PANEL
         box_left_m = QtWidgets.QFrame()
         box_left_m.setStyleSheet("background-color: #0E1018; border: 1px solid #00E5FF; border-radius: 6px; padding: 4px;")
         l_m_layout = QtWidgets.QVBoxLayout(box_left_m)
@@ -762,7 +784,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         h_l_hdr.addWidget(self.chk_invert_l_motor)
 
         h_l_hdr.addStretch()
-        self.lbl_l_motor_speed = QtWidgets.QLabel("Speed: 0")
+        self.lbl_l_motor_speed = QtWidgets.QLabel("Target RPM: 0")
         self.lbl_l_motor_speed.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 11px;")
         h_l_hdr.addWidget(self.lbl_l_motor_speed)
         l_m_layout.addLayout(h_l_hdr)
@@ -773,9 +795,14 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.slider_l_motor.setStyleSheet("QSlider::groove:horizontal { height: 4px; background: #161A28; border-radius: 2px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 2px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -5px; margin-bottom: -5px; border-radius: 7px; }")
         self.slider_l_motor.valueChanged.connect(self.on_l_motor_slider_moved)
         l_m_layout.addWidget(self.slider_l_motor)
+
+        # Encoder Telemetry Display for Left Motor
+        self.lbl_l_enc_info = QtWidgets.QLabel("Enc Ticks: 0 | RPM: 0.0")
+        self.lbl_l_enc_info.setStyleSheet("color: #00E5FF; font-size: 10px; font-family: 'Consolas';")
+        l_m_layout.addWidget(self.lbl_l_enc_info)
         motor_layout.addWidget(box_left_m)
 
-        # RIGHT MOTOR CONTROL PANEL (WITH INVERT DIRECTION TOGGLE)
+        # RIGHT MOTOR CONTROL PANEL
         box_right_m = QtWidgets.QFrame()
         box_right_m.setStyleSheet("background-color: #0E1018; border: 1px solid #FF9100; border-radius: 6px; padding: 4px;")
         r_m_layout = QtWidgets.QVBoxLayout(box_right_m)
@@ -794,7 +821,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         h_r_hdr.addWidget(self.chk_invert_r_motor)
 
         h_r_hdr.addStretch()
-        self.lbl_r_motor_speed = QtWidgets.QLabel("Speed: 0")
+        self.lbl_r_motor_speed = QtWidgets.QLabel("Target RPM: 0")
         self.lbl_r_motor_speed.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 11px;")
         h_r_hdr.addWidget(self.lbl_r_motor_speed)
         r_m_layout.addLayout(h_r_hdr)
@@ -805,9 +832,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.slider_r_motor.setStyleSheet("QSlider::groove:horizontal { height: 4px; background: #161A28; border-radius: 2px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 2px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -5px; margin-bottom: -5px; border-radius: 7px; }")
         self.slider_r_motor.valueChanged.connect(self.on_r_motor_slider_moved)
         r_m_layout.addWidget(self.slider_r_motor)
+
+        # Encoder Telemetry Display for Right Motor
+        self.lbl_r_enc_info = QtWidgets.QLabel("Enc Ticks: 0 | RPM: 0.0")
+        self.lbl_r_enc_info.setStyleSheet("color: #FF9100; font-size: 10px; font-family: 'Consolas';")
+        r_m_layout.addWidget(self.lbl_r_enc_info)
         motor_layout.addWidget(box_right_m)
 
-        # Emergency Stop All Motors Button
         btn_stop_motor = QtWidgets.QPushButton("⏹ EMERGENCY STOP ALL MOTORS")
         btn_stop_motor.setStyleSheet("background-color: #FF0055; color: #FFFFFF; font-weight: bold; padding: 6px;")
         btn_stop_motor.clicked.connect(self.stop_all_motors)
@@ -825,13 +856,11 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(14)
 
-        # LEFT PANE: CONTROLS & SLIDERS
         box_ctrl = QtWidgets.QGroupBox("🚶 Waddling Gait Parameters & Differential Sine Generator")
         ctrl_layout = QtWidgets.QVBoxLayout(box_ctrl)
         ctrl_layout.setContentsMargins(14, 18, 14, 14)
         ctrl_layout.setSpacing(10)
 
-        # 1. Base Forward Speed Slider
         h_base = QtWidgets.QHBoxLayout()
         lbl_b_title = QtWidgets.QLabel("Base Speed (V_base):")
         lbl_b_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
@@ -849,7 +878,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.slider_w_base.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_base)
 
-        # 2. Oscillation Frequency (Hz)
         h_freq = QtWidgets.QHBoxLayout()
         lbl_f_title = QtWidgets.QLabel("Differential Frequency (Hz):")
         lbl_f_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
@@ -861,13 +889,12 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         ctrl_layout.addLayout(h_freq)
 
         self.slider_w_freq = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
-        self.slider_w_freq.setRange(1, 50)  # 0.1 Hz to 5.0 Hz (val/10)
-        self.slider_w_freq.setValue(20)     # 2.0 Hz
+        self.slider_w_freq.setRange(1, 50)
+        self.slider_w_freq.setValue(20)
         self.slider_w_freq.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
         self.slider_w_freq.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_freq)
 
-        # Frequency Preset Quick Buttons (1Hz, 2Hz, 3Hz, 4Hz, 5Hz)
         freq_btn_layout = QtWidgets.QHBoxLayout()
         freq_btn_layout.addWidget(QtWidgets.QLabel("Freq Presets:"))
         for hz in [1, 2, 3, 4, 5]:
@@ -879,7 +906,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         freq_btn_layout.addStretch()
         ctrl_layout.addLayout(freq_btn_layout)
 
-        # 3. Differential Amplitude (0% - 100%)
         h_amp = QtWidgets.QHBoxLayout()
         lbl_a_title = QtWidgets.QLabel("Differential Amplitude (%):")
         lbl_a_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
@@ -891,13 +917,12 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         ctrl_layout.addLayout(h_amp)
 
         self.slider_w_amp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
-        self.slider_w_amp.setRange(0, 100)  # 0% to 100%
+        self.slider_w_amp.setRange(0, 100)
         self.slider_w_amp.setValue(50)
         self.slider_w_amp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
         self.slider_w_amp.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_amp)
 
-        # 4. Configurable Acceleration Ramp Time Control (0.1s - 5.0s)
         h_ramp = QtWidgets.QHBoxLayout()
         lbl_r_title = QtWidgets.QLabel("Acceleration Ramp Duration (s):")
         lbl_r_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
@@ -909,13 +934,12 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         ctrl_layout.addLayout(h_ramp)
 
         self.slider_w_ramp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
-        self.slider_w_ramp.setRange(1, 50)  # 0.1s to 5.0s (val/10)
-        self.slider_w_ramp.setValue(10)     # 1.0s
+        self.slider_w_ramp.setRange(1, 50)
+        self.slider_w_ramp.setValue(10)
         self.slider_w_ramp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0E1018; border-radius: 3px; } QSlider::sub-page:horizontal { background: #E040FB; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 16px; margin-top: -5px; margin-bottom: -5px; border-radius: 8px; }")
         self.slider_w_ramp.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_ramp)
 
-        # Ramp Duration Preset Quick Buttons (0.5s, 1.0s, 2.0s, 3.0s)
         ramp_btn_layout = QtWidgets.QHBoxLayout()
         ramp_btn_layout.addWidget(QtWidgets.QLabel("Ramp Presets:"))
         for r_sec in [0.5, 1.0, 2.0, 3.0]:
@@ -927,7 +951,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         ramp_btn_layout.addStretch()
         ctrl_layout.addLayout(ramp_btn_layout)
 
-        # START / STOP GAIT TOGGLE BUTTONS
         gait_action_layout = QtWidgets.QHBoxLayout()
         self.btn_start_waddle = QtWidgets.QPushButton("🚀 START WADDLING GAIT")
         self.btn_start_waddle.setStyleSheet("background-color: #00E676; color: #12141E; font-size: 14px; font-weight: bold; padding: 12px;")
@@ -942,13 +965,11 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         layout.addWidget(box_ctrl, stretch=2)
 
-        # RIGHT PANE: REALTIME VISUAL OSCILLOSCOPE GAUGES
-        box_vis = QtWidgets.QGroupBox("📊 Realtime Differential Sine Speed Meters")
+        box_vis = QtWidgets.QGroupBox("📊 Realtime Closed-Loop Differential Speed Meters")
         vis_layout = QtWidgets.QVBoxLayout(box_vis)
         vis_layout.setContentsMargins(14, 18, 14, 14)
         vis_layout.setSpacing(12)
 
-        # Left Motor Sine Speed Gauge
         vis_layout.addWidget(QtWidgets.QLabel("LEFT MOTOR POWER SINE WAVE:"))
         self.bar_l_motor = QtWidgets.QProgressBar()
         self.bar_l_motor.setRange(-255, 255)
@@ -957,7 +978,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.bar_l_motor.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 6px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 13px; background-color: #0E1018; height: 32px; } QProgressBar::chunk { background-color: #00E5FF; border-radius: 5px; }")
         vis_layout.addWidget(self.bar_l_motor)
 
-        # Right Motor Sine Speed Gauge
         vis_layout.addWidget(QtWidgets.QLabel("RIGHT MOTOR POWER SINE WAVE:"))
         self.bar_r_motor = QtWidgets.QProgressBar()
         self.bar_r_motor.setRange(-255, 255)
@@ -966,13 +986,120 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.bar_r_motor.setStyleSheet("QProgressBar { border: 1px solid #FF9100; border-radius: 6px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 13px; background-color: #0E1018; height: 32px; } QProgressBar::chunk { background-color: #FF9100; border-radius: 5px; }")
         vis_layout.addWidget(self.bar_r_motor)
 
-        # Live Gait Information Box
         self.txt_waddle_info = QtWidgets.QPlainTextEdit()
         self.txt_waddle_info.setReadOnly(True)
-        self.txt_waddle_info.setPlainText("Waddling Gait Generator Idle.\nPress 'START WADDLING GAIT' to begin differential sine oscillation.")
+        self.txt_waddle_info.setPlainText("Waddling Gait Generator Idle.\nPress 'START WADDLING GAIT' to begin closed-loop differential sine oscillation.")
         vis_layout.addWidget(self.txt_waddle_info)
 
         layout.addWidget(box_vis, stretch=1)
+
+    # ---------------------------------------------------------------------------
+    # TAB 3: ENCODER PID TUNING & POSITION HOLD CONTROL
+    # ---------------------------------------------------------------------------
+    def init_pid_tab(self):
+        layout = QtWidgets.QHBoxLayout(self.tab_pid_tuning)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(14)
+
+        # PID GAIN TUNING BOX
+        box_pid = QtWidgets.QGroupBox("🎯 Closed-Loop PID Parameters & Encoder Calibration")
+        pid_layout = QtWidgets.QVBoxLayout(box_pid)
+        pid_layout.setContentsMargins(14, 18, 14, 14)
+        pid_layout.setSpacing(10)
+
+        grid_pid = QtWidgets.QGridLayout()
+        grid_pid.setSpacing(8)
+
+        grid_pid.addWidget(QtWidgets.QLabel("Proportional Gain (Kp):"), 0, 0)
+        self.spn_kp = QtWidgets.QDoubleSpinBox()
+        self.spn_kp.setRange(0.0, 50.0); self.spn_kp.setValue(1.2); self.spn_kp.setSingleStep(0.1)
+        grid_pid.addWidget(self.spn_kp, 0, 1)
+
+        grid_pid.addWidget(QtWidgets.QLabel("Integral Gain (Ki):"), 1, 0)
+        self.spn_ki = QtWidgets.QDoubleSpinBox()
+        self.spn_ki.setRange(0.0, 50.0); self.spn_ki.setValue(0.15); self.spn_ki.setSingleStep(0.05)
+        grid_pid.addWidget(self.spn_ki, 1, 1)
+
+        grid_pid.addWidget(QtWidgets.QLabel("Derivative Gain (Kd):"), 2, 0)
+        self.spn_kd = QtWidgets.QDoubleSpinBox()
+        self.spn_kd.setRange(0.0, 50.0); self.spn_kd.setValue(0.05); self.spn_kd.setSingleStep(0.01)
+        grid_pid.addWidget(self.spn_kd, 2, 1)
+
+        grid_pid.addWidget(QtWidgets.QLabel("Encoder CPR (Counts/Rev):"), 3, 0)
+        self.spn_cpr = QtWidgets.QDoubleSpinBox()
+        self.spn_cpr.setRange(1.0, 10000.0); self.spn_cpr.setValue(330.0); self.spn_cpr.setSingleStep(10.0)
+        grid_pid.addWidget(self.spn_cpr, 3, 1)
+
+        pid_layout.addLayout(grid_pid)
+
+        btn_send_pid = QtWidgets.QPushButton("⚡ Send PID & CPR to Both Slaves")
+        btn_send_pid.setStyleSheet("background-color: #00E5FF; color: #12141E; font-weight: bold; padding: 8px;")
+        btn_send_pid.clicked.connect(self.send_pid_params)
+        pid_layout.addWidget(btn_send_pid)
+
+        btn_toggle_cl = QtWidgets.QPushButton("🔄 Toggle Closed-Loop PID (ON/OFF)")
+        btn_toggle_cl.setStyleSheet("background-color: #1F2335; color: #00E676; border-color: #00E676; font-weight: bold; padding: 8px;")
+        btn_toggle_cl.clicked.connect(self.toggle_closed_loop_mode)
+        pid_layout.addWidget(btn_toggle_cl)
+
+        btn_reset_enc = QtWidgets.QPushButton("🧹 Reset Encoder Ticks to 0")
+        btn_reset_enc.setStyleSheet("background-color: #1F2335; color: #FF9100; border-color: #FF9100; font-weight: bold; padding: 8px;")
+        btn_reset_enc.clicked.connect(lambda: self.send_command("B ENCODER_RESET"))
+        pid_layout.addWidget(btn_reset_enc)
+
+        pid_layout.addStretch()
+        layout.addWidget(box_pid, stretch=1)
+
+        # ENCODER REAL-TIME MONITORING BOX
+        box_mon = QtWidgets.QGroupBox("📊 Live Dual Encoder & Active Position Hold Monitor")
+        mon_layout = QtWidgets.QVBoxLayout(box_mon)
+        mon_layout.setContentsMargins(14, 18, 14, 14)
+        mon_layout.setSpacing(12)
+
+        self.txt_pid_mon = QtWidgets.QPlainTextEdit()
+        self.txt_pid_mon.setReadOnly(True)
+        self.txt_pid_mon.setPlainText("Live Dual Encoder PID Feedback\nConnecting to slaves to stream Quadrature Encoder Ticks & Measured RPM...")
+        mon_layout.addWidget(self.txt_pid_mon)
+
+        layout.addWidget(box_mon, stretch=2)
+
+    def send_pid_params(self):
+        kp = self.spn_kp.value()
+        ki = self.spn_ki.value()
+        kd = self.spn_kd.value()
+        cpr = self.spn_cpr.value()
+
+        self.send_command(f"B SET_PID {kp:.2f} {ki:.2f} {kd:.2f}")
+        self.send_command(f"B SET_CPR {cpr:.1f}")
+        self.log_console(f"[PID] Transmitted PID gains (Kp={kp:.2f}, Ki={ki:.2f}, Kd={kd:.2f}) and CPR={cpr:.1f} to both slaves")
+
+    def toggle_closed_loop_mode(self):
+        self.send_command("B CLOSED_LOOP 1")
+        self.log_console("[PID] Enabled Closed-Loop Encoder PID Mode on both slaves")
+
+    def on_telemetry_left_encoder_received(self, ticks, m_rpm, t_rpm):
+        self.l_enc_ticks = ticks; self.l_measured_rpm = m_rpm; self.l_target_rpm = t_rpm
+        self.lbl_l_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:.1f} (Tgt: {int(t_rpm)})")
+        self.update_pid_monitor_text()
+
+    def on_telemetry_right_encoder_received(self, ticks, m_rpm, t_rpm):
+        self.r_enc_ticks = ticks; self.r_measured_rpm = m_rpm; self.r_target_rpm = t_rpm
+        self.lbl_r_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:.1f} (Tgt: {int(t_rpm)})")
+        self.update_pid_monitor_text()
+
+    def update_pid_monitor_text(self):
+        if hasattr(self, 'txt_pid_mon'):
+            self.txt_pid_mon.setPlainText(
+                f"=== DUAL CLOSED-LOOP ENCODER FEEDBACK (GPIO 0 & 1) ===\n\n"
+                f"🔴 LEFT MOTOR (Slave L: 10:BD:A3:A0:F1:9C):\n"
+                f"   Encoder Ticks : {self.l_enc_ticks}\n"
+                f"   Measured Speed: {self.l_measured_rpm:+.1f} RPM\n"
+                f"   Target Speed  : {self.l_target_rpm:+.1f} RPM\n\n"
+                f"🟢 RIGHT MOTOR (Slave R: 98:A3:16:61:1A:C8):\n"
+                f"   Encoder Ticks : {self.r_enc_ticks}\n"
+                f"   Measured Speed: {self.r_measured_rpm:+.1f} RPM\n"
+                f"   Target Speed  : {self.r_target_rpm:+.1f} RPM\n"
+            )
 
     def set_waddle_freq_preset(self, hz):
         self.slider_w_freq.setValue(int(hz * 10))
@@ -1022,7 +1149,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         t = time.time() - self.waddle_start_time
 
-        # Ramp up factor smoothly over user-configured waddle_ramp_time seconds (50Hz update loop = 0.02s per step)
         if self.waddle_ramp_time > 0.0:
             ramp_step = 0.02 / self.waddle_ramp_time
         else:
@@ -1031,36 +1157,30 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         if self.waddle_ramp_factor < 1.0:
             self.waddle_ramp_factor = min(1.0, self.waddle_ramp_factor + ramp_step)
 
-        # Differential Sine Wave Calculation
         max_diff_amp = abs(self.waddle_base_speed) if self.waddle_base_speed != 0 else 128.0
         diff_val = (self.waddle_amplitude_pct / 100.0) * max_diff_amp * math.sin(2.0 * math.pi * self.waddle_frequency * t)
         
         target_l_speed = (self.waddle_base_speed + diff_val) * self.waddle_ramp_factor
         target_r_speed = (self.waddle_base_speed - diff_val) * self.waddle_ramp_factor
 
-        # Clamp speeds
         l_speed = max(-255, min(255, int(round(target_l_speed))))
         r_speed = max(-255, min(255, int(round(target_r_speed))))
 
-        # Apply Direction Inversion Polarity
         eff_l_speed = -l_speed if self.chk_invert_l_motor.isChecked() else l_speed
         eff_r_speed = -r_speed if self.chk_invert_r_motor.isChecked() else r_speed
 
-        # Update Visual Bar Gauges
         self.bar_l_motor.setValue(l_speed)
-        self.bar_l_motor.setFormat(f"LEFT MOTOR: {l_speed}")
+        self.bar_l_motor.setFormat(f"LEFT MOTOR RPM: {l_speed}")
         self.bar_r_motor.setValue(r_speed)
-        self.bar_r_motor.setFormat(f"RIGHT MOTOR: {r_speed}")
+        self.bar_r_motor.setFormat(f"RIGHT MOTOR RPM: {r_speed}")
 
-        # Update Info Log
         self.txt_waddle_info.setPlainText(
             f"Waddling Gait Active ({self.waddle_frequency:.1f}Hz @ {int(self.waddle_amplitude_pct)}% Amp | Ramp: {self.waddle_ramp_factor*100:.0f}%)\n"
             f"T = {t:.2f}s | Ramp Target: {self.waddle_ramp_time:.1f}s | Sine Diff: {diff_val:+.1f}\n"
-            f"Left Motor Power : {l_speed:+} (Tx: {eff_l_speed:+})\n"
-            f"Right Motor Power: {r_speed:+} (Tx: {eff_r_speed:+})"
+            f"Left Motor Target RPM : {l_speed:+} (Tx: {eff_l_speed:+}) | Measured: {self.l_measured_rpm:+.1f} RPM\n"
+            f"Right Motor Target RPM: {r_speed:+} (Tx: {eff_r_speed:+}) | Measured: {self.r_measured_rpm:+.1f} RPM"
         )
 
-        # Transmit Motor Commands over Serial
         if self.is_connected and self.realtime_enabled:
             self.send_command(f"L MOTOR {eff_l_speed}")
             self.send_command(f"R MOTOR {eff_r_speed}")
@@ -1236,6 +1356,8 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             self.worker_thread.status_changed.connect(self.on_connection_status_changed)
             self.worker_thread.telemetry_left_pitch.connect(self.on_telemetry_left_pitch_received)
             self.worker_thread.telemetry_right_pitch.connect(self.on_telemetry_right_pitch_received)
+            self.worker_thread.telemetry_left_encoder.connect(self.on_telemetry_left_encoder_received)
+            self.worker_thread.telemetry_right_encoder.connect(self.on_telemetry_right_encoder_received)
             self.worker_thread.start()
         else:
             if self.worker_thread:
@@ -1249,7 +1371,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.update_connection_ui(connected, msg)
         if connected:
             self.telemetry_active = True
-            # STRICT RULE: Connecting ONLY turns telemetry on. NEVER auto-sends GUI servo angles!
             self.send_command("B TELEMETRY 1")
 
     def update_connection_ui(self, connected, msg):
@@ -1317,13 +1438,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
     def on_l_motor_slider_moved(self, raw_speed):
         if self.waddling: return
         eff_l_speed = -raw_speed if self.chk_invert_l_motor.isChecked() else raw_speed
-        self.lbl_l_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_l_motor.isChecked() else 'Nor'})")
+        self.lbl_l_motor_speed.setText(f"Target RPM: {raw_speed} ({'Inv' if self.chk_invert_l_motor.isChecked() else 'Nor'})")
         
         if self.chk_sync_motors.isChecked():
             self.slider_r_motor.blockSignals(True)
             self.slider_r_motor.setValue(raw_speed)
             eff_r_speed = -raw_speed if self.chk_invert_r_motor.isChecked() else raw_speed
-            self.lbl_r_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_r_motor.isChecked() else 'Nor'})")
+            self.lbl_r_motor_speed.setText(f"Target RPM: {raw_speed} ({'Inv' if self.chk_invert_r_motor.isChecked() else 'Nor'})")
             self.slider_r_motor.blockSignals(False)
             
             if self.realtime_enabled:
@@ -1339,13 +1460,13 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
     def on_r_motor_slider_moved(self, raw_speed):
         if self.waddling: return
         eff_r_speed = -raw_speed if self.chk_invert_r_motor.isChecked() else raw_speed
-        self.lbl_r_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_r_motor.isChecked() else 'Nor'})")
+        self.lbl_r_motor_speed.setText(f"Target RPM: {raw_speed} ({'Inv' if self.chk_invert_r_motor.isChecked() else 'Nor'})")
         
         if self.chk_sync_motors.isChecked():
             self.slider_l_motor.blockSignals(True)
             self.slider_l_motor.setValue(raw_speed)
             eff_l_speed = -raw_speed if self.chk_invert_l_motor.isChecked() else raw_speed
-            self.lbl_l_motor_speed.setText(f"Speed: {raw_speed} ({'Inv' if self.chk_invert_l_motor.isChecked() else 'Nor'})")
+            self.lbl_l_motor_speed.setText(f"Target RPM: {raw_speed} ({'Inv' if self.chk_invert_l_motor.isChecked() else 'Nor'})")
             self.slider_l_motor.blockSignals(False)
             
             if self.realtime_enabled:
@@ -1363,8 +1484,8 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.slider_r_motor.blockSignals(True)
         self.slider_l_motor.setValue(0)
         self.slider_r_motor.setValue(0)
-        self.lbl_l_motor_speed.setText("Speed: 0")
-        self.lbl_r_motor_speed.setText("Speed: 0")
+        self.lbl_l_motor_speed.setText("Target RPM: 0")
+        self.lbl_r_motor_speed.setText("Target RPM: 0")
         self.slider_l_motor.blockSignals(False)
         self.slider_r_motor.blockSignals(False)
         self.send_command("B MOTOR 0")
@@ -1404,7 +1525,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             split_layout.setContentsMargins(0, 0, 0, 0)
             split_layout.setSpacing(8)
 
-            # Left Side Legs Pane
             left_side_box = QtWidgets.QGroupBox("🔴 LEFT SIDE LEGS")
             left_side_box.setStyleSheet("""
                 QGroupBox {
@@ -1449,7 +1569,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
             split_layout.addWidget(left_side_box, stretch=1)
 
-            # Right Side Legs Pane
             right_side_box = QtWidgets.QGroupBox("🟢 RIGHT SIDE LEGS")
             right_side_box.setStyleSheet("""
                 QGroupBox {
@@ -1545,7 +1664,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             all_layout.setContentsMargins(0, 0, 0, 0)
             all_layout.setSpacing(8)
 
-            # Left Board Column
             box_left_all = QtWidgets.QGroupBox("⬅️ LEFT BOARD CHANNELS (L:CH 00-15)")
             box_left_all.setStyleSheet("QGroupBox { background-color: #141724; border: 1px solid #00E5FF; border-radius: 8px; font-weight: bold; color: #00E5FF; font-size: 11px; }")
             grid_l = QtWidgets.QGridLayout(box_left_all)
@@ -1559,7 +1677,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
             all_layout.addWidget(box_left_all, stretch=1)
 
-            # Right Board Column
             box_right_all = QtWidgets.QGroupBox("➡️ RIGHT BOARD CHANNELS (R:CH 00-15)")
             box_right_all.setStyleSheet("QGroupBox { background-color: #141724; border: 1px solid #FF9100; border-radius: 8px; font-weight: bold; color: #FF9100; font-size: 11px; }")
             grid_r = QtWidgets.QGridLayout(box_right_all)
@@ -1637,18 +1754,21 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             "standing_angles": standing_dict,
             "invert_left_motor": self.chk_invert_l_motor.isChecked(),
             "invert_right_motor": self.chk_invert_r_motor.isChecked(),
-            "sync_motors": self.chk_sync_motors.isChecked()
+            "sync_motors": self.chk_sync_motors.isChecked(),
+            "kp": self.spn_kp.value(),
+            "ki": self.spn_ki.value(),
+            "kd": self.spn_kd.value(),
+            "cpr": self.spn_cpr.value()
         }
         try:
             with open(self.settings_file, "w") as f:
                 json.dump(data, f, indent=4)
-            self.log_console(f"[PROFILE] Saved dual profile & standing pose angles to {self.settings_file}")
+            self.log_console(f"[PROFILE] Saved profile, standing angles & PID gains to {self.settings_file}")
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Save Error", str(e))
 
     def load_profile(self):
         if not os.path.exists(self.settings_file):
-            # Populate default rolling pose angles without emitting signals
             for card in self.cards:
                 cid = card.get_card_id()
                 if cid in DEFAULT_ROLLING_POSE:
@@ -1666,7 +1786,6 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                     if cid in data["standing_angles"]:
                         card.stand_angle = float(data["standing_angles"][cid])
                         card.btn_save_stand.setToolTip(f"Standing position saved: {int(card.stand_angle)}°")
-            # Set default angles cleanly WITHOUT emitting serial signals on load!
             for card in self.cards:
                 cid = card.get_card_id()
                 if cid in DEFAULT_ROLLING_POSE:
@@ -1677,6 +1796,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 self.chk_invert_r_motor.setChecked(data["invert_right_motor"])
             if "sync_motors" in data:
                 self.chk_sync_motors.setChecked(data["sync_motors"])
+            if "kp" in data: self.spn_kp.setValue(data["kp"])
+            if "ki" in data: self.spn_ki.setValue(data["ki"])
+            if "kd" in data: self.spn_kd.setValue(data["kd"])
+            if "cpr" in data: self.spn_cpr.setValue(data["cpr"])
             self.sync_leg_channel_ui()
             self.log_console(f"[PROFILE] Loaded profile from {self.settings_file}")
         except Exception as e:

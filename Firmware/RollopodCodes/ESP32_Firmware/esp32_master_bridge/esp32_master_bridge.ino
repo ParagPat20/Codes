@@ -44,7 +44,7 @@ void setupAntenna() {
 // ============================================================
 // Target SLAVE ESP32 MAC Addresses (Left & Right Boards)
 // ============================================================
-uint8_t LEFT_SLAVE_MAC[]  = { 0x98, 0xA3, 0x16, 0x61, 0x15, 0x40 };
+uint8_t LEFT_SLAVE_MAC[]  = { 0x10, 0xBD, 0xA3, 0xA0, 0xF1, 0x9C };
 uint8_t RIGHT_SLAVE_MAC[] = { 0x98, 0xA3, 0x16, 0x61, 0x1A, 0xC8 };
 
 // ESP-NOW peer info

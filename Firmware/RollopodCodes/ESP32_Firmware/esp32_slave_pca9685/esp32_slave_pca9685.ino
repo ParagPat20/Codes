@@ -1,46 +1,19 @@
 /*
- * ESP32 Slave PCA9685 16-Channel Servo Controller (ESP-NOW Version)
+ * ESP32 Slave PCA9685 16-Channel Servo Controller & Closed-Loop Motor PID (ESP-NOW Version)
  *
- * Controls up to 16 servos via PCA9685 PWM driver board using direct PWM tick
- * values Receives commands via ESP-NOW from master ESP32 (connected to PC)
- *
- * Setup Instructions:
- * 1. Upload this sketch to ESP32 Slave (on robot)
- * 2. Open Serial Monitor and note the MAC address displayed
- * 3. Copy this MAC address to the master ESP32 sketch
- * 4. This ESP32 will now receive commands wirelessly from the master
- *
- * Requirements:
- * - ESP32 Arduino Core 2.0.0 or higher (3.0.0+ recommended)
- * - Adafruit PWM Servo Driver Library (for PCA9685)
- * - Wire library (I2C, included in Arduino)
- *
- * Based on ESP-NOW best practices from:
- * https://randomnerdtutorials.com/esp-now-esp32-arduino-ide/
- *
- * Serial Commands (received via ESP-NOW):
- * - "TICK <channel> <value>"     : Set PWM tick value (0-4095) on channel
- * (0-15)
- * - "ANGLE <channel> <angle>"    : Set servo angle (0.0-180.0) using calibrated
- * tick values
- * - "CAL <channel> <min> <max>"  : Set tick calibration for channel (min/max
- * ticks for 0/180 degrees)
- * - "CAL_ALL <min> <max>"        : Set tick calibration for all channels
- * - "GET_CAL <channel>"          : Get calibration values for a channel
- * - "GET_ALL_CAL"                : Get all calibration values
- * - "FREQ <frequency>"            : Set PWM frequency in Hz (40-1000, typical
- * 50)
- * - "SLEEP"                       : Put PCA9685 in sleep mode
- * - "WAKE"                        : Wake PCA9685 from sleep mode
- * - "RESET"                       : Reset PCA9685 to default settings
- * - "INFO"                        : Print current configuration
+ * Controls up to 16 servos via PCA9685 PWM driver board.
+ * Receives commands via ESP-NOW from master ESP32 (connected to PC).
+ * Includes Closed-Loop PID Motor Speed Control & Active Zero-Speed Position Hold
+ * using Quadrature Encoder on GPIO 1 (Encoder A) and GPIO 0 (Encoder B).
  *
  * Wiring:
- * PCA9685 SDA -> ESP32 GPIO21 (default I2C SDA)
- * PCA9685 SCL -> ESP32 GPIO22 (default I2C SCL)
- * PCA9685 VCC -> 5V
- * PCA9685 GND -> GND
- * PCA9685 V+  -> External 5-6V power supply for servos
+ * ENCODER A  -> GPIO 1 (Input Pullup, Interrupt)
+ * ENCODER B  -> GPIO 0 (Input Pullup, Interrupt)
+ * MOSFET PIN -> GPIO 18 (IRL84132PBF 12V Rail Gate Control)
+ * MOTOR PWM  -> GPIO 19 (MD13S PWM)
+ * MOTOR DIR  -> GPIO 17 (MD13S DIR)
+ * I2C SDA    -> GPIO 21 (PCA9685 & MPU6050 SDA)
+ * I2C SCL    -> GPIO 22 (PCA9685 & MPU6050 SCL)
  */
 
 #include <Adafruit_PWMServoDriver.h>
@@ -51,45 +24,130 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-
-// PCA9685 I2C address (default is 0x40)
 #define PCA9685_ADDRESS 0x40
-
-// Default PWM tick values (12-bit resolution: 0-4095)
-#define TICK_MIN_DEFAULT 102 // ~500us at 50Hz (102 ticks)
-#define TICK_MAX_DEFAULT 512 // ~2500us at 50Hz (512 ticks)
-
-// Default PWM frequency for servos (Hz)
+#define TICK_MIN_DEFAULT 102
+#define TICK_MAX_DEFAULT 512
 #define SERVO_FREQ_DEFAULT 50
 
-// Create PCA9685 driver object
 Adafruit_PWMServoDriver pca = Adafruit_PWMServoDriver(PCA9685_ADDRESS);
 
 // ============================================================
 // PIN ASSIGNMENTS (Seeed Studio XIAO ESP32-C6 / EasyEDA Schematic)
 // ============================================================
-// MOSFET Power Control Pin (IRL84132PBF Gate control - EasyEDA Pin 1 / GPIO0)
+#define ENCODER_A_PIN 1
+#define ENCODER_B_PIN 0
 #define MOSFET_PIN 18
-
-// DC Motor Control Pins (MD13S Driver - EasyEDA Pin 8 / GPIO17 & Pin 9 / GPIO19)
 #define MOTOR_PWM_PIN 19
 #define MOTOR_DIR_PIN 17
-
-// I2C Bus Pins (EasyEDA Pin 4 / GPIO21 SDA & Pin 5 / GPIO22 SCL)
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
 
-// Internal RF Antenna Setup for Seeed Studio XIAO ESP32-C6
+// ============================================================
+// QUADRATURE ENCODER & CLOSED-LOOP PID MOTOR CONTROLLER
+// ============================================================
+volatile long encoderTicks = 0;
+volatile int encoderState = 0;
+
+void IRAM_ATTR encoderISR() {
+  int a = digitalRead(ENCODER_A_PIN);
+  int b = digitalRead(ENCODER_B_PIN);
+  int currState = (a << 1) | b;
+  int sum = (encoderState << 2) | currState;
+
+  if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderTicks++;
+  if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderTicks--;
+
+  encoderState = currState;
+}
+
+// Closed-Loop PID Parameters & Control Variables
+float Kp = 1.2f;
+float Ki = 0.15f;
+float Kd = 0.05f;
+float encoderCPR = 330.0f; // Encoder Counts Per Rev
+
+bool closedLoopEnabled = true;
+float targetRPM = 0.0f;
+float measuredRPM = 0.0f;
+long lastEncoderTicks = 0;
+unsigned long lastPidTime = 0;
+
+float pidIntegral = 0.0f;
+float lastPidError = 0.0f;
+long targetHoldPos = 0;
+bool isHoldingPosition = false;
+
+void setMotorHardwareSpeed(int speed) {
+  speed = constrain(speed, -255, 255);
+  if (speed >= 0) {
+    digitalWrite(MOTOR_DIR_PIN, HIGH);
+    analogWrite(MOTOR_PWM_PIN, speed);
+  } else {
+    digitalWrite(MOTOR_DIR_PIN, LOW);
+    analogWrite(MOTOR_PWM_PIN, -speed);
+  }
+}
+
+void updateClosedLoopControl() {
+  unsigned long now = millis();
+  float dt = (now - lastPidTime) / 1000.0f;
+  if (dt < 0.02f) return; // 50Hz update loop (every 20ms)
+  lastPidTime = now;
+
+  long currentTicks;
+  noInterrupts();
+  currentTicks = encoderTicks;
+  interrupts();
+
+  long dTicks = currentTicks - lastEncoderTicks;
+  lastEncoderTicks = currentTicks;
+
+  // Calculate actual measured RPM
+  measuredRPM = ((float)dTicks / encoderCPR) * (60.0f / dt);
+
+  if (!closedLoopEnabled) {
+    setMotorHardwareSpeed((int)targetRPM);
+    return;
+  }
+
+  float error = 0.0f;
+  float outputPWM = 0.0f;
+
+  if (targetRPM == 0.0f) {
+    // Active Zero-Speed Position Hold Mode
+    if (!isHoldingPosition) {
+      targetHoldPos = currentTicks;
+      isHoldingPosition = true;
+      pidIntegral = 0.0f;
+      lastPidError = 0.0f;
+    }
+    long posError = targetHoldPos - currentTicks;
+    error = (float)posError * 0.5f; // Scale position error to equivalent RPM correction
+  } else {
+    isHoldingPosition = false;
+    error = targetRPM - measuredRPM;
+  }
+
+  pidIntegral += error * dt;
+  pidIntegral = constrain(pidIntegral, -255.0f, 255.0f); // Anti-windup
+
+  float dError = (error - lastPidError) / dt;
+  lastPidError = error;
+
+  outputPWM = (Kp * error) + (Ki * pidIntegral) + (Kd * dError);
+  outputPWM = constrain(outputPWM, -255.0f, 255.0f);
+
+  setMotorHardwareSpeed((int)outputPWM);
+}
+
 void setupAntenna() {
-#if defined(CONFIG_IDF_TARGET_ESP32C6) ||                                      \
-    defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(ARDUINO_SEEED_XIAO_ESP32C6) || defined(ESP32C6)
   pinMode(3, OUTPUT);
-  digitalWrite(3, LOW); // Turn on antenna selection circuit
+  digitalWrite(3, LOW);
   delay(100);
   pinMode(14, OUTPUT);
-  digitalWrite(14, LOW); // LOW = Built-in Internal PCB Antenna
-  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured "
-                 "(GPIO3=LOW, GPIO14=LOW)");
+  digitalWrite(14, LOW);
+  Serial.println("[ANTENNA] XIAO ESP32-C6: Internal PCB Antenna Configured (GPIO3=LOW, GPIO14=LOW)");
 #else
   Serial.println("[ANTENNA] Standard ESP32 DevKit Board");
 #endif
@@ -99,7 +157,6 @@ void setupAntenna() {
 #define LED_BUILTIN 15
 #endif
 
-// Non-blocking LED timing & mode control for Slave
 unsigned long lastSlaveLedToggle = 0;
 bool slaveLedState = false;
 int slaveBurstToggles = 0;
@@ -109,7 +166,6 @@ const unsigned long MASTER_AVAILABLE_TIMEOUT_MS = 2500;
 void updateSlaveLed() {
   unsigned long now = millis();
 
-  // Fast Blinks burst when explicit command is received (6 toggles @ 35ms)
   if (slaveBurstToggles > 0) {
     if (now - lastSlaveLedToggle >= 35) {
       lastSlaveLedToggle = now;
@@ -120,16 +176,11 @@ void updateSlaveLed() {
     return;
   }
 
-  // Check if Master is available (heartbeat/command received within last 2.5
-  // sec)
-  bool isMasterAvailable =
-      (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
+  bool isMasterAvailable = (now - lastMasterCommandTime < MASTER_AVAILABLE_TIMEOUT_MS);
 
   if (!isMasterAvailable) {
-    // SOLID OFF when Master is disconnected / unavailable
     digitalWrite(LED_BUILTIN, LOW);
   } else {
-    // SLOW BLINK (500ms ON / 500ms OFF) when Master is connected
     if (now - lastSlaveLedToggle >= 500) {
       lastSlaveLedToggle = now;
       slaveLedState = !slaveLedState;
@@ -138,7 +189,6 @@ void updateSlaveLed() {
   }
 }
 
-// MPU6050 Configuration & Variables
 #define MPU6050_ADDRESS 0x68
 MPU6050 mpu(Wire);
 bool mpuInitialized = false;
@@ -147,18 +197,12 @@ float gyroAngle = 0.0;
 float filteredAngle = 0.0;
 unsigned long lastMpuUpdate = 0;
 
-// Telemetry & ESP-NOW target
 uint8_t masterMac[6];
 bool hasMasterMac = false;
 bool telemetryEnabled = false;
 unsigned long lastTelemetryTime = 0;
-const unsigned long TELEMETRY_INTERVAL = 100; // 100 ms interval (10 Hz)
+const unsigned long TELEMETRY_INTERVAL = 100;
 
-// ============================================================
-// Data Structures for ESP-NOW (Match exactly with master)
-// ============================================================
-
-// Master -> Slave Command Structure
 typedef struct cmd_struct {
   char command[16];
   int val1;
@@ -166,7 +210,6 @@ typedef struct cmd_struct {
   float val3;
 } cmd_struct;
 
-// Slave -> Master Telemetry/Response Structure
 typedef struct telemetry_struct {
   char type[10];
   char message[128];
@@ -176,28 +219,21 @@ typedef struct telemetry_struct {
 cmd_struct myCmd;
 telemetry_struct myData;
 
-// Servo configuration structure using tick values
 struct ServoConfig {
-  uint16_t tickMin;     // Minimum PWM tick value (0 degrees)
-  uint16_t tickMax;     // Maximum PWM tick value (180 degrees)
-  uint16_t currentTick; // Current PWM tick value
-  float lastAngle;      // Last set angle (0.0-180.0)
+  uint16_t tickMin;
+  uint16_t tickMax;
+  uint16_t currentTick;
+  float lastAngle;
 };
 
-// Configuration for all 16 channels
 ServoConfig servoConfigs[16];
 uint16_t pwmFrequency = SERVO_FREQ_DEFAULT;
-
-// ESP-NOW command buffer
 String commandBuffer = "";
 
-// Function prototypes
 void initESPNow();
-void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data,
-                int len);
+void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len);
 void sendResponse(const char *response, const uint8_t *mac_addr);
 void printMacAddress();
-
 void setServoPWM(uint8_t channel, uint16_t tickValue);
 void setServoAngle(uint8_t channel, float angle);
 void setPWMFrequency(uint16_t freq);
@@ -209,7 +245,6 @@ void resetToDefaults();
 void printInfo(const uint8_t *senderMac);
 void processCommand(String command, const uint8_t *senderMac);
 
-// New Helper Functions
 bool initMPU6050();
 void updateMPU();
 void setMotorSpeed(int speed);
@@ -217,47 +252,46 @@ void setTorque(int state);
 void sendTelemetry();
 
 void setup() {
-  // Initialize LED_BUILTIN pin
   pinMode(LED_BUILTIN, OUTPUT);
-
-  // Initialize Internal RF Antenna for XIAO ESP32-C6
   setupAntenna();
 
-  // Configure and turn on MOSFET power control pin
   pinMode(MOSFET_PIN, OUTPUT);
-  digitalWrite(MOSFET_PIN, LOW); // Start at No torque (fully off)
-  delay(100);                    // Wait for power to stabilize
+  digitalWrite(MOSFET_PIN, LOW);
+  delay(100);
 
-  // Configure DC Motor pins
   pinMode(MOTOR_DIR_PIN, OUTPUT);
   pinMode(MOTOR_PWM_PIN, OUTPUT);
   digitalWrite(MOTOR_DIR_PIN, LOW);
-  analogWrite(MOTOR_PWM_PIN, 0); // Start with motor stopped
+  analogWrite(MOTOR_PWM_PIN, 0);
 
-  // Initialize serial communication for debugging
+  // Configure Encoder Pins & Attach Interrupts (GPIO1 = Encoder A, GPIO0 = Encoder B)
+  pinMode(ENCODER_A_PIN, INPUT_PULLUP);
+  pinMode(ENCODER_B_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), encoderISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), encoderISR, CHANGE);
+
   Serial.begin(115200);
 #if defined(ARDUINO_USB_CDC_ON_BOOT) && (ARDUINO_USB_CDC_ON_BOOT == 1)
-  Serial.setTxTimeoutMs(
-      0); // 0ms timeout: Prevent Serial.print blocking on USB-CDC hardware
+  Serial.setTxTimeoutMs(0);
 #endif
   delay(500);
 
-  Serial.println("\n\n========================================");
-  Serial.println("ESP32-C6 Slave PCA9685 Controller - ESP-NOW");
+  Serial.println("
+
+========================================");
+  Serial.println("ESP32-C6 Slave PCA9685 & Encoder PID Controller - ESP-NOW");
   Serial.println("========================================");
 
-  // Initialize ESP-NOW (Enables WiFi Station mode)
   initESPNow();
 
-  // Print MAC address (needed for master configuration)
-  Serial.print("\n*** SLAVE MAC ADDRESS: ");
+  Serial.print("
+*** SLAVE MAC ADDRESS: ");
   printMacAddress();
-  Serial.println("*** Copy this MAC to master ESP32 sketch ***\n");
+  Serial.println("*** Copy this MAC to master ESP32 sketch ***
+");
 
-  // Initialize I2C with schematic pins (SDA=21, SCL=22)
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
-  // Initialize MPU6050
   Serial.println("Initializing MPU6050...");
   mpuInitialized = initMPU6050();
   if (mpuInitialized) {
@@ -267,343 +301,210 @@ void setup() {
     Serial.println("ERROR: MPU6050 not found on I2C bus!");
   }
 
-  // Initialize PCA9685
   Serial.println("Initializing PCA9685...");
   pca.begin();
-
-  // Set initial PWM frequency
   pca.setPWMFreq(SERVO_FREQ_DEFAULT);
 
-  // Initialize all servo configurations to defaults
   for (int i = 0; i < 16; i++) {
     servoConfigs[i].tickMin = TICK_MIN_DEFAULT;
     servoConfigs[i].tickMax = TICK_MAX_DEFAULT;
     servoConfigs[i].currentTick = (TICK_MIN_DEFAULT + TICK_MAX_DEFAULT) / 2;
     servoConfigs[i].lastAngle = 90.0;
-    // Set all channels to center position (90 degrees)
     setServoAngle(i, 90.0);
   }
 
-  Serial.println("PCA9685 initialized successfully");
-  Serial.println("Default frequency: 50 Hz");
-  Serial.println("Default tick range: 102-512 (approx 500-2500μs)");
-
-  Serial.println("\nReady to receive ESP-NOW commands...");
-  Serial.println("==========================================\n");
+  Serial.println("Slave initialization complete - waiting for ESP-NOW commands...");
 }
 
 void loop() {
-  // Update MPU6050 readings and complementary filter
   if (mpuInitialized) {
     updateMPU();
   }
 
-  // Send periodic telemetry to Master
-  if (telemetryEnabled && hasMasterMac &&
-      (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL)) {
+  // Update Closed-Loop PID & Active Zero-Speed Position Hold Controller (50Hz)
+  updateClosedLoopControl();
+
+  if (telemetryEnabled && hasMasterMac && (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL)) {
     lastTelemetryTime = millis();
     sendTelemetry();
   }
 
-  // Non-blocking Slave LED state machine update
   updateSlaveLed();
-
-  delay(5);
+  delay(2);
 }
 
-// Initialize ESP-NOW
 void initESPNow() {
-  // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-
   WiFi.disconnect();
-
-  // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("ERROR: ESP-NOW initialization failed!");
     return;
   }
-
   Serial.println("ESP-NOW initialized successfully");
-
-  // Register receive callback (compatible with ESP32 Core 3.0.0+)
   esp_now_register_recv_cb(onDataRecv);
 }
 
-// Callback when data is received via ESP-NOW
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
-void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data,
-                int len) {
+void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len) {
   const uint8_t *srcMac = recvInfo->src_addr;
 #else
 void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
 #endif
-  // Record Master activity for LED timing and telemetry
   lastMasterCommandTime = millis();
 
-  // Save master MAC address for telemetry
   if (!hasMasterMac) {
     memcpy(masterMac, srcMac, 6);
     hasMasterMac = true;
-    Serial.printf("Master MAC locked: %02X:%02X:%02X:%02X:%02X:%02X\n",
+    Serial.printf("Master MAC locked: %02X:%02X:%02X:%02X:%02X:%02X
+",
                   masterMac[0], masterMac[1], masterMac[2], masterMac[3],
                   masterMac[4], masterMac[5]);
   }
 
-  // Expect structured data packets per RNT strategy
   if (len == sizeof(cmd_struct)) {
-    memcpy(&myCmd, data, sizeof(myCmd));
-    String cmdStr = String(myCmd.command);
-
-    // Only trigger fast-blink burst for explicit user commands, not 2Hz
-    // background heartbeats
-    if (cmdStr != "PING") {
-      slaveBurstToggles = 6;
-    }
-
-    // Reconstruct string to reuse our robust processCommand logic
-    if (cmdStr == "MOTOR" || cmdStr == "TORQUE" || cmdStr == "FREQ" ||
-        cmdStr == "GET_CAL" || cmdStr == "TELEMETRY") {
-      cmdStr += " " + String(myCmd.val1);
-    } else if (cmdStr == "ANGLE" || cmdStr == "CAL_ALL") {
-      cmdStr += " " + String(myCmd.val1) + " " + String(myCmd.val3, 1);
-    } else if (cmdStr == "TICK") {
-      cmdStr += " " + String(myCmd.val1) + " " + String(myCmd.val2);
-    } else if (cmdStr == "CAL") {
-      cmdStr += " " + String(myCmd.val1) + " " + String(myCmd.val2) + " " +
-                String(myCmd.val3, 0);
-    }
-
-    // Debug output
-    Serial.print("Received (Structured): ");
-    Serial.println(cmdStr);
-
-    // Process command
-    processCommand(cmdStr, srcMac);
+    cmd_struct *cmd = (cmd_struct *)data;
+    slaveBurstToggles += 6;
+    processCommand(String(cmd->command), srcMac);
+  } else {
+    Serial.printf("Received invalid data length: %d (expected %d)
+", len, sizeof(cmd_struct));
   }
 }
 
-// Send response back to master via ESP-NOW using struct
 void sendResponse(const char *response, const uint8_t *mac_addr) {
-  // Add peer if not already added
+  if (!mac_addr) return;
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, mac_addr, 6);
-  peerInfo.channel = 0; // Auto/default channel
+  peerInfo.channel = 0;
   peerInfo.encrypt = false;
-
-  // Try to add peer (will fail if already exists, which is fine)
   esp_now_add_peer(&peerInfo);
 
-  // Pack into telemetry_struct
   memset(&myData, 0, sizeof(myData));
-  strcpy(myData.type, "INFO");
+  strcpy(myData.type, "RESP");
   strncpy(myData.message, response, sizeof(myData.message) - 1);
+  myData.pitch = filteredAngle;
 
-  // Remove trailing newline if present since Master Serial.println adds it
-  int len = strlen(myData.message);
-  if (len > 0 && myData.message[len - 1] == '\n') {
-    myData.message[len - 1] = '\0';
-  }
-
-  // Send structured response
   esp_now_send(mac_addr, (uint8_t *)&myData, sizeof(myData));
-
-  // Also print to Serial for debugging
-  Serial.print("Response: ");
-  Serial.println(myData.message);
 }
 
-// Print this device's MAC address directly from Wi-Fi hardware
 void printMacAddress() {
-  uint8_t baseMac[6];
-  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
-  if (ret == ESP_OK) {
-    Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n", baseMac[0], baseMac[1],
-                  baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
-  } else {
-    Serial.println(WiFi.macAddress());
-  }
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X
+", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-// ==================== Command Processing ====================
-
-// Process received command (same logic as original Serial version)
 void processCommand(String command, const uint8_t *senderMac) {
-  command.toUpperCase();
   command.trim();
+  char responseBuffer[128];
 
-  char responseBuffer[256];
-
-  // PING command: 2Hz Heartbeat ping from master
   if (command == "PING") {
-    sendResponse("PONG", senderMac);
-  }
-
-  // TICK command: "TICK <channel> <value>"
-  else if (command.startsWith("TICK ")) {
-    int firstSpace = command.indexOf(' ');
-    int secondSpace = command.indexOf(' ', firstSpace + 1);
-
-    if (secondSpace > 0) {
-      int channel = command.substring(firstSpace + 1, secondSpace).toInt();
-      int tickValue = command.substring(secondSpace + 1).toInt();
-
+    sendResponse("PONG
+", senderMac);
+  } else if (command.startsWith("TICK ")) {
+    int space1 = command.indexOf(' ');
+    int space2 = command.indexOf(' ', space1 + 1);
+    if (space1 > 0 && space2 > space1) {
+      int channel = command.substring(space1 + 1, space2).toInt();
+      int tickValue = command.substring(space2 + 1).toInt();
       if (channel >= 0 && channel < 16 && tickValue >= 0 && tickValue <= 4095) {
         setServoPWM(channel, tickValue);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %d ticks
+", channel, tickValue);
+        sendResponse(responseBuffer, senderMac);
+      } else {
+        sendResponse("ERROR: Invalid channel (0-15) or tick value (0-4095)
+", senderMac);
       }
     }
-  }
-
-  // ANGLE command: "ANGLE <channel> <angle>"
-  else if (command.startsWith("ANGLE ")) {
-    int firstSpace = command.indexOf(' ');
-    int secondSpace = command.indexOf(' ', firstSpace + 1);
-
-    if (secondSpace > 0) {
-      int channel = command.substring(firstSpace + 1, secondSpace).toInt();
-      float angle = command.substring(secondSpace + 1).toFloat();
-
+  } else if (command.startsWith("ANGLE ")) {
+    int space1 = command.indexOf(' ');
+    int space2 = command.indexOf(' ', space1 + 1);
+    if (space1 > 0 && space2 > space1) {
+      int channel = command.substring(space1 + 1, space2).toInt();
+      float angle = command.substring(space2 + 1).toFloat();
       if (channel >= 0 && channel < 16 && angle >= 0.0 && angle <= 180.0) {
         setServoAngle(channel, angle);
-        snprintf(responseBuffer, sizeof(responseBuffer),
-                 "OK: Ch %d set to %d deg\n", channel, (int)angle);
-        sendResponse(responseBuffer, senderMac);
-      }
-    }
-  }
-
-  // CAL command: "CAL <channel> <min_tick> <max_tick>"
-  else if (command.startsWith("CAL ") && !command.startsWith("CAL_")) {
-    int firstSpace = command.indexOf(' ');
-    int secondSpace = command.indexOf(' ', firstSpace + 1);
-    int thirdSpace = command.indexOf(' ', secondSpace + 1);
-
-    if (thirdSpace > 0) {
-      int channel = command.substring(firstSpace + 1, secondSpace).toInt();
-      int minTick = command.substring(secondSpace + 1, thirdSpace).toInt();
-      int maxTick = command.substring(thirdSpace + 1).toInt();
-
-      if (channel >= 0 && channel < 16 && minTick >= 0 && maxTick > minTick &&
-          maxTick <= 4095) {
-        setCalibration(channel, minTick, maxTick);
-        snprintf(responseBuffer, sizeof(responseBuffer),
-                 "OK: Channel %d calibration set to %d-%d\n", channel, minTick,
-                 maxTick);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: Channel %d set to %.1f deg
+", channel, angle);
         sendResponse(responseBuffer, senderMac);
       } else {
-        sendResponse(
-            "ERROR: Invalid channel or tick range (0 < min < max <= 4095)\n",
-            senderMac);
+        sendResponse("ERROR: Invalid channel (0-15) or angle (0-180)
+", senderMac);
       }
-    } else {
-      sendResponse(
-          "ERROR: Invalid CAL command format. Use: CAL <channel> <min> <max>\n",
-          senderMac);
-    }
-  }
-
-  // CAL_ALL command: "CAL_ALL <min_tick> <max_tick>"
-  else if (command.startsWith("CAL_ALL ")) {
-    int firstSpace = command.indexOf(' ');
-    int secondSpace = command.indexOf(' ', firstSpace + 1);
-
-    if (secondSpace > 0) {
-      int minTick = command.substring(firstSpace + 1, secondSpace).toInt();
-      int maxTick = command.substring(secondSpace + 1).toInt();
-
-      if (minTick >= 0 && maxTick > minTick && maxTick <= 4095) {
-        setAllCalibrations(minTick, maxTick);
-        snprintf(responseBuffer, sizeof(responseBuffer),
-                 "OK: All channels calibration set to %d-%d\n", minTick,
-                 maxTick);
+    } else if (command.startsWith("ANGLE ALL ")) {
+      float angle = command.substring(10).toFloat();
+      if (angle >= 0.0 && angle <= 180.0) {
+        for (int i = 0; i < 16; i++) setServoAngle(i, angle);
+        snprintf(responseBuffer, sizeof(responseBuffer), "OK: All 16 channels set to %.1f deg
+", angle);
         sendResponse(responseBuffer, senderMac);
-      } else {
-        sendResponse("ERROR: Invalid tick range (0 < min < max <= 4095)\n",
-                     senderMac);
       }
-    } else {
-      sendResponse(
-          "ERROR: Invalid CAL_ALL command format. Use: CAL_ALL <min> <max>\n",
-          senderMac);
     }
-  }
-
-  // GET_CAL command: "GET_CAL <channel>"
-  else if (command.startsWith("GET_CAL ")) {
-    int channel = command.substring(8).toInt();
-    if (channel >= 0 && channel < 16) {
-      getCalibration(channel, senderMac);
-    } else {
-      sendResponse("ERROR: Invalid channel (0-15)\n", senderMac);
-    }
-  }
-
-  // GET_ALL_CAL command
-  else if (command == "GET_ALL_CAL") {
-    getAllCalibrations(senderMac);
-  }
-
-  // FREQ command: "FREQ <frequency>"
-  else if (command.startsWith("FREQ ")) {
-    int freq = command.substring(5).toInt();
-
-    if (freq >= 40 && freq <= 1000) {
-      setPWMFrequency(freq);
-      snprintf(responseBuffer, sizeof(responseBuffer),
-               "OK: PWM frequency set to %d Hz\n", freq);
-      sendResponse(responseBuffer, senderMac);
-    } else {
-      sendResponse("ERROR: Invalid frequency (40-1000 Hz)\n", senderMac);
-    }
-  }
-
-  // SLEEP command
-  else if (command == "SLEEP") {
-    pca.sleep();
-    sendResponse("OK: PCA9685 sleep mode enabled\n", senderMac);
-  }
-
-  // WAKE command
-  else if (command == "WAKE") {
-    pca.wakeup();
-    sendResponse("OK: PCA9685 woken up\n", senderMac);
-  }
-
-  // RESET command
-  else if (command == "RESET") {
-    resetToDefaults();
-    sendResponse("OK: Reset to default configuration\n", senderMac);
-    printInfo(senderMac);
-  }
-
-  // MOTOR command: "MOTOR <speed>"
-  else if (command.startsWith("MOTOR ")) {
+  } else if (command.startsWith("MOTOR ")) {
     int speed = command.substring(6).toInt();
     if (speed >= -255 && speed <= 255) {
-      setMotorSpeed(speed);
-      snprintf(responseBuffer, sizeof(responseBuffer),
-               "OK: Motor speed set to %d\n", speed);
+      targetRPM = (float)speed;
+      if (targetRPM == 0.0f) {
+        isHoldingPosition = false;
+      }
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Motor target set to %d RPM (ClosedLoop=%s)
+", speed, closedLoopEnabled ? "ON" : "OFF");
       sendResponse(responseBuffer, senderMac);
     } else {
-      sendResponse("ERROR: Speed must be between -255 and 255\n", senderMac);
+      sendResponse("ERROR: Speed must be between -255 and 255
+", senderMac);
     }
-  }
-
-  // TORQUE command: "TORQUE <1/0>"
-  else if (command.startsWith("TORQUE ")) {
+  } else if (command.startsWith("SET_PID ")) {
+    float p = 0, i = 0, d = 0;
+    if (sscanf(command.c_str() + 8, "%f %f %f", &p, &i, &d) == 3) {
+      Kp = p; Ki = i; Kd = d;
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: PID set to Kp=%.2f Ki=%.2f Kd=%.2f
+", Kp, Ki, Kd);
+      sendResponse(responseBuffer, senderMac);
+    } else {
+      sendResponse("ERROR: Usage SET_PID <kp> <ki> <kd>
+", senderMac);
+    }
+  } else if (command.startsWith("SET_CPR ")) {
+    float cpr = command.substring(8).toFloat();
+    if (cpr > 0.0f) {
+      encoderCPR = cpr;
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Encoder CPR set to %.1f
+", encoderCPR);
+      sendResponse(responseBuffer, senderMac);
+    }
+  } else if (command.startsWith("CLOSED_LOOP ")) {
+    int mode = command.substring(12).toInt();
+    closedLoopEnabled = (mode != 0);
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Closed loop PID %s
+", closedLoopEnabled ? "ENABLED" : "DISABLED");
+    sendResponse(responseBuffer, senderMac);
+  } else if (command == "GET_ENCODER") {
+    long currentTicks;
+    noInterrupts();
+    currentTicks = encoderTicks;
+    interrupts();
+    snprintf(responseBuffer, sizeof(responseBuffer), "ENCODER_DATA %ld %.1f %.1f
+", currentTicks, measuredRPM, targetRPM);
+    sendResponse(responseBuffer, senderMac);
+  } else if (command == "ENCODER_RESET") {
+    noInterrupts();
+    encoderTicks = 0;
+    interrupts();
+    targetHoldPos = 0;
+    lastEncoderTicks = 0;
+    sendResponse("OK: Encoder ticks reset to 0
+", senderMac);
+  } else if (command.startsWith("TORQUE ")) {
     int state = command.substring(7).toInt();
     if (state == 0 || state == 1) {
       setTorque(state);
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s\n",
-               state ? "HIGH" : "LOW");
+      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Torque set to %s
+", state ? "HIGH" : "LOW");
       sendResponse(responseBuffer, senderMac);
-    } else {
-      sendResponse("ERROR: Torque state must be 0 or 1\n", senderMac);
     }
-  }
-
-  // RESET_MPU command
-  else if (command == "RESET_MPU") {
+  } else if (command == "RESET_MPU") {
     gyroAngle = 0.0;
     if (mpuInitialized) {
       mpu.update();
@@ -611,126 +512,67 @@ void processCommand(String command, const uint8_t *senderMac) {
     } else {
       filteredAngle = 0.0;
     }
-    sendResponse("OK: MPU6050 angles reset\n", senderMac);
-  }
-
-  // GET_MPU command
-  else if (command == "GET_MPU") {
+    sendResponse("OK: MPU6050 angles reset
+", senderMac);
+  } else if (command == "GET_MPU") {
     if (!mpuInitialized) {
-      sendResponse("ERROR: MPU6050 not initialized\n", senderMac);
+      sendResponse("ERROR: MPU6050 not initialized
+", senderMac);
     } else {
       char mpuBuffer[64];
-      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f\n",
-               filteredAngle, accelAngle, gyroAngle);
+      snprintf(mpuBuffer, sizeof(mpuBuffer), "MPU_DATA %.2f %.2f %.2f
+", filteredAngle, accelAngle, gyroAngle);
       sendResponse(mpuBuffer, senderMac);
     }
-  }
-
-  // TELEMETRY command: "TELEMETRY <1/0>"
-  else if (command.startsWith("TELEMETRY ")) {
+  } else if (command.startsWith("TELEMETRY ")) {
     int enable = command.substring(10).toInt();
     telemetryEnabled = (enable != 0);
-    if (telemetryEnabled && !mpuInitialized) {
-      sendResponse("WARNING: Telemetry ENABLED but MPU6050 not initialized!\n",
-                   senderMac);
-    } else {
-      snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s\n",
-               telemetryEnabled ? "ENABLED" : "DISABLED");
-      sendResponse(responseBuffer, senderMac);
-    }
-  }
-
-  // INFO command
-  else if (command == "INFO") {
+    snprintf(responseBuffer, sizeof(responseBuffer), "OK: Telemetry %s
+", telemetryEnabled ? "ENABLED" : "DISABLED");
+    sendResponse(responseBuffer, senderMac);
+  } else if (command == "INFO") {
     printInfo(senderMac);
-  }
-
-  // Unknown command
-  else {
-    sendResponse("ERROR: Unknown command\n", senderMac);
+  } else {
+    sendResponse("ERROR: Unknown command
+", senderMac);
   }
 }
 
-// ==================== Servo Control Functions ====================
-
-// Set PWM directly using tick value (0-4095)
 void setServoPWM(uint8_t channel, uint16_t tickValue) {
-  if (channel >= 16 || tickValue > 4095) {
-    return;
-  }
-
-  // Store the current tick value
+  if (channel >= 16 || tickValue > 4095) return;
   servoConfigs[channel].currentTick = tickValue;
-
-  // Set PWM on channel using setPWM(channel, on, off)
-  // on=0 means pulse starts at beginning of cycle
-  // off=tickValue means pulse ends at this tick count
   pca.setPWM(channel, 0, tickValue);
 }
 
-// Set servo angle using calibrated tick values
 void setServoAngle(uint8_t channel, float angle) {
-  if (channel >= 16 || angle < 0.0 || angle > 180.0) {
-    return;
-  }
-
-  // Store the angle
+  if (channel >= 16 || angle < 0.0 || angle > 180.0) return;
   servoConfigs[channel].lastAngle = angle;
-
-  // Map angle (0.0-180.0) to tick value using calibration
   uint16_t tickMin = servoConfigs[channel].tickMin;
   uint16_t tickMax = servoConfigs[channel].tickMax;
-
-  // Linear interpolation: tick = tickMin + (angle/180.0) * (tickMax - tickMin)
   float tickFloat = tickMin + (angle / 180.0) * (tickMax - tickMin);
-  uint16_t tickValue = (uint16_t)(tickFloat + 0.5); // Round to nearest integer
-
-  // Clamp to valid range
-  if (tickValue < tickMin)
-    tickValue = tickMin;
-  if (tickValue > tickMax)
-    tickValue = tickMax;
-  if (tickValue > 4095)
-    tickValue = 4095;
-
-  // Set the PWM
+  uint16_t tickValue = (uint16_t)(tickFloat + 0.5);
+  if (tickValue < tickMin) tickValue = tickMin;
+  if (tickValue > tickMax) tickValue = tickMax;
+  if (tickValue > 4095) tickValue = 4095;
   setServoPWM(channel, tickValue);
 }
 
-// Set PWM frequency
 void setPWMFrequency(uint16_t freq) {
-  if (freq < 40 || freq > 1000) {
-    return;
-  }
-
+  if (freq < 40 || freq > 1000) return;
   pwmFrequency = freq;
   pca.setPWMFreq(freq);
-
-  // Re-apply all servo angles with new frequency
-  for (int i = 0; i < 16; i++) {
-    setServoAngle(i, servoConfigs[i].lastAngle);
-  }
+  for (int i = 0; i < 16; i++) setServoAngle(i, servoConfigs[i].lastAngle);
 }
 
-// Set calibration for a single channel
 void setCalibration(uint8_t channel, uint16_t minTick, uint16_t maxTick) {
-  if (channel >= 16 || minTick >= maxTick || maxTick > 4095) {
-    return;
-  }
-
+  if (channel >= 16 || minTick >= maxTick || maxTick > 4095) return;
   servoConfigs[channel].tickMin = minTick;
   servoConfigs[channel].tickMax = maxTick;
-
-  // Re-apply the servo angle with new calibration
   setServoAngle(channel, servoConfigs[channel].lastAngle);
 }
 
-// Set calibration for all channels
 void setAllCalibrations(uint16_t minTick, uint16_t maxTick) {
-  if (minTick >= maxTick || maxTick > 4095) {
-    return;
-  }
-
+  if (minTick >= maxTick || maxTick > 4095) return;
   for (int i = 0; i < 16; i++) {
     servoConfigs[i].tickMin = minTick;
     servoConfigs[i].tickMax = maxTick;
@@ -738,82 +580,46 @@ void setAllCalibrations(uint16_t minTick, uint16_t maxTick) {
   }
 }
 
-// Get calibration for a specific channel
 void getCalibration(uint8_t channel, const uint8_t *senderMac) {
-  if (channel >= 16) {
-    return;
-  }
-
+  if (channel >= 16) return;
   char buffer[128];
-  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d\n", channel,
-           servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
+  snprintf(buffer, sizeof(buffer), "CAL_DATA %d %d %d
+", channel, servoConfigs[channel].tickMin, servoConfigs[channel].tickMax);
   sendResponse(buffer, senderMac);
 }
 
-// Get all calibrations
 void getAllCalibrations(const uint8_t *senderMac) {
-  sendResponse("ALL_CAL_DATA\n", senderMac);
-  delay(10);
-
-  for (int i = 0; i < 16; i++) {
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), "%d %d %d\n", i, servoConfigs[i].tickMin,
-             servoConfigs[i].tickMax);
-    sendResponse(buffer, senderMac);
-    delay(10);
-  }
-
-  sendResponse("END_CAL_DATA\n", senderMac);
+  for (int i = 0; i < 16; i++) getCalibration(i, senderMac);
 }
 
-// Reset to default configuration
 void resetToDefaults() {
   pwmFrequency = SERVO_FREQ_DEFAULT;
-  pca.setPWMFreq(pwmFrequency);
-
+  pca.setPWMFreq(SERVO_FREQ_DEFAULT);
   for (int i = 0; i < 16; i++) {
     servoConfigs[i].tickMin = TICK_MIN_DEFAULT;
     servoConfigs[i].tickMax = TICK_MAX_DEFAULT;
+    servoConfigs[i].currentTick = (TICK_MIN_DEFAULT + TICK_MAX_DEFAULT) / 2;
     servoConfigs[i].lastAngle = 90.0;
     setServoAngle(i, 90.0);
   }
 }
 
-// Print current configuration
 void printInfo(const uint8_t *senderMac) {
-  char buffer[256];
-
-  sendResponse("\n========== Current Configuration ==========\n", senderMac);
-  delay(10);
-
-  snprintf(buffer, sizeof(buffer), "PWM Frequency: %d Hz\n", pwmFrequency);
+  char buffer[128];
+  snprintf(buffer, sizeof(buffer), "=== ESP32 Slave PCA9685 Info ===
+");
   sendResponse(buffer, senderMac);
   delay(10);
-
-  sendResponse("\nChannel Configuration:\n", senderMac);
+  snprintf(buffer, sizeof(buffer), "PWM Frequency: %d Hz
+", pwmFrequency);
+  sendResponse(buffer, senderMac);
   delay(10);
-
-  sendResponse("Ch  | Angle  | Curr Tick | Tick Min | Tick Max\n", senderMac);
+  snprintf(buffer, sizeof(buffer), "Closed Loop PID: %s (Kp=%.2f Ki=%.2f Kd=%.2f)
+", closedLoopEnabled ? "ENABLED" : "DISABLED", Kp, Ki, Kd);
+  sendResponse(buffer, senderMac);
   delay(10);
-
-  sendResponse("----|--------|-----------|----------|----------\n", senderMac);
-  delay(10);
-
-  for (int i = 0; i < 16; i++) {
-    snprintf(buffer, sizeof(buffer),
-             "%2d  | %6.1f | %4d      | %4d     | %4d\n", i,
-             servoConfigs[i].lastAngle, servoConfigs[i].currentTick,
-             servoConfigs[i].tickMin, servoConfigs[i].tickMax);
-    sendResponse(buffer, senderMac);
-    delay(10);
-  }
-
-  sendResponse("==========================================\n\n", senderMac);
 }
 
-// ==================== New Helper Functions ====================
-
-// Initialize MPU6050 using tockn library
 bool initMPU6050() {
   mpu.begin();
   Serial.println("Calculating gyro offsets, keep the robot still...");
@@ -822,68 +628,50 @@ bool initMPU6050() {
   return true;
 }
 
-// Read sensor events and update complementary filter (Z-axis rotation / X-Y
-// plane pitch)
 void updateMPU() {
   unsigned long now = millis();
   float dt = (now - lastMpuUpdate) / 1000.0;
   lastMpuUpdate = now;
-  if (dt <= 0.0)
-    dt = 0.001; // Avoid divide by zero
+  if (dt <= 0.0) dt = 0.001;
 
   mpu.update();
-
-  // Calculate accelerometer pitch angle (assuming rotation is around local
-  // Z-axis, meaning gravity component rotates in local X-Y plane)
   float accX = mpu.getAccX();
   float accY = mpu.getAccY();
   accelAngle = atan2(accY, accX) * 180.0 / M_PI;
-
-  // Gyroscope rate around Z axis
   float gyroRate = mpu.getGyroZ();
-
-  // Integrate gyro rate
   gyroAngle += gyroRate * dt;
-
-  // Complementary filter
   filteredAngle = 0.98 * (filteredAngle + gyroRate * dt) + 0.02 * accelAngle;
 }
 
-// Drive DC Motor with PWM and Direction
 void setMotorSpeed(int speed) {
-  if (speed > 255)
-    speed = 255;
-  if (speed < -255)
-    speed = -255;
-
-  if (speed >= 0) {
-    digitalWrite(MOTOR_DIR_PIN, HIGH);
-    analogWrite(MOTOR_PWM_PIN, speed);
-  } else {
-    digitalWrite(MOTOR_DIR_PIN, LOW);
-    analogWrite(MOTOR_PWM_PIN, -speed);
+  targetRPM = (float)speed;
+  if (targetRPM == 0.0f) {
+    isHoldingPosition = false;
   }
 }
 
-// Set MOSFET Torque control state (0 or 1)
-void setTorque(int state) { digitalWrite(MOSFET_PIN, state ? HIGH : LOW); }
+void setTorque(int state) {
+  digitalWrite(MOSFET_PIN, state ? HIGH : LOW);
+}
 
-// Send Live Telemetry to Master over ESP-NOW
 void sendTelemetry() {
-  if (!hasMasterMac)
-    return;
+  if (!hasMasterMac) return;
 
-  // Add peer if not already added
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, masterMac, 6);
-  peerInfo.channel = 0; // Auto/default channel
+  peerInfo.channel = 0;
   peerInfo.encrypt = false;
-  esp_now_add_peer(&peerInfo); // Fails gracefully if already added
+  esp_now_add_peer(&peerInfo);
 
-  // Pack into telemetry_struct
   memset(&myData, 0, sizeof(myData));
   strcpy(myData.type, "MPU");
   myData.pitch = filteredAngle;
+
+  long currentTicks;
+  noInterrupts();
+  currentTicks = encoderTicks;
+  interrupts();
+  snprintf(myData.message, sizeof(myData.message), "ENC %ld %.1f %.1f", currentTicks, measuredRPM, targetRPM);
 
   esp_now_send(masterMac, (uint8_t *)&myData, sizeof(myData));
 }
