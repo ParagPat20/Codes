@@ -30,21 +30,21 @@
 | **Wheel Geometry** | Wheel Outer Diameter ($D$) | **400 mm** (0.40 m / 15.75 in) |
 | | Wheel Circumference ($C$) | **1.2566 m** (1256.6 mm) |
 | | Arc Segment per Leg (3 per side) | **418.9 mm** per leg arc |
-| **Drive Motors** | Rolling Drive Actuators | **2x High-Torque DC Geared Motors** (100 RPM, 25 kg·cm / 2.45 N·m each) |
+| **Actuators** | Rolling Drive Actuators | **2x High-Torque DC Geared Motors** (100 RPM, 25 kg·cm / 2.45 N·m each) |
 | | Total Rolling Drive Torque | **≈ 4.90 N·m combined** |
-| | Leg Articulation / Transformation | **18x High-Torque Servos** (3 DOF per leg × 6 legs) |
+| | Leg Articulation / Transformation | **20x High-Torque Servos** (Multi-DOF leg joints & transformation) |
 | **Rolling Speeds** | Max Theoretical Speed (100% PWM) | **2.09 m/s (7.54 km/h / 4.68 mph)** |
 | | Operating Waddle-Roll Speed | **1.05 – 1.25 m/s (3.8 – 4.5 km/h / 2.4 – 2.8 mph)** |
 | **Walking Speeds** | Tripod Gait Cruising Speed | **0.15 – 0.25 m/s (0.54 – 0.90 km/h)** |
 | | Max Peak Step Speed | **0.30 m/s (1.08 km/h)** |
-| **Electronics & Control** | Microcontrollers | **Master ESP32 Bridge** (Host) + **Slave ESP32-C6** (On-Robot Edge) |
+| **Electronics Topology** | Distributed Microcontrollers | **ESP32 Sub-Master Head** (Central Pod) + **2x ESP32 Slaves** (Left & Right Sides) + **Remote ESP32** (Host Bridge) |
 | | Wireless Protocol | **ESP-NOW** Point-to-Point Broadcast (10–30 ms latency) |
-| | Motor Drivers | **2x Cytron MD13S** (13A continuous per channel) |
-| | Servo PWM Drivers | **Dual PCA9685** 16-Channel 12-Bit I2C PWM Drivers (50 Hz) |
-| | Sensor Payload | **MPU6050 6-DOF IMU**, Intel RealSense 3D Depth Camera, LiDAR |
-| **Power Architecture** | Logic Battery Rail | **3S 5000 mAh LiPo** (Regulated via DC-DC Buck Converter) |
-| | Actuator Battery Rail | **3S 6200 mAh / 2500 mAh LiPo Packs** (Dedicated High-Current Rails) |
-| | Grounding Scheme | **Unified Common Ground Topology** |
+| | Actuator Drivers | **2x PCA9685** 16-Channel 12-Bit PWM Drivers (1 per side) + **2x Cytron MD13S** Motor Drivers (1 per side) |
+| | Processing & Sensors | **Raspberry Pi 5**, **MPU6050 6-DOF IMU**, Intel RealSense 3D Depth Camera, LiDAR |
+| **Power Distribution** | Central Pod Logic Supply | **Dedicated 5V Power Bank** (Powering Pi 5, ESP32 Sub-Master, Sensors) |
+| | Left Side Actuator Supply | **Dedicated 3S LiPo Battery** (Powering Left ESP32 Slave, Left PCA9685, Left Cytron & Servos) |
+| | Right Side Actuator Supply | **Dedicated 3S LiPo Battery** (Powering Right ESP32 Slave, Right PCA9685, Right Cytron & Servos) |
+| | Grounding Scheme | **Unified Common Ground Topology** across isolated battery sections |
 
 ---
 
@@ -96,10 +96,22 @@
 
 ### 🔌 C. Electronics, Power & Wireless Control Questions
 
-#### Q7: How do you prevent high servo currents from resetting or crashing the microcontrollers?
-* **Technical Answer:** We use an **Isolated Dual-Power Architecture**. Logic electronics (ESP32, IMU, sensors) run on a dedicated 3S LiPo battery through a regulated buck converter. High-current actuators (18 servos + 2 Cytron DC drivers) draw from separate heavy-duty LiPo packs. Both rails share a **unified common ground** to guarantee clean I2C communication without inductive voltage dips (brownouts).
+#### Q7: What is the electronic and power distribution setup across the robot? How do you prevent brownouts?
+* **Technical Answer:** Rollopod utilizes a fully distributed, physically isolated electronic and power architecture divided into three discrete physical zones:
+  1. **Left Side Assembly:** Houses 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 16-channel PWM driver for left-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor.
+  2. **Right Side Assembly:** Houses 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 16-channel PWM driver for right-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor.
+  3. **Central Suspended Pod (Mid Part):** Houses a dedicated **5V Power Bank** that cleanly powers the Raspberry Pi 5 coprocessor, the **ESP32 Sub-Master Head controller**, and onboard sensors (IMU/Cameras). It communicates wirelessly with the operator's **Remote ESP32 bridge** via ESP-NOW.
+  
+  This complete electrical separation isolates high-current actuator spikes (from 20 servos and 2 DC motors) to their respective rotating side structures, ensuring zero voltage dips (brownouts) reach the central logic processors while eliminating slip-ring wire tangling across the rotating joints.
 * **🗣️ Simple / Live Example to Explain:**
-  > *"Imagine running a heavy water pumping motor and your sensitive home Wi-Fi router on the exact same weak inverter line. Whenever the motor kicks in, the voltage drops and the Wi-Fi resets. To prevent that, we have 2 completely separated power channels: one clean battery solely for the brain (ESP32 microcontrollers and sensors), and separate heavy-duty batteries for the 18 servos and DC drive motors. Common ground ties them together so signals stay crystal clear."*
+  > *"Imagine trying to run a heavy industrial welding machine and a sensitive medical laptop on the exact same weak extension cord—the laptop will immediately restart whenever the machine sparks!*
+  > 
+  > *To prevent this, Rollopod is split into 3 independent power islands:
+  > - **Left Wheel Side:** Has its own battery, its own ESP32 brain, its own PCA servo driver, and its own motor driver.
+  > - **Right Wheel Side:** Has its exact identical clone (battery, ESP32, PCA driver, motor driver).
+  > - **Middle Pod (Brain & Eyes):** Runs completely off a clean 5V Power Bank powering the Raspberry Pi 5, the ESP32 Sub-Master head, and the camera sensors.
+  > 
+  > Because each moving wheel carries its own battery, we don't have dangerous thick power cables twisting around the axle, and the central computer never restarts even under peak motor load!"*
 
 #### Q8: What wireless protocol is used, and why not standard Wi-Fi or Bluetooth?
 * **Technical Answer:** We use **ESP-NOW** (point-to-point wireless broadcast by Espressif). Standard Wi-Fi has unpredictable packet buffering (100–300 ms) and connection drops. ESP-NOW provides **deterministic low-latency communication (10–30 ms)** without needing an external Wi-Fi router.
@@ -120,21 +132,31 @@
 
 ### 🛠️ D. Prototype Evolution & Materials Questions
 
-#### Q11: What materials were used to build the physical prototype?
+#### Q11: What manufacturing methods and materials were used to build the physical prototype?
 * **Technical Answer:** 
-  * **Structure:** High-strength aluminium extrusion frame and CNC-machined carbon fibre linkage plates for high stiffness-to-weight ratio.
-  * **Leg Appendages:** Redesigned CNC powder-coated steel legs to handle high dynamic ground impacts.
-  * **Bearings:** Industrial-grade deep-groove radial ball bearings for pod decoupling.
+  To achieve high structural rigidity while keeping fabrication costs strictly optimized:
+  * **No Costly CNC Machining:** Completely avoided expensive multi-axis CNC milling to make the platform cost-effective and scalable.
+  * **Chassis & Structural Plates:** Manufactured exclusively from **Laser-Cut 3.0 mm Aluminium** for high stiffness, structural integrity, and lightweight properties.
+  * **Spherical Leg Appendages:** Fabricated from **0.8 mm Sheet Metal Steel plates**, precision CNC bent and powder-coated to form the curved, heavy-impact-resistant spherical rolling rings.
+  * **Bearings:** Precision deep-groove radial ball bearings for central pod suspension.
 * **🗣️ Simple / Live Example to Explain:**
-  > *"We used aluminium and carbon fibre for the inner chassis so the robot stays lightweight, but we upgraded the legs to heavy-duty laser-cut powder-coated steel so it can take hard drops, rough stepping, and sudden impacts without bending."*
+  > *"Sir, we engineered this to be both high-strength and highly cost-effective! We avoided expensive CNC machining altogether. Instead, we used:
+  > 1. **Laser-cut 3 mm Aluminium** for all main structural plates—giving great rigidity while keeping the chassis super light.
+  > 2. **0.8 mm Steel sheet metal with precision bending and powder-coating** for the spherical leg structures—giving the legs rugged toughness to survive heavy floor impacts when walking or rolling over obstacles.
+  > 
+  > This gave us industrial-grade strength at a fraction of typical CNC prototype manufacturing costs!"*
 
-#### Q12: What design challenges were discovered during prototype testing?
+#### Q12: What design challenges and motor sizing compromises occurred during development?
 * **Technical Answer:**
-  1. **Gearbox Failure:** Early tests with standard plastic-gear DC motors stripped teeth under heavy shock loads; we upgraded to all-metal 25 kg·cm steel gearboxes.
-  2. **Current Spikes:** Simultaneous 18-servo movement caused voltage dips, which led directly to the implementation of the isolated dual-battery power rail.
-  3. **Ground Indexing:** Before unfolding into walking mode, the robot uses IMU orientation feedback to verify that legs are facing downward toward the ground before opening.
+  * **Market Actuator Availability Constraints:** Our initial engineering goal was to make the robot as lightweight as possible. Early prototype trials tested smaller micro-gearmotors with a smaller wheel radius; however, these failed due to the strict physics and leverage geometry required for Rollopod's reaction-based rolling (insufficient torque leverage and ground clearance).
+  * **System Parameter Harmonization:** Constrained by off-the-shelf commercial components, we shifted to a larger **400 mm wheel diameter** paired with heavy-duty **25 kg·cm high-torque geared motors** (~5 kg per side). We balanced and matched the system equations: equating **Motor Power, Stall Torque, Gearbox Reduction, Wheel Radius, and Total Mass (11 kg)** so that the unique physics of reaction-torque rolling and 20-servo hexapod walking functioned reliably.
+  * **Gearbox Durability:** Initial plastic-gear motors stripped under walking torque; we upgraded exclusively to all-metal steel gearboxes.
+  * **Ground Indexing:** Prior to unfolding into walking mode, the onboard IMU gyro indexes the rotating rings to verify the legs are pointing downward toward the ground before actuation.
 * **🗣️ Simple / Live Example to Explain:**
-  > *"In our early testing, two main practical issues happened: first, normal plastic motor gears stripped instantly under the robot's 11 kg weight, so we upgraded to all-metal steel gearboxes. Second, moving 18 servos together created huge power spikes, which led to our dual isolated battery system. Also, before opening the legs, the IMU gyro checks that the robot isn't upside down so legs always touch the floor safely."*
+  > *"When designing a completely new type of robot, theory meets practical market reality! 
+  > - Initially, our dream was to make it ultra-light using small toy motors and small wheels. But when we tested it, the physics didn't work—small motors simply didn't have enough leverage or torque to push the robot forward without a tail.
+  > - So based on what heavy-duty motors are practically available in the market, we calculated the exact mathematics: we scaled the wheel up to **400 mm diameter** and upgraded to **25 kg·cm high-torque metal motors**. 
+  > - We carefully harmonized the motor power, torque, wheel radius, and the 11 kg total weight so that the physics of reaction rolling and 20-servo walking work in perfect balance!"*
 
 ---
 
@@ -162,15 +184,17 @@
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        ROLLOPOD AT A GLANCE                            │
 ├────────────────────────────────┬───────────────────────────────────────┤
-│ Mass                           │ 11 kg (5 kg Left + 5 kg Right + 1 kg Pod)│
-│ Dimensions                     │ 40 cm (L) × 50 cm (W) × 40 cm (H)     │
+│ Mass Breakdown                 │ 11 kg (5 kg Left + 5 kg Right + 1 kg Pod)│
+│ Physical Dimensions            │ 40 cm (L) × 50 cm (W) × 40 cm (H)     │
 │ Outer Wheel Diameter           │ 400 mm (15.75 inches)                 │
 │ Rolling Speed (Operating)      │ 1.05 – 1.25 m/s (~4.0 km/h)           │
 │ Rolling Speed (Top Max)        │ 2.09 m/s (7.54 km/h)                  │
 │ Walking Speed (Tripod Gait)    │ 0.15 – 0.25 m/s (~0.7 km/h)           │
-│ DC Drive Torque                │ 25 kg·cm (2.45 N·m) × 2 = 4.90 N·m    │
-│ Total Servos                   │ 18x High-Torque Servos (PCA9685 @ 50Hz)│
+│ DC Drive Motors                │ 2x 100 RPM, 25 kg·cm (2.45 N·m each)  │
+│ Total Servos                   │ 20x High-Torque Servos (PCA9685 @ 50Hz)│
+│ Microcontroller Setup          │ ESP32 Head + 2x ESP32 Slaves + Remote │
 │ Wireless Communication         │ ESP-NOW (10–30 ms low latency)        │
-│ Power Architecture             │ Fully Isolated Logic & Actuator Rails │
+│ Power Setup                    │ 2x 3S LiPos (Sides) + 5V Power Bank   │
+│ Structural Materials           │ 3mm Laser-Cut Al + 0.8mm Powder Steel │
 └────────────────────────────────┴───────────────────────────────────────┘
 ```
