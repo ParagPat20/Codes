@@ -160,7 +160,7 @@
 
 ---
 
-### 🚀 E. Real-World Applications & Future Scope
+### 🚀 E. Real-World Applications & Future Vision
 
 #### Q13: What are the practical applications of Rollopod?
 * **Technical Answer:**
@@ -171,14 +171,64 @@
 * **🗣️ Simple / Live Example to Explain:**
   > *"Take an earthquake disaster in a building: a standard 4-wheeled rover gets stuck at the first broken staircase. A drone can't enter narrow rubble pockets without crashing. Rollopod can roll fast for 5 km on the road, reach the disaster site, and then unfold its 6 legs to climb over shattered concrete slabs, climb steps, and find trapped people using its thermal camera."*
 
-#### Q14: What is the MRFA vision?
-* **Technical Answer:** Rollopod is the mobility subsystem for the **Modular Robotic Field Assistant (MRFA)**. Future MRFA units will feature hot-swappable payload bays (thermal cameras, gas detectors, robotic manipulator arms), edge AI for real-time terrain classification, and collaborative multi-robot swarm mapping in GPS-denied environments.
+#### Q14: What is the overarching MRFA vision?
+* **Technical Answer:** Rollopod is the mobility foundation for the **Modular Robotic Field Assistant (MRFA)**. Future MRFA units will feature hot-swappable payload bays (thermal cameras, gas detectors, robotic manipulator arms), edge AI for real-time terrain classification, and collaborative multi-robot swarm mapping in GPS-denied environments.
 * **🗣️ Simple / Live Example to Explain:**
   > *"Rollopod is designed as a universal mobile base. In the future, like swapping lenses on a DSLR camera, you can snap on a robotic arm for bomb disposal, a pesticide sprayer for farm fields, or toxic gas sensors for coal mines—without changing the core walking and rolling chassis."*
 
 ---
 
-## 🎯 4. Operator Quick Cheat-Sheet (At-A-Glance Numbers)
+## 🔬 4. Incubation & Next-Step Upgrade Roadmap (Low / Med / High Tiers)
+
+#### Q15: What is the current prototype development status and Technology Readiness Level (TRL)?
+* **Technical Answer:** Rollopod is currently at **TRL 4–5 (Lab/Benchtop Validated Functional Prototype)**. We have successfully proven the shared structural transformation kinematics, isolated 3-module wireless electronics over ESP-NOW, closed-loop PID reaction waddle-roll drive, and tripod gait walking sequences.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"We have completed the full proof-of-concept and benchtop validation! The mechanical transformation, isolated wireless electronics, and rolling physics are physically tested and proven. With incubation support, we are ready to advance to rugged industrial field trials."*
+
+#### Q16: How will you upgrade the Rolling Wheel Drive Motors with Incubation Support?
+* **Technical Answer:**
+  * **Option A — Low Incubation / Seed Funding:** Retain brushed DC architecture but upgrade to industrial-grade, higher-torque (40+ kg·cm), higher-RPM motors with hardened alloy steel rigid shafts and all-steel planetary gearboxes to double payload carrying capacity.
+  * **Option B — Medium Incubation:** Upgrade to **Brushless DC (BLDC) Motors with Field-Oriented Control (FOC)** and compact high-reduction planetary or cycloidal gearheads (the same quasi-direct drive technology utilized in modern quadruped robotics). BLDC FOC provides 3x higher torque density, smooth zero-speed torque ripple, silent operation, and regenerative braking.
+  * **Option C — High Incubation / Deep-Tech R&D:** Design and manufacture **Custom Indigenous Indian BLDC Actuators** with custom-designed onboard FOC driver boards featuring real-time closed-loop phase current, velocity, and direct torque-loop sensing (supporting the *Make in India* deep-tech robotics initiative).
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Think of it like upgrading an automobile engine:
+  > - **Low Budget:** We install a stronger, heavy-duty engine with a reinforced drive axle so it can carry double the weight.
+  > - **Medium Budget:** We switch to a high-end Electric Vehicle motor (BLDC with FOC)—super silent, zero vibrations, instantaneous torque, and high energy efficiency like a Tesla car.
+  > - **High Budget:** We indigenously research, design, and manufacture our own custom Indian high-torque robotics motors from scratch!"*
+
+#### Q17: How will you upgrade the 20 Leg Articulation & Transformation Servos?
+* **Technical Answer:**
+  * **Option A — Low Incubation:** Implement an **Encoder Feedback "Teach-and-Play" System**. By reading the analog/magnetic feedback lines from the servos, an operator can physically move the robot legs by hand to teach custom step heights, obstacle-climbing postures, and tool interactions, which the controller records and replays smoothly.
+  * **Option B — High Incubation / Deep-Tech R&D:** Transition to **Industrial High-Speed Serial Bus Servos (RS-485 / CAN-FD)** or **Custom CNC-Machined Actuators** with dedicated individual edge driver boards. This enables microsecond multi-joint synchronization, direct bus daisy-chaining, and real-time bidirectional telemetry (live monitoring of joint torque, current, and temperature to detect physical ground resistance).
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Right now, we command the 20 servos using standard PWM signals.
+  > - **Low Budget:** We add **'Teach-and-Play'**—just like training an industrial robotic arm in a factory: you move the robot's legs by hand over an obstacle, the robot records the joint angles, and it can replay that exact smooth motion automatically!
+  > - **High Budget:** We upgrade to high-speed digital serial-bus servos that 'talk back' to the computer, reporting their exact temperature, torque, and pressure in real-time so the robot can feel ground resistance like human muscles."*
+
+#### Q18: What is the development roadmap for the Central Suspended Pod (Mid Section)?
+* **Technical Answer:**
+  * **Option A — Low Incubation:** Miniaturize the central pod chassis, optimize battery packaging, and integrate compact solid-state LiDAR / Depth cameras for real-time 3D point-cloud mapping under remote teleoperation and semi-autonomous waypoint tracking.
+  * **Option B — Medium Incubation (Multi-Tool Payload System):** Develop a **Modular Multi-Tool Payload Bay** with quick-release interfaces to mount compact 3-DOF to 6-DOF robotic manipulator arms, interchangeable motorized grippers for hazardous disposal, and environmental core-sampling probes.
+  * **Option C — High Incubation (MRFA Flagship Ecosystem & Air Support):**
+    1. **Tethered Aerial Scout Drone Integration:** Dock a lightweight reconnaissance quadcopter on top of the central pod, connected via an ultra-thin micro-tether for continuous power and high-speed video. The drone launches vertically to provide a 50-meter bird's-eye aerial view of collapsed disaster zones while drawing power directly from the rolling base!
+    2. **Multi-Robot Swarm Collaboration:** Deploy fleets of Rollopods that communicate via decentralized mesh networks to collaboratively map underground tunnels and disaster areas in GPS-denied environments.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"The middle pod is our robot's core mission box:
+  > - **Basic Level:** We make it super compact and add 3D laser vision scanners.
+  > - **Medium Level:** We turn it into a multi-tool Swiss Army Knife with interchangeable robotic arms to pick up suspicious objects, turn valves, or collect soil samples.
+  > - **High Level (MRFA Flagship):** We integrate a **Tethered Scout Drone right on the robot's roof**! The mini drone launches into the air like a flying periscope—powered by a micro-wire from the robot so its battery never dies—giving the operator a bird's-eye view of rubble while the Rollopod rolls through tight gaps below!"*
+
+#### Q19: What specific incubation support is the Rollopod team seeking?
+* **Technical Answer:**
+  1. **Actuator & Prototyping Grants:** Procurement of high-torque BLDC/FOC actuators, planetary gearheads, and high-speed serial bus servos.
+  2. **Testing Infrastructure Access:** Environmental testing facilities, including dynamic drop-test rigs, vibration tables, and thermal test chambers.
+  3. **IP Protection & Commercialization Guidance:** Support for comprehensive patent filing and mentoring for pilot deployments with industrial inspection and disaster-response agencies.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"We are looking for incubation backing to transition from our successful benchtop prototype into a field-certified industrial product. Specifically, funding for advanced BLDC/FOC motors, access to testing lab facilities, and mentorship for patent filing and real-world disaster response deployments."*
+
+---
+
+## 🎯 5. Operator Quick Cheat-Sheet (At-A-Glance Numbers)
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
