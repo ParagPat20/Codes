@@ -44,7 +44,7 @@
 | **Power Distribution** | Central Pod Logic Supply | **Dedicated 5V Power Bank** (Powering Pi 5, ESP32 Sub-Master, Sensors) |
 | | Left Side Actuator Supply | **Dedicated 3S LiPo Battery** (Powering Left ESP32 Slave, Left PCA9685, Left Cytron & Servos) |
 | | Right Side Actuator Supply | **Dedicated 3S LiPo Battery** (Powering Right ESP32 Slave, Right PCA9685, Right Cytron & Servos) |
-| | Grounding Scheme | **Unified Common Ground Topology** across isolated battery sections |
+| | Module Grounding Scheme | **100% Galvanically Isolated / Zero Common Ground** (Independent local ground per module; zero physical interconnecting wires; communication is 100% wireless via ESP-NOW) |
 
 ---
 
@@ -97,21 +97,21 @@
 ### 🔌 C. Electronics, Power & Wireless Control Questions
 
 #### Q7: What is the electronic and power distribution setup across the robot? How do you prevent brownouts?
-* **Technical Answer:** Rollopod utilizes a fully distributed, physically isolated electronic and power architecture divided into three discrete physical zones:
-  1. **Left Side Assembly:** Houses 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 16-channel PWM driver for left-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor.
-  2. **Right Side Assembly:** Houses 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 16-channel PWM driver for right-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor.
-  3. **Central Suspended Pod (Mid Part):** Houses a dedicated **5V Power Bank** that cleanly powers the Raspberry Pi 5 coprocessor, the **ESP32 Sub-Master Head controller**, and onboard sensors (IMU/Cameras). It communicates wirelessly with the operator's **Remote ESP32 bridge** via ESP-NOW.
+* **Technical Answer:** Rollopod utilizes a **100% galvanically isolated, fully wireless distributed architecture** with **zero physical common ground or interconnecting wires** between the three main structural sections:
+  1. **Left Side Assembly:** Standalone electrical island containing 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 PWM driver for left-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor. Runs entirely on its own local ground reference.
+  2. **Right Side Assembly:** Standalone electrical island containing 1 dedicated 3S LiPo battery, 1 ESP32 Slave microcontroller, 1 PCA9685 PWM driver for right-side servos (10 servos), 1 Cytron MD13S motor driver, and 1 DC drive motor. Runs entirely on its own local ground reference.
+  3. **Central Suspended Pod (Mid Part):** Standalone electrical island containing a dedicated **5V Power Bank** that cleanly powers the Raspberry Pi 5, the **ESP32 Sub-Master Head controller**, and onboard sensors (IMU/Cameras). Runs entirely on its own local 5V ground reference.
   
-  This complete electrical separation isolates high-current actuator spikes (from 20 servos and 2 DC motors) to their respective rotating side structures, ensuring zero voltage dips (brownouts) reach the central logic processors while eliminating slip-ring wire tangling across the rotating joints.
+  **Zero Common Ground / Pure ESP-NOW Wireless Coupling:** Because all three modules communicate purely through over-the-air **ESP-NOW wireless packets**, there is **no common ground wire, no signal cable, and no slip-ring connection** bridging the left, middle, or right sections. This provides absolute electrical immunity against ground loops, inductive noise, and actuator current spikes, completely preventing logic brownouts while eliminating wire-fatigue across rotating joints.
 * **🗣️ Simple / Live Example to Explain:**
-  > *"Imagine trying to run a heavy industrial welding machine and a sensitive medical laptop on the exact same weak extension cord—the laptop will immediately restart whenever the machine sparks!*
+  > *"Imagine 3 completely independent devices—like 3 separate smartphones in 3 different rooms communicating over Wi-Fi. They don't share any ground wire or charging cable!*
   > 
-  > *To prevent this, Rollopod is split into 3 independent power islands:
-  > - **Left Wheel Side:** Has its own battery, its own ESP32 brain, its own PCA servo driver, and its own motor driver.
-  > - **Right Wheel Side:** Has its exact identical clone (battery, ESP32, PCA driver, motor driver).
-  > - **Middle Pod (Brain & Eyes):** Runs completely off a clean 5V Power Bank powering the Raspberry Pi 5, the ESP32 Sub-Master head, and the camera sensors.
+  > *Rollopod works the exact same way:
+  > - **Left Side:** Has its own battery, ESP32, servo driver, and motor driver.
+  > - **Right Side:** Has its own battery, ESP32, servo driver, and motor driver.
+  > - **Middle Pod:** Has its own 5V Power Bank, Pi 5, and ESP32 Head.
   > 
-  > Because each moving wheel carries its own battery, we don't have dangerous thick power cables twisting around the axle, and the central computer never restarts even under peak motor load!"*
+  > There is **ZERO common grounding and ZERO physical wires** connecting the left, center, and right sides! Everything communicates wirelessly through ESP-NOW. Because of this 100% wireless isolation, there is zero chance of motor noise or power spikes reaching the central brain, and no cables ever twist when the wheels roll!"*
 
 #### Q8: What wireless protocol is used, and why not standard Wi-Fi or Bluetooth?
 * **Technical Answer:** We use **ESP-NOW** (point-to-point wireless broadcast by Espressif). Standard Wi-Fi has unpredictable packet buffering (100–300 ms) and connection drops. ESP-NOW provides **deterministic low-latency communication (10–30 ms)** without needing an external Wi-Fi router.
