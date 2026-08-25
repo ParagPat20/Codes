@@ -1,162 +1,172 @@
-# Rollopod — Tech-Expo Operator Guide: Simple Facts & FAQs (Expo Speaking Script)
+# Rollopod — Tech-Expo Operator Guide: Quick Facts & FAQs
 
 ---
 
-## 🏆 Quick Project Info
-* **Project Name:** Rollopod (Transformable Hexapod + Rolling Robot)
-* **Creators:** Parag Patil & Rutu Patel
-* **College:** Parul Institute of Technology, Parul University
-* **Category:** Senior Category (Robotics & Aerial Robotics)
+## 🏆 Project Overview & Meta Information
+
+* **Project Title:** Rollopod — A Transforming Hexapod Robot with Dual-Mode Walking and Rolling Locomotion
+* **Team Members:** Parag Patil, Rutu Patel
+* **Institution:** Parul Institute of Technology, Parul University
+* **Expo Category:** Senior Category
+* **Exhibition Theme:** Robotics & Aerial Robotics
+* **Future Vision:** Core locomotion platform for the **Modular Robotic Field Assistant (MRFA)**
 
 ---
 
-## ⚡ 1. The "30-Second Elevator Pitch" (How to introduce Rollopod)
-> *"Hello! Rollopod is a 2-in-1 hybrid robot. Usually, wheeled robots are very fast on smooth roads but get stuck in potholes or stairs. On the other hand, 6-legged spider robots (hexapods) can easily climb over anything, but on normal roads they walk very slowly and drain battery fast.*
-> 
-> *Rollopod solves this problem! Its 6 legs fold together to become two big 400 mm circular wheels to roll fast at 7.5 km/h. When it sees stairs, stones, or broken terrain, it unfolds back into a 6-legged walker. And the best part? The middle body carrying cameras and sensors never flips or rotates—it stays straight and steady like a gimbal!"*
+## ⚡ 1. The "30-Second Elevator Pitch"
+> *"Rollopod is a transformable hybrid robot that solves the classic mobility dilemma in mobile robotics: wheeled rovers are fast on flat ground but get stuck on obstacles, while walking hexapods can step over anything but crawl slowly and waste energy. Rollopod bridges this gap by using a shared transformable mechanical structure. Its 6 articulated legs fold edge-to-edge into dual 400 mm rolling rings for high-speed travel (up to 7.5 km/h), and unfold into a terrain-adaptive hexapod for stairs, rubble, and rough terrain—all while keeping the central sensor payload upright and stabilized through a bearing-decoupled gravity pendulum."*
 
 ---
 
-## 📊 2. Master Numbers Cheat-Sheet (Keep these on your fingertips!)
+## 📊 2. Master Quick-Facts Sheet (Numbers & Specs)
 
-| What is it? | Value / Number | Easy Real-Life Comparison |
+| Category | Parameter | Specification / Exact Value |
 | :--- | :--- | :--- |
-| **Total Weight** | **11 kg** | About the weight of a domestic LPG cylinder or heavy backpack |
-| **Weight Split** | Left side: 5 kg, Right side: 5 kg, Central Pod: 1 kg | Heavy outer wheels + light 1 kg suspended electronics brain |
-| **Robot Size** | **40 cm × 50 cm × 40 cm** | Roughly the size of a medium microwave oven |
-| **Wheel Diameter** | **400 mm (40 cm / 16 inches)** | About the size of a standard ceiling fan blade or large cycle wheel |
-| **Rolling Top Speed** | **2.09 m/s (7.5 km/h)** | Faster than a brisk walk, like a light jogging speed |
-| **Normal Rolling Speed** | **1.1 – 1.2 m/s (~4 km/h)** | Matches normal human walking pace |
-| **Walking Speed** | **0.15 – 0.25 m/s (~0.7 km/h)** | Slow, steady stepping pace (like an ant or tortoise) |
-| **Drive Motors** | 2x DC Gearmotors (100 RPM, 25 kg·cm) | High torque motors with metal gears to pull the 11 kg body |
-| **Leg Servos** | 18x High-Torque Servos (3 per leg) | Metal-gear servos giving 3 degrees of freedom per leg |
-| **Battery Setup** | 2 Separate Batteries (Isolated Rails) | 1 small battery for brain/logic + 1 big battery for motors/servos |
-| **Wireless Link** | ESP-NOW (No Wi-Fi router needed) | Ultra-fast direct wireless signal (10–30 millisecond lag) |
+| **Physical Dimensions** | Length × Width × Height | **40 cm × 50 cm × 40 cm** (0.40 m × 0.50 m × 0.40 m) |
+| **Mass Breakdown** | Total System Mass | **~11.0 kg** |
+| | Left Wheel / Leg Assembly | **~5.0 kg** (45.45%) |
+| | Right Wheel / Leg Assembly | **~5.0 kg** (45.45%) |
+| | Central Suspended Pod | **~1.0 kg** (9.10%) |
+| **Wheel Geometry** | Wheel Outer Diameter ($D$) | **400 mm** (0.40 m / 15.75 in) |
+| | Wheel Circumference ($C$) | **1.2566 m** (1256.6 mm) |
+| | Arc Segment per Leg (3 per side) | **418.9 mm** per leg arc |
+| **Drive Motors** | Rolling Drive Actuators | **2x High-Torque DC Geared Motors** (100 RPM, 25 kg·cm / 2.45 N·m each) |
+| | Total Rolling Drive Torque | **≈ 4.90 N·m combined** |
+| | Leg Articulation / Transformation | **18x High-Torque Servos** (3 DOF per leg × 6 legs) |
+| **Rolling Speeds** | Max Theoretical Speed (100% PWM) | **2.09 m/s (7.54 km/h / 4.68 mph)** |
+| | Operating Waddle-Roll Speed | **1.05 – 1.25 m/s (3.8 – 4.5 km/h / 2.4 – 2.8 mph)** |
+| **Walking Speeds** | Tripod Gait Cruising Speed | **0.15 – 0.25 m/s (0.54 – 0.90 km/h)** |
+| | Max Peak Step Speed | **0.30 m/s (1.08 km/h)** |
+| **Electronics & Control** | Microcontrollers | **Master ESP32 Bridge** (Host) + **Slave ESP32-C6** (On-Robot Edge) |
+| | Wireless Protocol | **ESP-NOW** Point-to-Point Broadcast (10–30 ms latency) |
+| | Motor Drivers | **2x Cytron MD13S** (13A continuous per channel) |
+| | Servo PWM Drivers | **Dual PCA9685** 16-Channel 12-Bit I2C PWM Drivers (50 Hz) |
+| | Sensor Payload | **MPU6050 6-DOF IMU**, Intel RealSense 3D Depth Camera, LiDAR |
+| **Power Architecture** | Logic Battery Rail | **3S 5000 mAh LiPo** (Regulated via DC-DC Buck Converter) |
+| | Actuator Battery Rail | **3S 6200 mAh / 2500 mAh LiPo Packs** (Dedicated High-Current Rails) |
+| | Grounding Scheme | **Unified Common Ground Topology** |
 
 ---
 
-## ❓ 3. FAQs & Explanations (How to Answer Judges & Visitors)
+## ❓ 3. Frequently Asked Questions (FAQs) for Operators
 
 ---
 
-### 🟢 A. Concept & Idea
+### 🟢 A. Concept & Novelty Questions
 
-#### Q1: Why not just attach small wheels under a normal robot chassis?
-* **Simple Answer:** If we add separate wheels, it adds extra dead weight, takes up extra space, and the wheels get caught on rocks when walking.
-* **Real-Life Example:** Think of a Swiss Army knife. Instead of carrying a separate knife, scissors, and bottle opener, one tool transforms into another. In Rollopod, the legs *themselves* become the wheels.
-* **Keywords to mention:** *Shared structural transformation, zero dead weight.*
+#### Q1: Why not just put regular wheels on the bottom of a hexapod chassis?
+* **Technical Answer:** Adding dedicated permanent wheels and separate drive axles adds massive dead weight, increases bulk, reduces ground clearance, and makes the legs vulnerable to catching on obstacles. Rollopod utilizes **shared structural transformation**—the legs *themselves* are the wheels. When folded, the curved, treaded leg links form the outer rolling rings.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Sir, think of it like this: if you attach bicycle wheels below a spider’s feet, it becomes too bulky, heavy, and clumsy to walk properly. In Rollopod, it works like a Transformer or an umbrella—when you fold the 3 legs on each side, their outer curved edges snap together to form the outer wheel rim itself. It is a true 2-in-1 mechanism with zero wasted wheel weight!"*
 
----
-
-#### Q2: How is Rollopod different from other rolling robots like Festo BionicWheelBot?
-* **Simple Answer:** Festo's robot does a full gymnastic somersault—its whole body rolls over and over. If you mount a camera on it, the video will spin wildly and make you dizzy!
-* **Real-Life Example:** Imagine carrying a cup of tea on a roller coaster vs. in a self-leveling gimbal cup holder. In Rollopod, while the wheels rotate 360 degrees, the center box stays perfectly still and level.
-* **Keywords to mention:** *Decoupled payload, continuous LiDAR/depth scanning.*
+#### Q2: How does Rollopod compare to existing bio-inspired robots like Festo BionicWheelBot?
+* **Technical Answer:** Festo’s robot rolls like an acrobat over its entire body, which violently tumbles any cameras or onboard electronics. Rollopod features a **bearing-decoupled suspended central pod** that remains horizontal and forward-facing at all times, allowing continuous LiDAR and 3D depth scanning even while rolling at high speeds.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Festo's bot rolls by doing continuous gymnastics somersaults—its whole body tumbles round and round. If you mount a camera on Festo, the video feed will just spin like a washing machine! In Rollopod, our camera pod stays completely still and upright in the middle, while only the outer side rings roll around it. So our sensors can scan the environment uninterrupted."*
 
 ---
 
-### ⚙️ B. Mechanics & How It Works
+### ⚙️ B. Mechanical & Kinematic Architecture Questions
 
-#### Q3: How does the middle body stay upright without flipping over when wheels roll?
-* **Simple Answer:** The middle box (pod) is not bolted tightly to the axle. It hangs on smooth ball bearings, and all the heavy parts (batteries, boards) are placed at the very bottom.
-* **Real-Life Example:** Think of a **Jhoola (Cradle / Pendulum)** or a boat keel. Gravity always pulls the bottom down. Even if the axle spins 100 times, the cradle just hangs and stays upright naturally without needing any balancing software!
-* **Keywords to mention:** *Bearing-decoupled suspension, passive pendulum, low center of gravity (CG).*
+#### Q3: How does the central pod stay upright when the robot rolls without flipping over?
+* **Technical Answer:** The central ~1 kg pod is mounted on **precision radial ball bearings** around the continuous central rod, with its Center of Gravity (CG) concentrated **below** the axis. It acts as a **passive gravity-biased pendulum**. Gravity holds the pod level and facing forward, completely isolating the sensitive sensors from the rotation of the outer rings. It does **not** require complex Segway-style inverted-pendulum balancing.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Think of a grandfather clock pendulum or a passenger standing in a Metro train holding the overhead grab handle. Because all the heavy parts (batteries, boards) are located down in the bottom of the pod, gravity naturally pulls it straight downward. The wheels spin freely around the axle on bearings, so the pod never flips or tumbles."*
 
----
+#### Q4: What is the central rod, and does it spin freely?
+* **Technical Answer:** The central rod is a **single rigid reaction rod** that is rigidly locked to both motor rotor shafts. It forms one mechanically coupled rotating assembly. It is **NOT** fixed to the chassis, **NOT** fixed to the ground, and does **NOT** spin like a free idler.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Think of a solid metal axle directly locking both motor shafts together from inside. It's not a loose dummy rod, and it's not bolted solid to the body either. It is a locked reaction shaft that couples the motors together, while the center pod simply hangs over it on smooth bearings."*
 
-#### Q4: What is the center rod connecting the two sides? Does it spin freely?
-* **Simple Answer:** No, it is a single solid metal rod rigidly locked to the output shafts of both DC motors.
-* **Real-Life Example:** Think of a barbell with two weight plates. The bar directly connects both motor shafts into one solid rotating unit.
-* **Keywords to mention:** *Common rigid reaction rod, mechanically coupled rotor assembly.*
+#### Q5: How can Rollopod roll forward if both motor rotors are locked to the same rod without a tail/skid?
+* **Technical Answer:** This is Rollopod’s proprietary **Dynamic Torque Anchoring (Waddle-Roll Gait)**. Instead of raw on/off pulses, both motors operate on a base PWM (50–60%) overlaid with a 180° phase-shifted low-frequency sine wave (1.5 Hz – 3.0 Hz). When the left motor torque rises and the right decreases, the robot uses the internal gearbox resistance and inertia of the right wheel as a temporary dynamic brace to push the left side forward, and vice versa. This creates smooth, tail-less forward rolling.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Think of how a human walks or how someone skates: you firmly plant your right foot down on the ground as an anchor to push your left foot forward, and then you shift weight and push the other side. Rollopod does the exact same thing electrically! One motor acts as a temporary brake/anchor against the ground while the opposite motor pushes forward. It does a rapid 'waddling' roll from side to side, so it moves straight ahead smoothly without needing any tail or support wheel dragging behind it."*
 
----
-
-#### Q5: If both motor shafts are locked together by one rod and there is no rear tail/skid, how does it roll forward?
-* **Simple Answer:** It uses a smart waddling technique called **Dynamic Torque Anchoring**. Instead of running both motors at full flat power, it sends a smooth wave (sine wave) that makes one motor push slightly harder while the other holds back like a temporary anchor, alternating rapidly 2 to 3 times every second.
-* **Real-Life Example:** 
-  1. Think of how a duck waddles—shifting weight left, then right, then left to step forward.
-  2. Or think of how you skate on rollerblades or ice skates—you push with your left foot while bracing on your right, then push with your right foot while bracing on your left.
-* **Keywords to mention:** *Dynamic torque anchoring, Waddle-roll gait, phase-shifted sine wave modulation (1.5 Hz – 3.0 Hz).*
-
----
-
-#### Q6: Can Rollopod turn on the spot (zero-radius turning)?
-* **Simple Answer:** Yes, 100%!
-* **Real-Life Example:** Just like a military tank or an earthmover (JCB). The left wheel turns forward (Clockwise) and the right wheel turns backward (Counter-Clockwise). The robot spins 360 degrees on the exact same spot.
-* **Keywords to mention:** *Differential drive, zero-radius in-place skid steering.*
+#### Q6: Can Rollopod turn in place (zero-radius steering)?
+* **Technical Answer:** **Yes!** When the left and right DC motors are commanded in opposite directions (`LEFT_MOTOR = CW`, `RIGHT_MOTOR = CCW`), the stator reactions push the two 5 kg side assemblies in opposite directions, executing a 360° zero-radius skid turn on the spot.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Exactly like a military battle tank or a JCB excavator! If the left wheel rolls forward and the right wheel rolls in reverse, the robot spins 360 degrees on its own center point without needing any turning circle."*
 
 ---
 
-### 🔌 C. Electronics, Power & Wireless
+### 🔌 C. Electronics, Power & Wireless Control Questions
 
-#### Q7: Why do you have two separate battery systems?
-* **Simple Answer:** When all 18 servos and 2 heavy DC motors draw high power at once, battery voltage momentarily drops (brownout). If the microcontroller is on the same line, it will reset/reboot instantly.
-* **Real-Life Example:** Think of your home when a heavy water pump or welding machine turns on—the room lights flicker or dim for a second. If you have an inverter/UPS for your computer, it doesn't shut down. We gave our microcontrollers their own clean battery rail!
-* **Keywords to mention:** *Isolated dual-rail power architecture, brownout protection, common ground bus.*
+#### Q7: How do you prevent high servo currents from resetting or crashing the microcontrollers?
+* **Technical Answer:** We use an **Isolated Dual-Power Architecture**. Logic electronics (ESP32, IMU, sensors) run on a dedicated 3S LiPo battery through a regulated buck converter. High-current actuators (18 servos + 2 Cytron DC drivers) draw from separate heavy-duty LiPo packs. Both rails share a **unified common ground** to guarantee clean I2C communication without inductive voltage dips (brownouts).
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Imagine running a heavy water pumping motor and your sensitive home Wi-Fi router on the exact same weak inverter line. Whenever the motor kicks in, the voltage drops and the Wi-Fi resets. To prevent that, we have 2 completely separated power channels: one clean battery solely for the brain (ESP32 microcontrollers and sensors), and separate heavy-duty batteries for the 18 servos and DC drive motors. Common ground ties them together so signals stay crystal clear."*
 
----
+#### Q8: What wireless protocol is used, and why not standard Wi-Fi or Bluetooth?
+* **Technical Answer:** We use **ESP-NOW** (point-to-point wireless broadcast by Espressif). Standard Wi-Fi has unpredictable packet buffering (100–300 ms) and connection drops. ESP-NOW provides **deterministic low-latency communication (10–30 ms)** without needing an external Wi-Fi router.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Normal Wi-Fi is like sending messages through a busy local network router—it can lag, buffer, or drop when crowded at a tech expo. ESP-NOW is like an instant military walkie-talkie: direct chip-to-chip transmission with ultra-low delay (under 30 milliseconds) and zero pairing hassle."*
 
-#### Q8: Why use ESP-NOW wireless instead of standard Wi-Fi or Bluetooth?
-* **Simple Answer:** Regular Wi-Fi needs a router, has unpredictable packet delays (100–300 ms), and can lag. ESP-NOW sends direct board-to-board radio packets in just **10 to 30 milliseconds** without any router!
-* **Real-Life Example:** Normal Wi-Fi is like sending a WhatsApp message that goes to a server and comes back. ESP-NOW is like using a direct Walkie-Talkie!
-* **Keywords to mention:** *Direct point-to-point MAC broadcast, deterministic low latency.*
+#### Q9: What happens if an ESP-NOW wireless packet drops during rolling? Will the motors de-sync?
+* **Technical Answer:** **No.** We use **Edge Parametric Calculation**. The master controller only sends a small broadcast packet containing the gait mathematical parameters (`Base_PWM`, `Amplitude`, `Frequency`). When received, both ESP32-C6 motor controllers reset their internal hardware timers (`micros()`) to `t=0` simultaneously and calculate the sine wave locally on the chip. Even if wireless communication drops for several seconds, both motors remain in absolute mathematical lockstep.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Instead of constantly screaming speed numbers every millisecond over the air, the laptop just sends a single formula: 'Run at 50% power with a 2 Hz sine wave'. Both wheels start their stopwatches at the exact same microsecond and calculate the speed locally on their own chips. Even if the laptop signal disconnects for 5 seconds, both wheels stay in 100% perfect mathematical rhythm."*
 
----
-
-#### Q9: What happens if a wireless packet drops while rolling? Will the robot crash?
-* **Simple Answer:** No! We do **Edge Calculation**. The master doesn't stream raw motor values every millisecond. It just sends the formula recipe once (`Base Speed`, `Waddle Frequency`, `Power`). Both side controllers start their internal timers at the exact same microsecond and calculate the motion locally on the chip. Even if wireless disconnects for 5 seconds, both wheels stay in 100% mathematical sync.
-* **Keywords to mention:** *Local edge math, timer synchronization (`micros()`), fail-safe gait lockstep.*
-
----
-
-#### Q10: How do you stop one motor from spinning accidentally when the other is running?
-* **Simple Answer:** Both motors have digital optical/magnetic encoders. If we tell one motor to "STOP (0 RPM)", the onboard ESP32-C6 measures any tiny movement and immediately fires counter-torque power to lock the shaft like an active electronic brake.
-* **Real-Life Example:** Like the "Hill Hold Assist" in modern cars that stops the car from rolling backwards on a slope.
-* **Keywords to mention:** *Closed-loop quadrature encoder, 50 Hz PID controller, Active Position Hold.*
+#### Q10: How do you prevent the motors from back-driving when one is stopped?
+* **Technical Answer:** Each motor has a **Quadrature Optical/Magnetic Encoder** running at 50 Hz on the ESP32-C6. When speed is commanded to zero, the controller latches its position (`P_hold`) and runs an **Active Zero-Speed Position Hold PID**, instantly applying counter-torque to lock the shaft against any reaction torque transmitted through the central rod.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Think of the Hill-Hold feature in modern cars. When you stop on a steep flyover, the car brakes lock so you don't roll backward. Here, if one motor is turned off and the other motor tries to violently twist it through the central rod, the encoder senses the tiny twist and immediately fires counter-power to freeze the motor shaft rock-solid in place."*
 
 ---
 
-### 🛠️ D. Prototype Build & Testing
+### 🛠️ D. Prototype Evolution & Materials Questions
 
-#### Q11: What materials did you use to make the physical body?
-* **Simple Answer:** 
-  * **Frame:** CNC-cut Carbon Fibre plates and Aluminium channels for high strength and lightweight.
-  * **Legs:** Laser-cut powder-coated steel to handle strong ground impacts without bending.
-  * **Bearings:** Industrial deep-groove ball bearings to let the center pod float freely.
+#### Q11: What materials were used to build the physical prototype?
+* **Technical Answer:** 
+  * **Structure:** High-strength aluminium extrusion frame and CNC-machined carbon fibre linkage plates for high stiffness-to-weight ratio.
+  * **Leg Appendages:** Redesigned CNC powder-coated steel legs to handle high dynamic ground impacts.
+  * **Bearings:** Industrial-grade deep-groove radial ball bearings for pod decoupling.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"We used aluminium and carbon fibre for the inner chassis so the robot stays lightweight, but we upgraded the legs to heavy-duty laser-cut powder-coated steel so it can take hard drops, rough stepping, and sudden impacts without bending."*
 
----
-
-#### Q12: What real problems did you face during initial testing, and how did you solve them?
-* **Simple Answer:**
-  1. *Stripped Plastic Gears:* Our first prototype used plastic gearbox motors. During walking, the 11 kg weight snapped the gear teeth. We replaced them with heavy-duty all-metal gearboxes (25 kg·cm).
-  2. *Microcontroller Reboots:* Moving all 18 servos together caused voltage dips. We solved it by creating two separate battery circuits.
-  3. *Transforming Upside-Down:* In rolling mode, the wheels spin continuously. If you open legs while upside down, the robot falls. We added an IMU sensor that checks wheel angle and ensures legs are pointing straight down to the ground before opening.
-
----
-
-### 🚀 E. Real-World Applications (Where can it be used?)
-
-#### Q13: Where can this robot actually be used in industry or society?
-* **Simple Answer:**
-  1. **Disaster Search & Rescue (NDRF / SDRF):** Rolls fast on roads to reach an earthquake/landslide site, then switches to 6-legged mode to crawl over broken concrete slabs, stairs, and debris looking for survivors.
-  2. **Industrial & Pipeline Inspection:** Rolls along long oil & gas pipelines, then walks over crossing pipes, curbs, and stairs without getting stuck.
-  3. **Agriculture (Smart Farming):** Inspects crops and soil health without big heavy tractor wheels that crush crop beds.
-  4. **Military & Border Reconnaissance:** Quiet, terrain-adaptive surveillance in rocky hills, caves, and desert sands.
+#### Q12: What design challenges were discovered during prototype testing?
+* **Technical Answer:**
+  1. **Gearbox Failure:** Early tests with standard plastic-gear DC motors stripped teeth under heavy shock loads; we upgraded to all-metal 25 kg·cm steel gearboxes.
+  2. **Current Spikes:** Simultaneous 18-servo movement caused voltage dips, which led directly to the implementation of the isolated dual-battery power rail.
+  3. **Ground Indexing:** Before unfolding into walking mode, the robot uses IMU orientation feedback to verify that legs are facing downward toward the ground before opening.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"In our early testing, two main practical issues happened: first, normal plastic motor gears stripped instantly under the robot's 11 kg weight, so we upgraded to all-metal steel gearboxes. Second, moving 18 servos together created huge power spikes, which led to our dual isolated battery system. Also, before opening the legs, the IMU gyro checks that the robot isn't upside down so legs always touch the floor safely."*
 
 ---
 
-## 🎯 4. Emergency "Memory Aid" Card (Read this 2 mins before judges come!)
+### 🚀 E. Real-World Applications & Future Scope
+
+#### Q13: What are the practical applications of Rollopod?
+* **Technical Answer:**
+  1. **Search & Rescue in Disasters:** Rapidly rolls over paved roads to reach disaster zones, then unfolds into hexapod mode to climb through collapsed concrete rubble, stairs, and voids.
+  2. **Industrial & Pipeline Inspection:** Traverses smooth factory floors and pipeline corridors in rolling mode, stepping over curbs, pipes, and obstacles without stopping.
+  3. **Agricultural Surveying:** Navigates muddy fields and furrowed crop rows without compacting soil or damaging plant beds.
+  4. **Planetary / Subterranean Exploration:** Enters uncharted caves, craters, and rough terrains where traditional 4-wheel rovers get permanently trapped.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Take an earthquake disaster in a building: a standard 4-wheeled rover gets stuck at the first broken staircase. A drone can't enter narrow rubble pockets without crashing. Rollopod can roll fast for 5 km on the road, reach the disaster site, and then unfold its 6 legs to climb over shattered concrete slabs, climb steps, and find trapped people using its thermal camera."*
+
+#### Q14: What is the MRFA vision?
+* **Technical Answer:** Rollopod is the mobility subsystem for the **Modular Robotic Field Assistant (MRFA)**. Future MRFA units will feature hot-swappable payload bays (thermal cameras, gas detectors, robotic manipulator arms), edge AI for real-time terrain classification, and collaborative multi-robot swarm mapping in GPS-denied environments.
+* **🗣️ Simple / Live Example to Explain:**
+  > *"Rollopod is designed as a universal mobile base. In the future, like swapping lenses on a DSLR camera, you can snap on a robotic arm for bomb disposal, a pesticide sprayer for farm fields, or toxic gas sensors for coal mines—without changing the core walking and rolling chassis."*
+
+---
+
+## 🎯 4. Operator Quick Cheat-Sheet (At-A-Glance Numbers)
 
 ```text
-╔════════════════════════════════════════════════════════════════════════════╗
-║                      ROLLOPOD QUICK RECAP FOR JUDGES                       ║
-╠════════════════════════════════════════════════════════════════════════════╣
-║ 1. WHAT: Transformable 6-legged Hexapod + 400 mm Dual Rolling Robot.      ║
-║ 2. WHY:  Speed of wheels (7.5 km/h) + Terrain climbing of 6 legs.          ║
-║ 3. MASS: 11 kg total (5 kg Left + 5 kg Right + 1 kg Central Brain).        ║
-║ 4. POD:  Decoupled on ball bearings; hangs like a pendulum (always level). ║
-║ 5. DRIVE:2x 100 RPM Metal Gearmotors + 18x High-Torque Joint Servos.       ║
-║ 6. BRAIN:Master ESP32 + Slave ESP32-C6 via low-latency ESP-NOW (10-30 ms). ║
-║ 7. POWER:Dual isolated battery rails (clean logic, high-current motors).   ║
-╚════════════════════════════════════════════════════════════════════════════╝
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ROLLOPOD AT A GLANCE                            │
+├────────────────────────────────┬───────────────────────────────────────┤
+│ Mass                           │ 11 kg (5 kg Left + 5 kg Right + 1 kg Pod)│
+│ Dimensions                     │ 40 cm (L) × 50 cm (W) × 40 cm (H)     │
+│ Outer Wheel Diameter           │ 400 mm (15.75 inches)                 │
+│ Rolling Speed (Operating)      │ 1.05 – 1.25 m/s (~4.0 km/h)           │
+│ Rolling Speed (Top Max)        │ 2.09 m/s (7.54 km/h)                  │
+│ Walking Speed (Tripod Gait)    │ 0.15 – 0.25 m/s (~0.7 km/h)           │
+│ DC Drive Torque                │ 25 kg·cm (2.45 N·m) × 2 = 4.90 N·m    │
+│ Total Servos                   │ 18x High-Torque Servos (PCA9685 @ 50Hz)│
+│ Wireless Communication         │ ESP-NOW (10–30 ms low latency)        │
+│ Power Architecture             │ Fully Isolated Logic & Actuator Rails │
+└────────────────────────────────┴───────────────────────────────────────┘
 ```
