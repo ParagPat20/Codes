@@ -289,14 +289,14 @@ An alternating torque imbalance creates a controlled torsional oscillation that 
 
 ## 9. Continuous Motor Drive & Low-Frequency Modulation
 
-To maintain continuous drive without aggressive switching stress, the DC motors should **not** be hard-switched ($100\% \rightarrow 0\% \rightarrow 100\%$). Instead, both motors remain continuously powered with an added differential modulation term:
+To maintain continuous drive without aggressive switching stress, the DC motors should **not** be hard-switched (100% → 0% → 100%). Instead, both motors remain continuously powered with an added differential modulation term:
 
-$$\text{LEFT\_CMD}(t) = \text{Base\_PWM} + A \cdot \sin(2\pi f t)$$
+$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t)$$
 
-$$\text{RIGHT\_CMD}(t) = \text{Base\_PWM} - A \cdot \sin(2\pi f t)$$
+$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t)$$
 
 Where:
-- $\text{Base\_PWM}$: Average baseline motor drive command (e.g., 50% - 60% PWM baseline)
+- `Base_PWM` ($\mathrm{PWM}_{\mathrm{base}}$): Average baseline motor drive command (e.g., 50% - 60% PWM baseline)
 - $A$: Differential torque command amplitude (e.g., $\pm 5\%$ to $\pm 15\%$)
 - $f$: Low-frequency differential torque modulation frequency (e.g., $1.5\text{ Hz} - 3.0\text{ Hz}$, or up to $5\text{ Hz}$)
 
@@ -305,17 +305,17 @@ Where:
 
 ### Controlled Acceleration Ramping
 
-To protect the $25\text{ kg·cm}$ gearboxes, transforming leg-wheel joints, and Cytron MD13S drivers from sudden mechanical shock or current spikes during gait start/stop transitions, motor commands are dynamically modulated through a **Controlled Acceleration Ramp**:
+To protect the 25 kg·cm gearboxes, transforming leg-wheel joints, and Cytron MD13S drivers from sudden mechanical shock or current spikes during gait start/stop transitions, motor commands are dynamically modulated through a **Controlled Acceleration Ramp**:
 
-$$\text{Ramp\_Factor}(t) = \min\left(1.0, \frac{t - t_{\text{start}}}{T_{\text{ramp}}}\right)$$
+$$\mathrm{Ramp\_Factor}(t) = \min\left(1.0, \frac{t - t_{\mathrm{start}}}{T_{\mathrm{ramp}}}\right)$$
 
-$$\text{LEFT\_CMD}(t) = \text{Ramp\_Factor}(t) \cdot \left[ \text{Base\_PWM} + A \cdot \sin(2\pi f t) \right]$$
+$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{Ramp\_Factor}(t) \cdot \left[ \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t) \right]$$
 
-$$\text{RIGHT\_CMD}(t) = \text{Ramp\_Factor}(t) \cdot \left[ \text{Base\_PWM} - A \cdot \sin(2\pi f t) \right]$$
+$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{Ramp\_Factor}(t) \cdot \left[ \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t) \right]$$
 
 Where:
-- $T_{\text{ramp}}$: Configurable acceleration ramp duration (e.g., $0.1\text{ s}$ to $5.0\text{ s}$, default $1.0\text{ s}$)
-- Ramping ensures smooth speed scaling from standstill ($0\%$) to full operational waddling gait power without tipping or drive train jerk.
+- $T_{\mathrm{ramp}}$: Configurable acceleration ramp duration (e.g., 0.1 s to 5.0 s, default 1.0 s)
+- Ramping ensures smooth speed scaling from standstill (0%) to full operational waddling gait power without tipping or drive train jerk.
 
 ---
 
@@ -400,9 +400,9 @@ To achieve straight-line forward rolling without a stationary central anchor, th
 * **The Waveform**: Both 100 RPM, 25 kg·cm motors operate continuously on a base DC duty cycle (e.g., 50% - 60%), overlaid with a $180^\circ$ phase-shifted sinusoidal wave at a frequency of **1.5 Hz to 3.0 Hz** (or up to 5 Hz for micro-stepping).
 * **Mathematical Command**:
 
-$$\text{LEFT\_CMD}(t) = \text{Base\_PWM} + A \cdot \sin(2\pi f t)$$
+$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t)$$
 
-$$\text{RIGHT\_CMD}(t) = \text{Base\_PWM} - A \cdot \sin(2\pi f t)$$
+$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t)$$
 
 This continuous oscillation shifts the reaction brace smoothly from left to right, allowing the 11 kg total system to step forward in a fluid, continuous rolling motion.
 
@@ -442,16 +442,16 @@ To eliminate uncontrolled back-driving caused by the rigid rotor shaft coupling 
 * **Hardware Wiring**:
   * **Encoder A**: GPIO 1 (Interrupt on Change)
   * **Encoder B**: GPIO 0 (Input Pullup)
-* **Measured Feedback Loop**: Real-time tick counting calculates actual shaft velocity ($\text{RPM}_{\text{measured}}$) at 50 Hz.
+* **Measured Feedback Loop**: Real-time tick counting calculates actual shaft velocity ($\mathrm{RPM}_{\mathrm{measured}}$) at 50 Hz.
 * **RPM Following PID**:
-  When a target RPM $V_{\text{target}}$ is issued from the Master/GUI, a 50Hz PID controller adjusts motor PWM dynamically:
+  When a target RPM $V_{\mathrm{target}}$ is issued from the Master/GUI, a 50Hz PID controller adjusts motor PWM dynamically:
   
-  $$e(t) = V_{\text{target}} - \text{RPM}_{\text{measured}}$$
+  $$e(t) = V_{\mathrm{target}} - \mathrm{RPM}_{\mathrm{measured}}$$
   
-  $$\text{PWM}_{\text{out}}(t) = K_p \cdot e(t) + K_i \int e(t) dt + K_d \frac{de(t)}{dt}$$
+  $$\mathrm{PWM}_{\mathrm{out}}(t) = K_p \cdot e(t) + K_i \int e(t) dt + K_d \frac{de(t)}{dt}$$
 
 * **Active Zero-Speed Position Hold against Central Rod Torque**:
-  When $V_{\text{target}} = 0$, the controller latches the current tick position $P_{\text{hold}}$. If the opposite motor spinning at high speed tries to force-rotate the unpowered motor through the rigid central reaction rod, position error $e_{\text{pos}} = P_{\text{hold}} - P_{\text{current}}$ applies instantaneous counter-torque PWM to lock the motor shaft firmly in place.
+  When $V_{\mathrm{target}} = 0$, the controller latches the current tick position $P_{\mathrm{hold}}$. If the opposite motor spinning at high speed tries to force-rotate the unpowered motor through the rigid central reaction rod, position error $e_{\mathrm{pos}} = P_{\mathrm{hold}} - P_{\mathrm{current}}$ applies instantaneous counter-torque PWM to lock the motor shaft firmly in place.
 
 ---
 
