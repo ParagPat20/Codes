@@ -291,30 +291,32 @@ An alternating torque imbalance creates a controlled torsional oscillation that 
 
 To maintain continuous drive without aggressive switching stress, the DC motors should **not** be hard-switched (100% → 0% → 100%). Instead, both motors remain continuously powered with an added differential modulation term:
 
-$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t)$$
-
-$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t)$$
+```text
+LEFT_CMD(t)  = Base_PWM + A · sin(2π · f · t)
+RIGHT_CMD(t) = Base_PWM - A · sin(2π · f · t)
+```
 
 Where:
-- `Base_PWM` ($\mathrm{PWM}_{\mathrm{base}}$): Average baseline motor drive command (e.g., 50% - 60% PWM baseline)
-- $A$: Differential torque command amplitude (e.g., $\pm 5\%$ to $\pm 15\%$)
-- $f$: Low-frequency differential torque modulation frequency (e.g., $1.5\text{ Hz} - 3.0\text{ Hz}$, or up to $5\text{ Hz}$)
+- `Base_PWM`: Average baseline motor drive command (e.g., 50% - 60% PWM baseline)
+- `A`: Differential torque command amplitude (e.g., ±5% to ±15%)
+- `f`: Low-frequency differential torque modulation frequency (e.g., 1.5 Hz - 3.0 Hz, or up to 5 Hz)
 
 > [!NOTE]
-> The motor driver's internal PWM carrier switching frequency remains high (e.g., $10\text{ kHz} - 20\text{ kHz}$). The low-frequency $f$ refers to the changing torque command modulation demand over time.
+> The motor driver's internal PWM carrier switching frequency remains high (e.g., 10 kHz - 20 kHz). The low-frequency `f` refers to the changing torque command modulation demand over time.
 
 ### Controlled Acceleration Ramping
 
 To protect the 25 kg·cm gearboxes, transforming leg-wheel joints, and Cytron MD13S drivers from sudden mechanical shock or current spikes during gait start/stop transitions, motor commands are dynamically modulated through a **Controlled Acceleration Ramp**:
 
-$$\mathrm{Ramp\_Factor}(t) = \min\left(1.0, \frac{t - t_{\mathrm{start}}}{T_{\mathrm{ramp}}}\right)$$
+```text
+Ramp_Factor(t) = min(1.0, (t - t_start) / T_ramp)
 
-$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{Ramp\_Factor}(t) \cdot \left[ \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t) \right]$$
-
-$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{Ramp\_Factor}(t) \cdot \left[ \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t) \right]$$
+LEFT_CMD(t)  = Ramp_Factor(t) · [ Base_PWM + A · sin(2π · f · t) ]
+RIGHT_CMD(t) = Ramp_Factor(t) · [ Base_PWM - A · sin(2π · f · t) ]
+```
 
 Where:
-- $T_{\mathrm{ramp}}$: Configurable acceleration ramp duration (e.g., 0.1 s to 5.0 s, default 1.0 s)
+- `T_ramp`: Configurable acceleration ramp duration (e.g., 0.1 s to 5.0 s, default 1.0 s)
 - Ramping ensures smooth speed scaling from standstill (0%) to full operational waddling gait power without tipping or drive train jerk.
 
 ---
@@ -323,8 +325,8 @@ Where:
 
 ### Motor Specifications (x2 DC Motors)
 - **Nominal Speed**: **100 RPM**
-- **Rated Torque**: **25 kg·cm** ($\approx \mathbf{2.45\text{ N·m}}$ per motor)
-- **Total Combined Torque**: $\approx \mathbf{4.90\text{ N·m}}$
+- **Rated Torque**: **25 kg·cm** (≈ **2.45 N·m** per motor)
+- **Total Combined Torque**: ≈ **4.90 N·m**
 
 ### Motor Drivers (x2 Single-Channel Drivers)
 - **Driver Type**: Individual single-channel Cytron DC motor drivers
@@ -339,14 +341,16 @@ Each transformable side wheel mechanism has the following parameters:
 
 | Geometry Parameter | Formula / Symbol | Metric Value | Conversion / Equivalent |
 | :--- | :--- | :--- | :--- |
-| **Wheel Outer Diameter** | $D$ | **400 mm** ($0.40\text{ m}$) | 15.75 inches |
-| **Wheel Outer Radius** | $R$ | **200 mm** ($0.20\text{ m}$) | 7.87 inches |
-| **Wheel Circumference** | $C = \pi \cdot D$ | **1.2566 m** | $1256.6\text{ mm}$ |
-| **Segment Arc per Leg (3 legs)** | $S = C / 3$ | **0.4189 m** | $418.9\text{ mm}$ per leg arc |
-| **Nominal Speed** | $N$ | **100 RPM** | $1.667\text{ rev/s}$ |
+| **Wheel Outer Diameter** | $D$ | **400 mm** (0.40 m) | 15.75 inches |
+| **Wheel Outer Radius** | $R$ | **200 mm** (0.20 m) | 7.87 inches |
+| **Wheel Circumference** | $C = \pi \cdot D$ | **1.2566 m** | 1256.6 mm |
+| **Segment Arc per Leg (3 legs)** | $S = C / 3$ | **0.4189 m** | 418.9 mm per leg arc |
+| **Nominal Speed** | $N$ | **100 RPM** | 1.667 rev/s |
 
 ### Maximum Circumferential Speed:
-$$v = \frac{N}{60} \cdot (\pi \cdot D) = \frac{100}{60} \cdot (3.14159 \cdot 0.40\text{ m}) \approx \mathbf{2.09\text{ m/s}} \quad (\mathbf{7.54\text{ km/h}})$$
+```text
+v = (N / 60) · (π · D) = (100 / 60) · (3.14159 · 0.40 m) ≈ 2.09 m/s (7.54 km/h)
+```
 *(Before accounting for slip, ground deformation, or transmission losses).*
 
 ---
@@ -356,7 +360,9 @@ $$v = \frac{N}{60} \cdot (\pi \cdot D) = \frac{100}{60} \cdot (3.14159 \cdot 0.4
 The presence of the rigid common rotor rod **does NOT prevent zero-radius in-place turning**.
 
 When the two DC motors receive opposite direction commands:
-$$\mathrm{CMD}_{\mathrm{left}} = \mathrm{CW} \quad \text{and} \quad \mathrm{CMD}_{\mathrm{right}} = \mathrm{CCW}$$
+```text
+LEFT_MOTOR = CW   and   RIGHT_MOTOR = CCW
+```
 
 The two 5 kg side assemblies rotate in opposite rolling directions around the central axis. Provided sufficient ground traction is present, Rollopod executes a **zero-radius / in-place turn**. The rigid rod couples the rotors, but opposite stator reactions drive differential rotation of the side assemblies.
 
@@ -397,12 +403,13 @@ Unlike traditional reconnaissance robots that require an external ground-contact
 To achieve straight-line forward rolling without a stationary central anchor, the robot utilizes a **Phase-Shifted Differential Torque Gait** rather than rigid on/off pulses.
 
 * **The Physics**: By constantly varying the torque differential between the left and right DC motors, the system uses the internal gearbox resistance and mass inertia of one wheel as a temporary "dynamic anchor" for the opposite wheel to push against.
-* **The Waveform**: Both 100 RPM, 25 kg·cm motors operate continuously on a base DC duty cycle (e.g., 50% - 60%), overlaid with a $180^\circ$ phase-shifted sinusoidal wave at a frequency of **1.5 Hz to 3.0 Hz** (or up to 5 Hz for micro-stepping).
+* **The Waveform**: Both 100 RPM, 25 kg·cm motors operate continuously on a base DC duty cycle (e.g., 50% - 60%), overlaid with a 180° phase-shifted sinusoidal wave at a frequency of **1.5 Hz to 3.0 Hz** (or up to 5 Hz for micro-stepping).
 * **Mathematical Command**:
 
-$$\mathrm{CMD}_{\mathrm{left}}(t) = \mathrm{PWM}_{\mathrm{base}} + A \cdot \sin(2\pi f t)$$
-
-$$\mathrm{CMD}_{\mathrm{right}}(t) = \mathrm{PWM}_{\mathrm{base}} - A \cdot \sin(2\pi f t)$$
+```text
+LEFT_CMD(t)  = Base_PWM + A · sin(2π · f · t)
+RIGHT_CMD(t) = Base_PWM - A · sin(2π · f · t)
+```
 
 This continuous oscillation shifts the reaction brace smoothly from left to right, allowing the 11 kg total system to step forward in a fluid, continuous rolling motion.
 
@@ -442,16 +449,18 @@ To eliminate uncontrolled back-driving caused by the rigid rotor shaft coupling 
 * **Hardware Wiring**:
   * **Encoder A**: GPIO 1 (Interrupt on Change)
   * **Encoder B**: GPIO 0 (Input Pullup)
-* **Measured Feedback Loop**: Real-time tick counting calculates actual shaft velocity ($\mathrm{RPM}_{\mathrm{measured}}$) at 50 Hz.
+* **Measured Feedback Loop**: Real-time tick counting calculates actual shaft velocity (`RPM_measured`) at 50 Hz.
 * **RPM Following PID**:
-  When a target RPM $V_{\mathrm{target}}$ is issued from the Master/GUI, a 50Hz PID controller adjusts motor PWM dynamically:
+  When a target RPM `V_target` is issued from the Master/GUI, a 50Hz PID controller adjusts motor PWM dynamically:
   
-  $$e(t) = V_{\mathrm{target}} - \mathrm{RPM}_{\mathrm{measured}}$$
-  
-  $$\mathrm{PWM}_{\mathrm{out}}(t) = K_p \cdot e(t) + K_i \int e(t) dt + K_d \frac{de(t)}{dt}$$
+```text
+e(t) = V_target - RPM_measured
+
+PWM_out(t) = (Kp · e(t)) + (Ki · ∫ e(t) dt) + (Kd · de(t)/dt)
+```
 
 * **Active Zero-Speed Position Hold against Central Rod Torque**:
-  When $V_{\mathrm{target}} = 0$, the controller latches the current tick position $P_{\mathrm{hold}}$. If the opposite motor spinning at high speed tries to force-rotate the unpowered motor through the rigid central reaction rod, position error $e_{\mathrm{pos}} = P_{\mathrm{hold}} - P_{\mathrm{current}}$ applies instantaneous counter-torque PWM to lock the motor shaft firmly in place.
+  When `V_target = 0`, the controller latches the current tick position `P_hold`. If the opposite motor spinning at high speed tries to force-rotate the unpowered motor through the rigid central reaction rod, position error `e_pos = P_hold - P_current` applies instantaneous counter-torque PWM to lock the motor shaft firmly in place.
 
 ---
 
