@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **Authoritative Mechanical Architecture Summary:**
-> Rollopod consists of two approximately **5 kg transformable side wheel assemblies** connected through a **common rigid rotor/reaction rod**. Each side contains a DC motor whose **stator** is integrated into the 5 kg side assembly and whose **rotor/output shaft** is rigidly connected to the common central rod. The rod therefore forms one mechanically coupled rotating rotor system between both sides. The approximately **1 kg central pod** is suspended **below the rod** using **at least two bearings**, allowing the rod to rotate relative to the pod while the pod remains mechanically decoupled from rod rotation and hangs downward like a pendulum. The three servo-driven leg modules on each side transform into approximately one-third of a circular wheel ($\varnothing 400\text{ mm}$) for rolling mode or unfold into walking legs for hexapod mode.
+> Rollopod consists of two approximately **5 kg transformable side wheel assemblies** connected through a **common rigid rotor/reaction rod**. Each side contains a DC motor whose **stator** is integrated into the 5 kg side assembly and whose **rotor/output shaft** is rigidly connected to the common central rod. The rod therefore forms one mechanically coupled rotating rotor system between both sides. The approximately **1 kg central pod** is suspended **below the rod** using **at least two bearings**, allowing the rod to rotate relative to the pod while the pod remains mechanically decoupled from rod rotation and hangs downward like a pendulum. The three servo-driven leg modules on each side transform into approximately one-third of a circular wheel (Ø 400 mm) for rolling mode or unfold into walking legs for hexapod mode.
 
 ---
 
@@ -21,7 +21,7 @@ The system mass distribution is structured as follows:
 The left and right side assemblies are **transformable wheel/leg mechanisms**, not conventional fixed wheels:
 
 * **Walking Mode (Hexapod)**: The three servo-leg assemblies on each side deploy as articulated walking legs (6 total).
-* **Rolling Mode (Dual-Wheel)**: The three servo-leg assemblies fold into approximately one-third of a circular wheel arc each, aligning edge-to-edge to form a continuous circular rolling surface of **$\varnothing 400\text{ mm}$** on each side.
+* **Rolling Mode (Dual-Wheel)**: The three servo-leg assemblies fold into approximately one-third of a circular wheel arc each, aligning edge-to-edge to form a continuous circular rolling surface of **Ø 400 mm** on each side.
 
 ---
 
@@ -356,7 +356,7 @@ $$v = \frac{N}{60} \cdot (\pi \cdot D) = \frac{100}{60} \cdot (3.14159 \cdot 0.4
 The presence of the rigid common rotor rod **does NOT prevent zero-radius in-place turning**.
 
 When the two DC motors receive opposite direction commands:
-$$\text{LEFT\_MOTOR} = \text{CW} \quad \text{and} \quad \text{RIGHT\_MOTOR} = \text{CCW}$$
+$$\mathrm{CMD}_{\mathrm{left}} = \mathrm{CW} \quad \text{and} \quad \mathrm{CMD}_{\mathrm{right}} = \mathrm{CCW}$$
 
 The two 5 kg side assemblies rotate in opposite rolling directions around the central axis. Provided sufficient ground traction is present, Rollopod executes a **zero-radius / in-place turn**. The rigid rod couples the rotors, but opposite stator reactions drive differential rotation of the side assemblies.
 
