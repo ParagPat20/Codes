@@ -17,12 +17,52 @@
  */
 
 #include <Adafruit_PWMServoDriver.h>
+#include <ArduinoOTA.h>
 #include <MPU6050_tockn.h>
 #include <WiFi.h>
 #include <Wire.h>
 #include <esp_idf_version.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+
+// ============================================================
+// WIRELESS ARDUINOTA OVER-THE-AIR CONFIGURATION (SSID: MIBEE)
+// ============================================================
+bool otaModeActive = false;
+const char *OTA_WIFI_SSID = "MIBEE";
+const char *OTA_WIFI_PASS = ""; // Open Network (No Password)
+
+void enableWirelessOTA(const char *hostname) {
+  Serial.printf("\n[OTA] Switching to Wi-Fi STA mode and connecting to %s...\n", OTA_WIFI_SSID);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(OTA_WIFI_SSID, OTA_WIFI_PASS);
+
+  unsigned long startAttempt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 6000) {
+    delay(250);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\n[OTA] Connected! IP Address: %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println("\n[OTA WARNING] Could not connect to MIBEE network within 6s");
+  }
+
+  ArduinoOTA.setHostname(hostname);
+  ArduinoOTA.onStart([]() { Serial.println("[OTA] Wireless Update Starting..."); });
+  ArduinoOTA.onEnd([]() { Serial.println("\n[OTA] Update Complete! Rebooting..."); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error[%u]\n", error);
+  });
+
+  ArduinoOTA.begin();
+  otaModeActive = true;
+  Serial.printf("[OTA] Wireless ArduinoOTA Ready! Hostname: %s.local\n", hostname);
+}
 
 #define PCA9685_ADDRESS 0x40
 #define TICK_MIN_DEFAULT 102
@@ -76,9 +116,11 @@ float pidIntegral = 0.0f;
 float lastPidError = 0.0f;
 long targetHoldPos = 0;
 bool isHoldingPosition = false;
+int currentMotorPWM = 0;
 
 void setMotorHardwareSpeed(int speed) {
   speed = constrain(speed, -255, 255);
+  currentMotorPWM = speed;
   if (speed == 0) {
     digitalWrite(MOTOR_DIR_PIN, LOW);
     analogWrite(MOTOR_PWM_PIN, 0);
@@ -108,7 +150,7 @@ void updateClosedLoopControl() {
   // Calculate actual measured RPM from High-Resolution 9048 CPR Encoder (GPIO 0 & 1)
   measuredRPM = ((float)dTicks / encoderCPR) * (60.0f / dt);
 
-  // Active Zero-Speed High-Resolution Encoder Position Lock (9048 CPR - 1 deg = 25 ticks)
+  // Active Zero-Speed High-Resolution Encoder Position Lock (Degree-Scaled Instant Response)
   if (targetRPM == 0.0f) {
     if (!isHoldingPosition) {
       targetHoldPos = currentTicks;
@@ -119,25 +161,28 @@ void updateClosedLoopControl() {
 
     long posError = targetHoldPos - currentTicks;
 
-    // High-precision deadband (25 ticks = 1 degree of wheel angle = ~3.4mm movement on 40cm wheel)
-    if (labs(posError) <= 25) {
+    // Sub-degree instant deadband (5 ticks = 0.2 degree of wheel rotation)
+    if (labs(posError) <= 5) {
       setMotorHardwareSpeed(0);
       pidIntegral = 0.0f;
       lastPidError = 0.0f;
       return;
     }
 
-    // High-resolution position counter-torque with 24 PWM gearhead static friction feedforward
-    float pErr = (float)posError;
-    pidIntegral += pErr * dt;
-    pidIntegral = constrain(pidIntegral, -100.0f, 100.0f); // Anti-heating integral cap
-    float dError = (pErr - lastPidError) / dt;
-    lastPidError = pErr;
+    // Convert encoder ticks error directly into degrees of rotation
+    float degError = (float)posError / (encoderCPR / 360.0f);
 
-    float dirSign = (pErr > 0) ? 1.0f : -1.0f;
-    float baseFrictionPWM = dirSign * 24.0f; // Continuous breakaway threshold for Rhino IG32
-    float outputPWM = baseFrictionPWM + (pErr * 0.18f) + (pidIntegral * 0.02f) + (dError * 0.001f);
-    outputPWM = constrain(outputPWM, -160.0f, 160.0f);
+    pidIntegral += degError * dt;
+    pidIntegral = constrain(pidIntegral, -50.0f, 50.0f); // Anti-heating integral cap
+    float dError = (degError - lastPidError) / dt;
+    lastPidError = degError;
+
+    float dirSign = (degError > 0.0f) ? 1.0f : -1.0f;
+    float baseFrictionPWM = dirSign * 35.0f; // Continuous breakaway threshold for 5kg wheel
+
+    // High-sensitivity position counter-torque using GUI Kp, Ki, Kd gains on degrees of error!
+    float outputPWM = baseFrictionPWM + (degError * Kp) + (pidIntegral * Ki) + (dError * Kd);
+    outputPWM = constrain(outputPWM, -255.0f, 255.0f);
 
     setMotorHardwareSpeed((int)outputPWM);
     return;
@@ -191,6 +236,16 @@ const unsigned long MASTER_AVAILABLE_TIMEOUT_MS = 2500;
 void updateSlaveLed() {
   unsigned long now = millis();
 
+  // OTA Mode Active: Continuous Fast 15Hz Blinking (65ms toggle interval)
+  if (otaModeActive) {
+    if (now - lastSlaveLedToggle >= 65) {
+      lastSlaveLedToggle = now;
+      slaveLedState = !slaveLedState;
+      digitalWrite(LED_BUILTIN, slaveLedState ? HIGH : LOW);
+    }
+    return;
+  }
+
   if (slaveBurstToggles > 0) {
     if (now - lastSlaveLedToggle >= 35) {
       lastSlaveLedToggle = now;
@@ -229,10 +284,7 @@ unsigned long lastTelemetryTime = 0;
 const unsigned long TELEMETRY_INTERVAL = 100;
 
 typedef struct cmd_struct {
-  char command[16];
-  int val1;
-  int val2;
-  float val3;
+  char text[128];
 } cmd_struct;
 
 typedef struct telemetry_struct {
@@ -292,6 +344,9 @@ void setup() {
   // Configure Encoder Pins & Attach Interrupts (GPIO1 = Encoder A, GPIO0 = Encoder B)
   pinMode(ENCODER_A_PIN, INPUT_PULLUP);
   pinMode(ENCODER_B_PIN, INPUT_PULLUP);
+  int initA = digitalRead(ENCODER_A_PIN);
+  int initB = digitalRead(ENCODER_B_PIN);
+  encoderState = (initA << 1) | initB;
   attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), encoderISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), encoderISR, CHANGE);
 
@@ -342,6 +397,10 @@ void setup() {
 }
 
 void loop() {
+  if (otaModeActive) {
+    ArduinoOTA.handle();
+  }
+
   if (mpuInitialized) {
     updateMPU();
   }
@@ -387,8 +446,12 @@ void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len) {
 
   if (len == sizeof(cmd_struct)) {
     cmd_struct *cmd = (cmd_struct *)data;
-    slaveBurstToggles += 6;
-    processCommand(String(cmd->command), srcMac);
+    String cmdText = String(cmd->text);
+    cmdText.trim();
+    if (cmdText != "PING") {
+      slaveBurstToggles = 8; // 4 fast blinks (8 toggles) on receiving command
+    }
+    processCommand(cmdText, srcMac);
   } else {
     Serial.printf("Received invalid data length: %d (expected %d)\n", len, sizeof(cmd_struct));
   }
@@ -422,6 +485,9 @@ void processCommand(String command, const uint8_t *senderMac) {
 
   if (command == "PING") {
     sendResponse("PONG\n", senderMac);
+  } else if (command == "OTA_MODE" || command == "ENTER_OTA") {
+    enableWirelessOTA("rollopod-slave-pca9685");
+    sendResponse("OK: OTA Mode Enabled on Slave PCA9685\n", senderMac);
   } else if (command.startsWith("TICK ")) {
     int space1 = command.indexOf(' ');
     int space2 = command.indexOf(' ', space1 + 1);
@@ -670,7 +736,7 @@ void sendTelemetry() {
   noInterrupts();
   currentTicks = encoderTicks;
   interrupts();
-  snprintf(myData.message, sizeof(myData.message), "ENC %ld %.1f %.1f", currentTicks, measuredRPM, targetRPM);
+  snprintf(myData.message, sizeof(myData.message), "ENC %ld %.1f %.1f %d", currentTicks, measuredRPM, targetRPM, currentMotorPWM);
 
   esp_now_send(masterMac, (uint8_t *)&myData, sizeof(myData));
 }

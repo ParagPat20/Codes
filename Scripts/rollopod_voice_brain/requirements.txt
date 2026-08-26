@@ -10,3 +10,4 @@ playsound3>=3.3.2
 requests>=2.31.0
 python-dotenv>=1.0.1
 numpy>=2.2.0
+scipy>=1.13.0          # Audio resampling for ESP32-S3 audio bridge

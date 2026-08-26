@@ -80,8 +80,8 @@ class SerialWorkerThread(QtCore.QThread):
     status_changed = QtCore.pyqtSignal(bool, str)
     telemetry_left_pitch = QtCore.pyqtSignal(float)
     telemetry_right_pitch = QtCore.pyqtSignal(float)
-    telemetry_left_encoder = QtCore.pyqtSignal(int, float, float)   # ticks, measured_rpm, target_rpm
-    telemetry_right_encoder = QtCore.pyqtSignal(int, float, float)  # ticks, measured_rpm, target_rpm
+    telemetry_left_encoder = QtCore.pyqtSignal(int, float, float, int)   # ticks, measured_rpm, target_rpm, motor_pwm
+    telemetry_right_encoder = QtCore.pyqtSignal(int, float, float, int)  # ticks, measured_rpm, target_rpm, motor_pwm
 
     def __init__(self, port_name, baud_rate=115200):
         super().__init__()
@@ -140,7 +140,7 @@ class SerialWorkerThread(QtCore.QThread):
                                     except ValueError:
                                         pass
 
-                        # Parse Encoder telemetry stream ("ENC <ticks> <measured_rpm> <target_rpm>")
+                        # Parse Encoder & Motor PWM telemetry ("ENC <ticks> <measured_rpm> <target_rpm> <motor_pwm>")
                         if "ENC" in line or "ENCODER_DATA" in line:
                             parts = line.split()
                             is_left = "[LEFT]" in line or "LEFT" in line
@@ -152,13 +152,14 @@ class SerialWorkerThread(QtCore.QThread):
                                         ticks = int(parts[i + 1])
                                         m_rpm = float(parts[i + 2])
                                         t_rpm = float(parts[i + 3])
+                                        pwm = int(parts[i + 4]) if i + 4 < len(parts) else 0
                                         if is_left:
-                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm)
+                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm, pwm)
                                         elif is_right:
-                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm)
+                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm, pwm)
                                         else:
-                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm)
-                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm)
+                                            self.telemetry_left_encoder.emit(ticks, m_rpm, t_rpm, pwm)
+                                            self.telemetry_right_encoder.emit(ticks, m_rpm, t_rpm, pwm)
                                     except ValueError:
                                         pass
                 else:
@@ -449,9 +450,9 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.waddle_ramp_time = 1.0  # Ramp duration in seconds
         self.waddle_ramp_factor = 0.0
 
-        # Encoder Telemetry Memory
-        self.l_enc_ticks = 0; self.l_measured_rpm = 0.0; self.l_target_rpm = 0.0
-        self.r_enc_ticks = 0; self.r_measured_rpm = 0.0; self.r_target_rpm = 0.0
+        # Encoder & Motor Driver PWM Telemetry Memory
+        self.l_enc_ticks = 0; self.l_measured_rpm = 0.0; self.l_target_rpm = 0.0; self.l_motor_pwm = 0
+        self.r_enc_ticks = 0; self.r_measured_rpm = 0.0; self.r_target_rpm = 0.0; self.r_motor_pwm = 0
 
         self.leg_channel_map = {
             "Left Front Coxa": "L:CH 00", "Left Front Femur": "L:CH 01", "Left Front Tibia": "L:CH 02",
@@ -581,6 +582,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.tab_calibration = QtWidgets.QWidget()
         self.init_calibration_tab()
         self.tabs.addTab(self.tab_calibration, "Servo Assignment & Profiles")
+
+        self.tab_ota = QtWidgets.QWidget()
+        self.init_ota_tab()
+        self.tabs.addTab(self.tab_ota, "Wireless OTA Firmware Flasher")
 
         self.scan_ports()
 
@@ -1065,15 +1070,51 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         pid_layout.addStretch()
         layout.addWidget(box_pid, stretch=1)
 
-        # ENCODER REAL-TIME MONITORING BOX
-        box_mon = QtWidgets.QGroupBox("Live Dual Encoder & Active Position Hold Monitor")
+        # ENCODER & MOTOR DRIVER PWM REAL-TIME MONITORING BOX
+        box_mon = QtWidgets.QGroupBox("Live Dual Encoder & Motor Driver PWM Power Monitor")
         mon_layout = QtWidgets.QVBoxLayout(box_mon)
         mon_layout.setContentsMargins(14, 18, 14, 14)
-        mon_layout.setSpacing(12)
+        mon_layout.setSpacing(10)
+
+        # Real-time Driver PWM Gauges
+        pwm_grid = QtWidgets.QGridLayout()
+        pwm_grid.setSpacing(8)
+
+        lbl_l_pwm_hdr = QtWidgets.QLabel("LEFT MOTOR DRIVER PWM:")
+        lbl_l_pwm_hdr.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 11px;")
+        pwm_grid.addWidget(lbl_l_pwm_hdr, 0, 0)
+
+        self.lbl_l_pwm_val = QtWidgets.QLabel("+0 / ±255 (0.0% Power)")
+        self.lbl_l_pwm_val.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: 'Consolas';")
+        pwm_grid.addWidget(self.lbl_l_pwm_val, 0, 1)
+
+        self.bar_l_driver_pwm = QtWidgets.QProgressBar()
+        self.bar_l_driver_pwm.setRange(0, 255)
+        self.bar_l_driver_pwm.setValue(0)
+        self.bar_l_driver_pwm.setTextVisible(False)
+        self.bar_l_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 3px; background-color: #0A0C12; height: 16px; } QProgressBar::chunk { background-color: #00E5FF; }")
+        pwm_grid.addWidget(self.bar_l_driver_pwm, 1, 0, 1, 2)
+
+        lbl_r_pwm_hdr = QtWidgets.QLabel("RIGHT MOTOR DRIVER PWM:")
+        lbl_r_pwm_hdr.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 11px;")
+        pwm_grid.addWidget(lbl_r_pwm_hdr, 2, 0)
+
+        self.lbl_r_pwm_val = QtWidgets.QLabel("+0 / ±255 (0.0% Power)")
+        self.lbl_r_pwm_val.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: 'Consolas';")
+        pwm_grid.addWidget(self.lbl_r_pwm_val, 2, 1)
+
+        self.bar_r_driver_pwm = QtWidgets.QProgressBar()
+        self.bar_r_driver_pwm.setRange(0, 255)
+        self.bar_r_driver_pwm.setValue(0)
+        self.bar_r_driver_pwm.setTextVisible(False)
+        self.bar_r_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #FF9100; border-radius: 3px; background-color: #0A0C12; height: 16px; } QProgressBar::chunk { background-color: #FF9100; }")
+        pwm_grid.addWidget(self.bar_r_driver_pwm, 3, 0, 1, 2)
+
+        mon_layout.addLayout(pwm_grid)
 
         self.txt_pid_mon = QtWidgets.QPlainTextEdit()
         self.txt_pid_mon.setReadOnly(True)
-        self.txt_pid_mon.setPlainText("Live Dual Encoder PID Feedback\nConnecting to slaves to stream Quadrature Encoder Ticks & Measured RPM...")
+        self.txt_pid_mon.setPlainText("Live Dual Encoder PID Feedback\nConnecting to slaves to stream Driver PWM, Quadrature Ticks & Measured RPM...")
         mon_layout.addWidget(self.txt_pid_mon)
 
         layout.addWidget(box_mon, stretch=2)
@@ -1092,28 +1133,38 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.send_command("B CLOSED_LOOP 1")
         self.log_console("[PID] Enabled Closed-Loop Encoder PID Mode on both slaves")
 
-    def on_telemetry_left_encoder_received(self, ticks, m_rpm, t_rpm):
-        self.l_enc_ticks = ticks; self.l_measured_rpm = m_rpm; self.l_target_rpm = t_rpm
-        self.lbl_l_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:.1f} (Tgt: {int(t_rpm)})")
+    def on_telemetry_left_encoder_received(self, ticks, m_rpm, t_rpm, pwm):
+        self.l_enc_ticks = ticks; self.l_measured_rpm = m_rpm; self.l_target_rpm = t_rpm; self.l_motor_pwm = pwm
+        self.lbl_l_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:+.1f} | PWM: {pwm:+d}")
+        if hasattr(self, 'bar_l_driver_pwm'):
+            self.bar_l_driver_pwm.setValue(min(255, abs(pwm)))
+            self.lbl_l_pwm_val.setText(f"{pwm:+d} / ±255 ({abs(pwm)/255*100:.1f}% Power)")
         self.update_pid_monitor_text()
 
-    def on_telemetry_right_encoder_received(self, ticks, m_rpm, t_rpm):
-        self.r_enc_ticks = ticks; self.r_measured_rpm = m_rpm; self.r_target_rpm = t_rpm
-        self.lbl_r_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:.1f} (Tgt: {int(t_rpm)})")
+    def on_telemetry_right_encoder_received(self, ticks, m_rpm, t_rpm, pwm):
+        self.r_enc_ticks = ticks; self.r_measured_rpm = m_rpm; self.r_target_rpm = t_rpm; self.r_motor_pwm = pwm
+        self.lbl_r_enc_info.setText(f"Ticks: {ticks} | RPM: {m_rpm:+.1f} | PWM: {pwm:+d}")
+        if hasattr(self, 'bar_r_driver_pwm'):
+            self.bar_r_driver_pwm.setValue(min(255, abs(pwm)))
+            self.lbl_r_pwm_val.setText(f"{pwm:+d} / ±255 ({abs(pwm)/255*100:.1f}% Power)")
         self.update_pid_monitor_text()
 
     def update_pid_monitor_text(self):
         if hasattr(self, 'txt_pid_mon'):
+            l_duty = abs(self.l_motor_pwm) / 255.0 * 100.0
+            r_duty = abs(self.r_motor_pwm) / 255.0 * 100.0
             self.txt_pid_mon.setPlainText(
-                f"=== DUAL CLOSED-LOOP ENCODER FEEDBACK (GPIO 0 & 1) ===\n\n"
+                f"=== DUAL CLOSED-LOOP MOTOR & ENCODER REAL-TIME TELEMETRY ===\n\n"
                 f"LEFT MOTOR (Slave L: 10:BD:A3:A0:F1:9C):\n"
-                f"   Encoder Ticks : {self.l_enc_ticks}\n"
-                f"   Measured Speed: {self.l_measured_rpm:+.1f} RPM\n"
-                f"   Target Speed  : {self.l_target_rpm:+.1f} RPM\n\n"
+                f"   Driver Output PWM : {self.l_motor_pwm:+d} / ±255 (Duty: {l_duty:.1f}%)\n"
+                f"   Encoder Position  : {self.l_enc_ticks} ticks\n"
+                f"   Measured Speed    : {self.l_measured_rpm:+.1f} RPM\n"
+                f"   Target Speed      : {self.l_target_rpm:+.1f} RPM\n\n"
                 f"RIGHT MOTOR (Slave R: 98:A3:16:61:1A:C8):\n"
-                f"   Encoder Ticks : {self.r_enc_ticks}\n"
-                f"   Measured Speed: {self.r_measured_rpm:+.1f} RPM\n"
-                f"   Target Speed  : {self.r_target_rpm:+.1f} RPM\n"
+                f"   Driver Output PWM : {self.r_motor_pwm:+d} / ±255 (Duty: {r_duty:.1f}%)\n"
+                f"   Encoder Position  : {self.r_enc_ticks} ticks\n"
+                f"   Measured Speed    : {self.r_measured_rpm:+.1f} RPM\n"
+                f"   Target Speed      : {self.r_target_rpm:+.1f} RPM\n"
             )
 
     def set_waddle_freq_preset(self, hz):
@@ -1827,6 +1878,269 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         if file_path:
             self.settings_file = file_path
             self.load_profile()
+
+    # ---------------------------------------------------------------------------
+    # TAB 5: WIRELESS ARDUINOTA FIRMWARE FLASHER (Wi-Fi: MIBEE)
+    # ---------------------------------------------------------------------------
+    def init_ota_tab(self):
+        layout = QtWidgets.QVBoxLayout(self.tab_ota)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+
+        box_ota = QtWidgets.QGroupBox("Wireless Over-The-Air (OTA) Firmware Flasher (Wi-Fi: MIBEE)")
+        box_ota.setStyleSheet("QGroupBox { font-weight: bold; color: #00E5FF; font-size: 13px; }")
+        ota_layout = QtWidgets.QVBoxLayout(box_ota)
+        ota_layout.setContentsMargins(14, 18, 14, 14)
+        ota_layout.setSpacing(12)
+
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(10)
+
+        lbl_target = QtWidgets.QLabel("Target Slave Board:")
+        lbl_target.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        grid.addWidget(lbl_target, 0, 0)
+
+        self.cmb_ota_target = QtWidgets.QComboBox()
+        self.cmb_ota_target.addItems([
+            "Left Slave",
+            "Right Slave",
+            "Custom IP"
+        ])
+        self.cmb_ota_target.currentIndexChanged.connect(self.on_ota_target_changed)
+        grid.addWidget(self.cmb_ota_target, 0, 1)
+
+        lbl_host = QtWidgets.QLabel("Target IP Address:")
+        lbl_host.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        grid.addWidget(lbl_host, 1, 0)
+
+        host_row = QtWidgets.QHBoxLayout()
+        self.txt_ota_host = QtWidgets.QLineEdit()
+        self.txt_ota_host.setPlaceholderText("e.g. 192.168.1.105  (click SCAN to auto-find)")
+        host_row.addWidget(self.txt_ota_host)
+
+        self.btn_scan_ota = QtWidgets.QPushButton("🔍 Scan Network")
+        self.btn_scan_ota.setStyleSheet("background-color: #1C2030; color: #00E676; border: 1px solid #00E676; font-weight: bold; padding: 4px 10px;")
+        self.btn_scan_ota.setToolTip("Scan current subnet for ESP32s with OTA port 3232 open")
+        self.btn_scan_ota.clicked.connect(self.scan_network_for_esp32)
+        host_row.addWidget(self.btn_scan_ota)
+        grid.addLayout(host_row, 1, 1)
+
+        lbl_file = QtWidgets.QLabel("Firmware Binary (.bin):")
+        lbl_file.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        grid.addWidget(lbl_file, 2, 0)
+
+        file_box = QtWidgets.QHBoxLayout()
+        self.txt_ota_file = QtWidgets.QLineEdit()
+        self.txt_ota_file.setPlaceholderText("Select compiled firmware binary (.bin file)...")
+        btn_browse_bin = QtWidgets.QPushButton("Browse File...")
+        btn_browse_bin.setStyleSheet("background-color: #1C2030; color: #00E5FF; border: 1px solid #00E5FF; font-weight: bold; padding: 4px 12px;")
+        btn_browse_bin.clicked.connect(self.browse_ota_binary)
+        file_box.addWidget(self.txt_ota_file)
+        file_box.addWidget(btn_browse_bin)
+        grid.addLayout(file_box, 2, 1)
+
+        ota_layout.addLayout(grid)
+
+        # Enable OTA Mode Button (Orange / Amber)
+        self.btn_enable_ota_mode = QtWidgets.QPushButton("1. ENABLE OTA MODE ON SLAVES (Fast 15Hz LED Blink)")
+        self.btn_enable_ota_mode.setStyleSheet("background-color: #FF9100; color: #0D0F17; font-weight: 900; font-size: 13px; padding: 10px; border-radius: 4px;")
+        self.btn_enable_ota_mode.clicked.connect(self.trigger_ota_mode_command)
+        ota_layout.addWidget(self.btn_enable_ota_mode)
+
+        # Flash Action Button
+        self.btn_flash_ota = QtWidgets.QPushButton("2. START WIRELESS OTA FLASHING")
+        self.btn_flash_ota.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-weight: 900; font-size: 13px; padding: 10px; border-radius: 4px;")
+        self.btn_flash_ota.clicked.connect(self.start_wireless_ota_flash)
+        ota_layout.addWidget(self.btn_flash_ota)
+
+        # Progress Bar
+        self.bar_ota_progress = QtWidgets.QProgressBar()
+        self.bar_ota_progress.setValue(0)
+        self.bar_ota_progress.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 4px; text-align: center; color: #FFFFFF; font-weight: bold; background-color: #0A0C12; height: 24px; } QProgressBar::chunk { background-color: #00E676; }")
+        ota_layout.addWidget(self.bar_ota_progress)
+
+        # OTA Log Output
+        self.txt_ota_log = QtWidgets.QPlainTextEdit()
+        self.txt_ota_log.setReadOnly(True)
+        self.txt_ota_log.setPlainText("Wireless OTA Flasher Ready.\nEnsure your Laptop is connected to Wi-Fi 'MIBEE'.\nSelect target slave and compiled binary (.bin), then click 'START WIRELESS OTA FLASHING'.")
+        ota_layout.addWidget(self.txt_ota_log)
+
+        # Auto-populate initial binary path for Left Slave
+        initial_bin = self.auto_find_firmware_bin("left")
+        if initial_bin:
+            self.txt_ota_file.setText(initial_bin)
+        # Set initial placeholder
+        self.txt_ota_host.setPlaceholderText("Left Slave IP — click 🔍 Scan to find")
+
+        layout.addWidget(box_ota)
+
+    def auto_find_firmware_bin(self, target_type):
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        esp32_dir = os.path.join(base_dir, "ESP32_Firmware")
+        
+        if target_type == "left":
+            folder = os.path.join(esp32_dir, "L_ESP32_SLAVE")
+            bin_name = "L_ESP32_SLAVE.ino.bin"
+        else:
+            folder = os.path.join(esp32_dir, "R_ESP32_SLAVE")
+            bin_name = "R_ESP32_SLAVE.ino.bin"
+
+        build_bin = os.path.join(folder, "build", "esp32.esp32.XIAO_ESP32C6", bin_name)
+        if os.path.exists(build_bin):
+            return build_bin
+
+        root_bin = os.path.join(folder, bin_name)
+        if os.path.exists(root_bin):
+            return root_bin
+
+        return ""
+
+    def on_ota_target_changed(self, idx):
+        if idx == 0:
+            self.txt_ota_host.clear()
+            self.txt_ota_host.setPlaceholderText("Left Slave IP — click 🔍 Scan to find")
+            bin_path = self.auto_find_firmware_bin("left")
+            if bin_path: self.txt_ota_file.setText(bin_path)
+        elif idx == 1:
+            self.txt_ota_host.clear()
+            self.txt_ota_host.setPlaceholderText("Right Slave IP — click 🔍 Scan to find")
+            bin_path = self.auto_find_firmware_bin("right")
+            if bin_path: self.txt_ota_file.setText(bin_path)
+        else:
+            self.txt_ota_host.setPlaceholderText("Enter IP manually (e.g. 192.168.1.105)")
+
+    def scan_network_for_esp32(self):
+        """Scan local subnet for ESP32 with OTA port 3232 open."""
+        import socket as _sock
+        import ipaddress
+        import threading
+
+        self.btn_scan_ota.setEnabled(False)
+        self.btn_scan_ota.setText("Scanning...")
+        self.txt_ota_log.appendPlainText("\n[SCAN] Scanning local subnet for ESP32 OTA port 3232...")
+        found_ips = []
+
+        def _try_ip(ip_str):
+            try:
+                s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+                s.settimeout(0.25)
+                if s.connect_ex((ip_str, 3232)) == 0:
+                    found_ips.append(ip_str)
+                s.close()
+            except Exception:
+                pass
+
+        def _scan_thread():
+            # Get local machine IP to derive subnet
+            try:
+                local_s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+                local_s.connect(("8.8.8.8", 80))
+                local_ip = local_s.getsockname()[0]
+                local_s.close()
+            except Exception:
+                local_ip = "192.168.1.1"
+
+            net = ipaddress.IPv4Network(f"{local_ip}/24", strict=False)
+            threads = []
+            for host in net.hosts():
+                t = threading.Thread(target=_try_ip, args=(str(host),), daemon=True)
+                threads.append(t)
+                t.start()
+            for t in threads:
+                t.join(timeout=2)
+
+            # Thread-safe: schedule UI update via singleShot timer
+            QtCore.QTimer.singleShot(0, lambda: self._on_scan_done(list(found_ips)))
+
+        threading.Thread(target=_scan_thread, daemon=True).start()
+
+    def _on_scan_done(self, found_ips):
+        self.btn_scan_ota.setEnabled(True)
+        self.btn_scan_ota.setText("🔍 Scan Network")
+        if not found_ips:
+            self.txt_ota_log.appendPlainText("[SCAN] No ESP32 found on subnet. Ensure ESP32 is in OTA mode (fast LED blink) and on MIBEE.")
+            QtWidgets.QMessageBox.warning(self, "No ESP32 Found",
+                "Could not find any ESP32 with OTA port 3232 open.\n\n"
+                "1. Press 'ENABLE OTA MODE ON SLAVES' button first\n"
+                "2. Wait for fast LED blinking\n"
+                "3. Then scan again.")
+        elif len(found_ips) == 1:
+            self.txt_ota_host.setText(found_ips[0])
+            self.txt_ota_log.appendPlainText(f"[SCAN] Found ESP32 at {found_ips[0]} — IP filled in!")
+        else:
+            # Multiple found — let user pick
+            ip, ok = QtWidgets.QInputDialog.getItem(
+                self, "Multiple ESP32s Found",
+                "Select target ESP32 IP:", found_ips, 0, False)
+            if ok and ip:
+                self.txt_ota_host.setText(ip)
+                self.txt_ota_log.appendPlainText(f"[SCAN] Selected {ip}")
+
+    def trigger_ota_mode_command(self):
+        self.send_command("OTA_MODE\n")
+        self.txt_ota_log.appendPlainText("\n[COMMAND] Sent 'OTA_MODE' command over ESP-NOW to Slaves!")
+        self.txt_ota_log.appendPlainText("[COMMAND] ESP32 Slaves will now connect to Wi-Fi 'MIBEE' and start fast 15Hz LED blinking.")
+        self.txt_ota_log.appendPlainText("[TIP] Wait ~3 seconds for LED to blink fast, then click 🔍 Scan Network to find the IP automatically.")
+        QtWidgets.QMessageBox.information(self, "OTA Mode Triggered",
+            "Sent 'OTA_MODE' command to ESP32 Slaves.\n"
+            "Check built-in LED — it will blink fast (15Hz) when ready.\n\n"
+            "Next: Click '🔍 Scan Network' to auto-find the ESP32 IP.")
+
+    def browse_ota_binary(self):
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Compiled ESP32 Firmware Binary", "", "Binary Files (*.bin);;All Files (*)"
+        )
+        if file_path:
+            self.txt_ota_file.setText(file_path)
+
+    def start_wireless_ota_flash(self):
+        target_host = self.txt_ota_host.text().strip()
+        bin_path = self.txt_ota_file.text().strip()
+
+        if not bin_path or not os.path.exists(bin_path):
+            QtWidgets.QMessageBox.warning(self, "Invalid Binary", "Please select a valid compiled ESP32 firmware binary file (.bin).")
+            return
+
+        self.txt_ota_log.appendPlainText(f"\n[OTA] Starting wireless upload to {target_host}...")
+        self.txt_ota_log.appendPlainText(f"[OTA] Firmware Binary: {bin_path}")
+        self.bar_ota_progress.setValue(0)
+        self.btn_flash_ota.setEnabled(False)
+
+        # Run espota.py in background thread via QProcess
+        self.ota_process = QtCore.QProcess(self)
+        espota_script = os.path.join(os.path.dirname(__file__), "espota.py")
+        
+        args = ["-i", target_host, "-f", bin_path]
+        self.ota_process.readyReadStandardOutput.connect(self.handle_ota_stdout)
+        self.ota_process.readyReadStandardError.connect(self.handle_ota_stderr)
+        self.ota_process.finished.connect(self.handle_ota_finished)
+
+        self.ota_process.start(sys.executable, [espota_script] + args)
+
+    def handle_ota_stdout(self):
+        data = self.ota_process.readAllStandardOutput().data().decode("utf-8", errors="ignore")
+        for line in data.splitlines():
+            if "PROGRESS:" in line:
+                try:
+                    pct = int(line.split("%")[0].split("PROGRESS:")[1].strip())
+                    self.bar_ota_progress.setValue(pct)
+                except: pass
+            else:
+                self.txt_ota_log.appendPlainText(line)
+
+    def handle_ota_stderr(self):
+        data = self.ota_process.readAllStandardError().data().decode("utf-8", errors="ignore")
+        self.txt_ota_log.appendPlainText(f"[OTA ERR] {data.strip()}")
+
+    def handle_ota_finished(self, exit_code, exit_status):
+        self.btn_flash_ota.setEnabled(True)
+        if exit_code == 0:
+            self.bar_ota_progress.setValue(100)
+            self.txt_ota_log.appendPlainText("\n[OTA SUCCESS] Flashing complete! ESP32 is rebooting with new firmware.")
+            QtWidgets.QMessageBox.information(self, "OTA Success", f"Wireless upload to {self.txt_ota_host.text()} succeeded!")
+        else:
+            self.txt_ota_log.appendPlainText(f"\n[OTA FAILED] Process exited with code {exit_code}.")
+            QtWidgets.QMessageBox.critical(self, "OTA Failed", f"Wireless upload failed. Ensure Laptop is on Wi-Fi 'MIBEE' and ESP32 is powered on.")
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
