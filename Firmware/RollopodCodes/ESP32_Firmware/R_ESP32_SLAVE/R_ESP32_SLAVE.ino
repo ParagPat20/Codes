@@ -343,6 +343,26 @@ struct ServoConfig {
   float lastAngle;
 };
 
+// Default Standing Pose Angles for Right Slave
+const float DEFAULT_STANDING_ANGLES[16] = {
+  55.0f,   // CH 00: Right Rear Coxa
+  65.0f,   // CH 01: Right Rear Femur
+  120.0f,  // CH 02: Right Rear Tibia
+  90.0f,   // CH 03: Unassigned
+  100.0f,  // CH 04: Right Middle Coxa
+  30.0f,   // CH 05: Right Middle Femur
+  80.0f,   // CH 06: Right Middle Patella
+  115.0f,  // CH 07: Right Middle Tibia
+  130.0f,  // CH 08: Right Front Coxa
+  35.0f,   // CH 09: Right Front Femur
+  80.0f,   // CH 10: Right Front Tibia
+  90.0f,   // CH 11: Unassigned
+  90.0f,   // CH 12: Unassigned
+  90.0f,   // CH 13: Unassigned
+  90.0f,   // CH 14: Unassigned
+  90.0f    // CH 15: Unassigned
+};
+
 ServoConfig servoConfigs[16];
 uint16_t pwmFrequency = SERVO_FREQ_DEFAULT;
 String commandBuffer = "";
@@ -425,8 +445,8 @@ void setup() {
     servoConfigs[i].tickMin = TICK_MIN_DEFAULT;
     servoConfigs[i].tickMax = TICK_MAX_DEFAULT;
     servoConfigs[i].currentTick = (TICK_MIN_DEFAULT + TICK_MAX_DEFAULT) / 2;
-    servoConfigs[i].lastAngle = 90.0;
-    setServoAngle(i, 90.0);
+    servoConfigs[i].lastAngle = DEFAULT_STANDING_ANGLES[i];
+    setServoAngle(i, DEFAULT_STANDING_ANGLES[i]);
   }
 
     targetHoldPos = encoderTicks;
@@ -563,6 +583,11 @@ void processCommand(String command, const uint8_t *senderMac) {
         sendResponse(responseBuffer, senderMac);
       }
     }
+  } else if (command == "STAND" || command == "STAND_POSE" || command == "HOME") {
+    for (int i = 0; i < 16; i++) {
+      setServoAngle(i, DEFAULT_STANDING_ANGLES[i]);
+    }
+    sendResponse("OK: Right Slave moved to Standing Pose\n", senderMac);
   } else if (command.startsWith("MOTOR ") || command.startsWith("RPM ")) {
     int spaceIdx = command.indexOf(' ');
     int speed = command.substring(spaceIdx + 1).toInt();
@@ -707,8 +732,8 @@ void resetToDefaults() {
     servoConfigs[i].tickMin = TICK_MIN_DEFAULT;
     servoConfigs[i].tickMax = TICK_MAX_DEFAULT;
     servoConfigs[i].currentTick = (TICK_MIN_DEFAULT + TICK_MAX_DEFAULT) / 2;
-    servoConfigs[i].lastAngle = 90.0;
-    setServoAngle(i, 90.0);
+    servoConfigs[i].lastAngle = DEFAULT_STANDING_ANGLES[i];
+    setServoAngle(i, DEFAULT_STANDING_ANGLES[i]);
   }
 }
 
