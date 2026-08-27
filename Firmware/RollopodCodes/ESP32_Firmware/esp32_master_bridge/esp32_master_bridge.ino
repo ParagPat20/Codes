@@ -36,10 +36,9 @@ void setupAntenna() {
 }
 
 // ============================================================
-// SUB-MASTER MAC ADDRESS
-// Flash M_ESP32_SUB_MASTER first, run GET_MAC, copy its MAC here
+// SUB-MASTER MAC ADDRESS (M_ESP32_SUB_MASTER: 10:BD:A3:9E:E1:40)
 // ============================================================
-uint8_t SUB_MASTER_MAC[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }; // <-- SET THIS
+uint8_t SUB_MASTER_MAC[] = { 0x10, 0xBD, 0xA3, 0x9E, 0xE1, 0x40 };
 
 // ============================================================
 // DATA STRUCTURES (must match Sub-Master and Slaves exactly)

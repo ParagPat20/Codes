@@ -343,19 +343,19 @@ struct ServoConfig {
   float lastAngle;
 };
 
-// Default Standing Pose Angles for Right Slave
+// Configured Standing Pose Angles for Right Slave (from rollopod_servo_profile.json)
 const float DEFAULT_STANDING_ANGLES[16] = {
-  55.0f,   // CH 00: Right Rear Coxa
-  65.0f,   // CH 01: Right Rear Femur
-  120.0f,  // CH 02: Right Rear Tibia
+  130.0f,  // CH 00: Right Front Coxa
+  35.0f,   // CH 01: Right Front Femur
+  80.0f,   // CH 02: Right Front Tibia
   90.0f,   // CH 03: Unassigned
   100.0f,  // CH 04: Right Middle Coxa
   30.0f,   // CH 05: Right Middle Femur
   80.0f,   // CH 06: Right Middle Patella
-  115.0f,  // CH 07: Right Middle Tibia
-  130.0f,  // CH 08: Right Front Coxa
-  35.0f,   // CH 09: Right Front Femur
-  80.0f,   // CH 10: Right Front Tibia
+  155.0f,  // CH 07: Right Middle Tibia
+  50.0f,   // CH 08: Right Rear Coxa
+  65.0f,   // CH 09: Right Rear Femur
+  120.0f,  // CH 10: Right Rear Tibia
   90.0f,   // CH 11: Unassigned
   90.0f,   // CH 12: Unassigned
   90.0f,   // CH 13: Unassigned
