@@ -59,7 +59,7 @@ class NoWheelSlider(QtWidgets.QSlider):
         event.ignore()
 
 # -------------------------------------------------------------------------------
-# VIRTUAL 2D ANALOG JOYSTICK CONTROLLER WIDGET
+# VIRTUAL 2D ANALOG JOYSTICK CONTROLLER WIDGET (Pro-Grade Compact Design)
 # -------------------------------------------------------------------------------
 class VirtualJoystickWidget(QtWidgets.QWidget):
     joystick_moved = QtCore.pyqtSignal(float, float, str)  # (norm_x, norm_y, direction_str)
@@ -67,101 +67,93 @@ class VirtualJoystickWidget(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(220, 220)
-        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        self.setFixedSize(210, 210)
         self.puck_pos = QtCore.QPointF(0.0, 0.0)
         self.is_dragging = False
         self.current_direction = "IDLE"
-        self.deadzone = 0.15
+        self.deadzone = 0.18
 
     def get_max_radius(self):
-        return min(self.width(), self.height()) / 2.0 - 24.0
+        return 88.0
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
-        w = self.width()
-        h = self.height()
-        cx = w / 2.0
-        cy = h / 2.0
-        max_r = max(10.0, self.get_max_radius())
-        puck_r = max(18.0, max_r * 0.28)
+        cx = 105.0
+        cy = 105.0
+        max_r = 88.0
+        puck_r = 22.0
 
-        # 1. Dark Outer Background Disc with radial gradient
+        # 1. Outer Circular Base
         bg_grad = QtGui.QRadialGradient(cx, cy, max_r)
-        bg_grad.setColorAt(0.0, QtGui.QColor("#161A28"))
-        bg_grad.setColorAt(0.7, QtGui.QColor("#0F121C"))
-        bg_grad.setColorAt(1.0, QtGui.QColor("#080A10"))
+        bg_grad.setColorAt(0.0, QtGui.QColor("#1C2128"))
+        bg_grad.setColorAt(0.8, QtGui.QColor("#161B22"))
+        bg_grad.setColorAt(1.0, QtGui.QColor("#0D1117"))
         painter.setBrush(QtGui.QBrush(bg_grad))
-        painter.setPen(QtGui.QPen(QtGui.QColor("#222736"), 2))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#30363D"), 1.5))
         painter.drawEllipse(QtCore.QPointF(cx, cy), max_r, max_r)
 
-        # 2. Concentric Guideline Rings (25%, 50%, 75%, 100%)
-        for r_pct in [0.25, 0.50, 0.75, 1.0]:
+        # 2. Concentric Guideline Rings (35%, 70%, 100%)
+        for r_pct in [0.35, 0.70, 1.0]:
             r = max_r * r_pct
-            pen_color = QtGui.QColor("#00E5FF") if r_pct == 1.0 else QtGui.QColor("#1E2434")
-            pen_width = 1.5 if r_pct == 1.0 else 1.0
-            painter.setPen(QtGui.QPen(pen_color, pen_width, QtCore.Qt.PenStyle.DashLine if r_pct < 1.0 else QtCore.Qt.PenStyle.SolidLine))
+            pen_color = QtGui.QColor("#30363D") if r_pct == 1.0 else QtGui.QColor("#21262D")
+            painter.setPen(QtGui.QPen(pen_color, 1.0, QtCore.Qt.PenStyle.DashLine if r_pct < 1.0 else QtCore.Qt.PenStyle.SolidLine))
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             painter.drawEllipse(QtCore.QPointF(cx, cy), r, r)
 
         # 3. Crosshair Axis Lines
-        painter.setPen(QtGui.QPen(QtGui.QColor("#1E2434"), 1, QtCore.Qt.PenStyle.DashLine))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#21262D"), 1, QtCore.Qt.PenStyle.DashLine))
         painter.drawLine(QtCore.QPointF(cx - max_r, cy), QtCore.QPointF(cx + max_r, cy))
         painter.drawLine(QtCore.QPointF(cx, cy - max_r), QtCore.QPointF(cx, cy + max_r))
 
-        # 4. Directional Cardinal Labels & Active Highlight
-        painter.setFont(QtGui.QFont("Segoe UI", 10, QtGui.QFont.Weight.Bold))
+        # 4. Directional Cardinal Labels & Icons
+        painter.setFont(QtGui.QFont("Segoe UI", 8, QtGui.QFont.Weight.Bold))
 
         # Top (FWD)
-        painter.setPen(QtGui.QColor("#00E676" if self.current_direction == "FWD" else "#8E98B0"))
-        painter.drawText(QtCore.QRectF(cx - 40, cy - max_r + 2, 80, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "▲ FWD")
+        painter.setPen(QtGui.QColor("#38BDF8" if self.current_direction == "FWD" else "#8B949E"))
+        painter.drawText(QtCore.QRectF(cx - 30, cy - max_r + 4, 60, 14), QtCore.Qt.AlignmentFlag.AlignCenter, "▲ FWD")
 
         # Bottom (BACK)
-        painter.setPen(QtGui.QColor("#00E5FF" if self.current_direction == "BACK" else "#8E98B0"))
-        painter.drawText(QtCore.QRectF(cx - 40, cy + max_r - 22, 80, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "▼ BACK")
+        painter.setPen(QtGui.QColor("#38BDF8" if self.current_direction == "BACK" else "#8B949E"))
+        painter.drawText(QtCore.QRectF(cx - 30, cy + max_r - 18, 60, 14), QtCore.Qt.AlignmentFlag.AlignCenter, "▼ BACK")
 
         # Left (LEFT)
-        painter.setPen(QtGui.QColor("#FFC107" if self.current_direction == "LEFT" else "#8E98B0"))
-        painter.drawText(QtCore.QRectF(cx - max_r + 4, cy - 10, 50, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "◀ LEFT")
+        painter.setPen(QtGui.QColor("#38BDF8" if self.current_direction == "LEFT" else "#8B949E"))
+        painter.drawText(QtCore.QRectF(cx - max_r + 4, cy - 7, 44, 14), QtCore.Qt.AlignmentFlag.AlignCenter, "◀ LEFT")
 
         # Right (RIGHT)
-        painter.setPen(QtGui.QColor("#FF9100" if self.current_direction == "RIGHT" else "#8E98B0"))
-        painter.drawText(QtCore.QRectF(cx + max_r - 54, cy - 10, 50, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "RIGHT ▶")
+        painter.setPen(QtGui.QColor("#38BDF8" if self.current_direction == "RIGHT" else "#8B949E"))
+        painter.drawText(QtCore.QRectF(cx + max_r - 48, cy - 7, 44, 14), QtCore.Qt.AlignmentFlag.AlignCenter, "RIGHT ▶")
 
         # 5. Connecting Vector Line from Center to Puck
         curr_puck_x = cx + self.puck_pos.x()
         curr_puck_y = cy + self.puck_pos.y()
         if self.puck_pos.manhattanLength() > 2:
-            glow_color = QtGui.QColor("#00E676") if self.current_direction == "FWD" else (
-                         QtGui.QColor("#00E5FF") if self.current_direction == "BACK" else (
-                         QtGui.QColor("#FFC107") if self.current_direction == "LEFT" else (
-                         QtGui.QColor("#FF9100") if self.current_direction == "RIGHT" else QtGui.QColor("#00E5FF"))))
-            painter.setPen(QtGui.QPen(glow_color, 2))
+            painter.setPen(QtGui.QPen(QtGui.QColor("#38BDF8"), 1.5))
             painter.drawLine(QtCore.QPointF(cx, cy), QtCore.QPointF(curr_puck_x, curr_puck_y))
 
-        # 6. Movable Metallic Puck / Joystick Handle
+        # 6. Movable Metallic Handle Puck
         puck_grad = QtGui.QRadialGradient(curr_puck_x, curr_puck_y, puck_r)
         if self.is_dragging:
-            puck_grad.setColorAt(0.0, QtGui.QColor("#FFFFFF"))
-            puck_grad.setColorAt(0.3, QtGui.QColor("#00E5FF"))
-            puck_grad.setColorAt(1.0, QtGui.QColor("#0A3A40"))
-            border_pen = QtGui.QPen(QtGui.QColor("#00E5FF"), 2)
+            puck_grad.setColorAt(0.0, QtGui.QColor("#38BDF8"))
+            puck_grad.setColorAt(0.7, QtGui.QColor("#0284C7"))
+            puck_grad.setColorAt(1.0, QtGui.QColor("#0369A1"))
+            border_pen = QtGui.QPen(QtGui.QColor("#BAE6FD"), 1.5)
         else:
-            puck_grad.setColorAt(0.0, QtGui.QColor("#2C3246"))
-            puck_grad.setColorAt(0.7, QtGui.QColor("#181C28"))
-            puck_grad.setColorAt(1.0, QtGui.QColor("#0D0F17"))
-            border_pen = QtGui.QPen(QtGui.QColor("#3A425A"), 1.5)
+            puck_grad.setColorAt(0.0, QtGui.QColor("#30363D"))
+            puck_grad.setColorAt(0.7, QtGui.QColor("#21262D"))
+            puck_grad.setColorAt(1.0, QtGui.QColor("#161B22"))
+            border_pen = QtGui.QPen(QtGui.QColor("#38BDF8"), 1.0)
 
         painter.setBrush(QtGui.QBrush(puck_grad))
         painter.setPen(border_pen)
         painter.drawEllipse(QtCore.QPointF(curr_puck_x, curr_puck_y), puck_r, puck_r)
 
-        # Center dot on puck
-        painter.setBrush(QtGui.QBrush(QtGui.QColor("#FFFFFF" if self.is_dragging else "#00E5FF")))
+        # Center target dot on puck
+        painter.setBrush(QtGui.QBrush(QtGui.QColor("#FFFFFF" if self.is_dragging else "#38BDF8")))
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        painter.drawEllipse(QtCore.QPointF(curr_puck_x, curr_puck_y), 4.0, 4.0)
+        painter.drawEllipse(QtCore.QPointF(curr_puck_x, curr_puck_y), 3.0, 3.0)
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -181,8 +173,34 @@ class VirtualJoystickWidget(QtWidgets.QWidget):
             self.joystick_released.emit()
 
     def update_puck_from_event(self, pos):
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
+        cx = 105.0
+        cy = 105.0
+        dx = pos.x() - cx
+        dy = pos.y() - cy
+        dist = math.hypot(dx, dy)
+        max_r = self.get_max_radius()
+
+        if dist > max_r:
+            dx = (dx / dist) * max_r
+            dy = (dy / dist) * max_r
+            dist = max_r
+
+        self.puck_pos = QtCore.QPointF(dx, dy)
+
+        norm_x = dx / max_r
+        norm_y = -dy / max_r  # Up is Positive (+Y), Down is Negative (-Y)
+        mag = dist / max_r
+
+        new_dir = "IDLE"
+        if mag >= self.deadzone:
+            if abs(norm_y) >= abs(norm_x):
+                new_dir = "FWD" if norm_y > 0 else "BACK"
+            else:
+                new_dir = "RIGHT" if norm_x > 0 else "LEFT"
+
+        self.current_direction = new_dir
+        self.update()
+        self.joystick_moved.emit(norm_x, norm_y, new_dir)
         dx = pos.x() - cx
         dy = pos.y() - cy
         dist = math.hypot(dx, dy)
@@ -370,8 +388,8 @@ class ServoChannelCard(QtWidgets.QFrame):
         header_layout.setSpacing(3)
         
         self.lbl_title = QtWidgets.QLabel(self.get_card_id())
-        color_code = "#00E5FF" if self.board == 'L' else "#FF9100"
-        self.lbl_title.setStyleSheet(f"color: {color_code}; font-weight: 800; font-size: 11px;")
+        color_code = "#38BDF8" if self.board == 'L' else "#F59E0B"
+        self.lbl_title.setStyleSheet(f"color: {color_code}; font-weight: bold; font-size: 11px;")
         header_layout.addWidget(self.lbl_title)
 
         self.cmb_servo = QtWidgets.QComboBox()
@@ -379,86 +397,86 @@ class ServoChannelCard(QtWidgets.QFrame):
         self.cmb_servo.addItems(LEG_SERVOS)
         self.cmb_servo.setStyleSheet("""
             QComboBox {
-                background-color: #0A0C12;
-                color: #00E676;
-                font-weight: bold;
+                background-color: #21262D;
+                color: #F0F6FC;
+                font-weight: 600;
                 font-size: 10px;
-                border: 1px solid #1E2333;
+                border: 1px solid #30363D;
                 border-radius: 3px;
-                padding: 1px 2px;
+                padding: 1px 4px;
             }
         """)
         self.cmb_servo.currentIndexChanged.connect(self.on_servo_combo_changed)
         header_layout.addWidget(self.cmb_servo, stretch=1)
 
-        # Wiggle button - Cyan (Info / Identify)
-        self.btn_wiggle = QtWidgets.QPushButton("WGL")
-        self.btn_wiggle.setFixedWidth(32)
+        # Wiggle button (Identify)
+        self.btn_wiggle = QtWidgets.QPushButton("ID")
+        self.btn_wiggle.setFixedWidth(28)
         self.btn_wiggle.setToolTip("Wiggle servo +-4 deg to identify channel")
         self.btn_wiggle.setStyleSheet("""
             QPushButton {
-                background-color: #121A28;
-                color: #00E5FF;
-                border: 1px solid #00E5FF;
+                background-color: #21262D;
+                color: #8B949E;
+                border: 1px solid #30363D;
                 border-radius: 3px;
                 padding: 1px;
                 font-size: 9px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #00E5FF;
-                color: #000000;
+                color: #38BDF8;
+                border-color: #38BDF8;
             }
         """)
         self.btn_wiggle.clicked.connect(self.on_wiggle_clicked)
         header_layout.addWidget(self.btn_wiggle)
 
-        # Save Stand button - Green (Save / Success state)
+        # Save Stand button
         self.btn_save_stand = QtWidgets.QPushButton("SET")
-        self.btn_save_stand.setFixedWidth(32)
+        self.btn_save_stand.setFixedWidth(28)
         self.btn_save_stand.setToolTip("Save current angle as Standing Pose position")
         self.btn_save_stand.setStyleSheet("""
             QPushButton {
-                background-color: #0B1C14;
-                color: #00E676;
-                border: 1px solid #00E676;
+                background-color: #21262D;
+                color: #8B949E;
+                border: 1px solid #30363D;
                 border-radius: 3px;
                 padding: 1px;
                 font-size: 9px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #00E676;
-                color: #000000;
+                color: #34D399;
+                border-color: #34D399;
             }
         """)
         self.btn_save_stand.clicked.connect(self.on_save_stand_clicked)
         header_layout.addWidget(self.btn_save_stand)
 
-        # Go to Stand button - Yellow/Amber (Move to Saved Target)
+        # Go to Stand button
         self.btn_go_stand = QtWidgets.QPushButton("POS")
-        self.btn_go_stand.setFixedWidth(32)
+        self.btn_go_stand.setFixedWidth(28)
         self.btn_go_stand.setToolTip("Move servo to its saved Standing Pose position")
         self.btn_go_stand.setStyleSheet("""
             QPushButton {
-                background-color: #241B0B;
-                color: #FFB300;
-                border: 1px solid #FFB300;
+                background-color: #21262D;
+                color: #8B949E;
+                border: 1px solid #30363D;
                 border-radius: 3px;
                 padding: 1px;
                 font-size: 9px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #FFB300;
-                color: #000000;
+                color: #38BDF8;
+                border-color: #38BDF8;
             }
         """)
         self.btn_go_stand.clicked.connect(self.go_to_stand_position)
         header_layout.addWidget(self.btn_go_stand)
 
         self.lbl_angle = QtWidgets.QLabel("90 deg")
-        self.lbl_angle.setStyleSheet("color: #FFFFFF; font-weight: bold; font-size: 11px; font-family: 'Consolas', 'Courier New'; margin-left: 2px;")
+        self.lbl_angle.setStyleSheet("color: #F0F6FC; font-weight: bold; font-size: 11px; font-family: 'Consolas', 'Courier New'; margin-left: 2px;")
         header_layout.addWidget(self.lbl_angle)
 
         layout.addLayout(header_layout)
@@ -639,20 +657,21 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
     def init_ui(self):
         self.setStyleSheet("""
-            QMainWindow { background-color: #0D0F17; }
-            QWidget { color: #E1E4EC; font-family: 'Segoe UI', -apple-system, sans-serif; }
-            QTabWidget::pane { border: 1px solid #1E2333; background-color: #0D0F17; border-radius: 6px; }
-            QTabBar::tab { background-color: #141724; color: #8E98B0; padding: 8px 20px; font-weight: bold; font-size: 11px; border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 3px; border: 1px solid #1E2333; }
-            QTabBar::tab:selected { background-color: #1C2030; color: #00E5FF; border-bottom: 2px solid #00E5FF; }
-            QTabBar::tab:hover { color: #FFFFFF; }
-            QGroupBox { background-color: #141724; border: 1px solid #1E2333; border-radius: 6px; margin-top: 8px; font-weight: bold; color: #FFFFFF; font-size: 11px; }
+            QMainWindow { background-color: #0D1117; }
+            QWidget { color: #C9D1D9; font-family: 'Segoe UI', -apple-system, sans-serif; font-size: 11px; }
+            QTabWidget::pane { border: 1px solid #30363D; background-color: #0D1117; border-radius: 6px; }
+            QTabBar::tab { background-color: #161B22; color: #8B949E; padding: 7px 18px; font-weight: bold; font-size: 11px; border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; border: 1px solid #21262D; }
+            QTabBar::tab:selected { background-color: #21262D; color: #F0F6FC; border-bottom: 2px solid #38BDF8; }
+            QTabBar::tab:hover { color: #F0F6FC; background-color: #1C2128; }
+            QGroupBox { background-color: #161B22; border: 1px solid #30363D; border-radius: 6px; margin-top: 8px; font-weight: bold; color: #F0F6FC; font-size: 11px; }
             QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-            QPushButton { background-color: #1C2030; color: #FFFFFF; border: 1px solid #2B3148; border-radius: 4px; padding: 5px 12px; font-weight: bold; }
-            QPushButton:hover { background-color: #252B40; border-color: #00E5FF; }
-            QPushButton:pressed { background-color: #00E5FF; color: #0D0F17; }
-            QPlainTextEdit { background-color: #05070B; border: 1px solid #1A1D2B; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 11px; color: #00E676; }
-            QComboBox { background-color: #0A0C12; color: #FFFFFF; border: 1px solid #1E2333; border-radius: 4px; padding: 3px 6px; font-weight: bold; }
-            QDoubleSpinBox, QSpinBox { background-color: #0A0C12; color: #FFFFFF; border: 1px solid #1E2333; border-radius: 4px; padding: 2px 4px; font-weight: bold; }
+            QPushButton { background-color: #21262D; color: #F0F6FC; border: 1px solid #30363D; border-radius: 4px; padding: 6px 12px; font-weight: bold; }
+            QPushButton:hover { background-color: #30363D; border-color: #8B949E; }
+            QPushButton:pressed { background-color: #38BDF8; color: #0D1117; border-color: #38BDF8; }
+            QPlainTextEdit { background-color: #0D1117; border: 1px solid #21262D; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 11px; color: #7EE787; }
+            QComboBox { background-color: #161B22; color: #F0F6FC; border: 1px solid #30363D; border-radius: 4px; padding: 3px 8px; font-weight: bold; }
+            QComboBox:hover { border-color: #8B949E; }
+            QDoubleSpinBox, QSpinBox { background-color: #161B22; color: #F0F6FC; border: 1px solid #30363D; border-radius: 4px; padding: 3px 6px; font-weight: bold; }
         """)
 
         central_widget = QtWidgets.QWidget()
@@ -663,8 +682,8 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         # TOP CONNECTION & CONTROL HEADER
         top_bar = QtWidgets.QHBoxLayout()
-        lbl_logo = QtWidgets.QLabel("ROLLOPOD DUAL CONTROLLER")
-        lbl_logo.setStyleSheet("font-size: 14px; font-weight: 900; color: #00E5FF; letter-spacing: 1px;")
+        lbl_logo = QtWidgets.QLabel("ROLLOPOD CONTROLLER")
+        lbl_logo.setStyleSheet("font-size: 13px; font-weight: 800; color: #F0F6FC; letter-spacing: 0.5px;")
         top_bar.addWidget(lbl_logo)
         top_bar.addSpacing(15)
 
@@ -678,21 +697,21 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.cmb_baud.addItems(["115200", "921600", "57600", "9600"])
         top_bar.addWidget(self.cmb_baud)
 
-        # Connect button: Green when offline, Red when online
+        # Connect button: Clean outline / dark fill
         self.btn_connect = QtWidgets.QPushButton("CONNECT")
-        self.btn_connect.setStyleSheet("background-color: #00E676; color: #0D0F17; font-weight: bold;")
+        self.btn_connect.setStyleSheet("background-color: #238636; color: #FFFFFF; font-weight: bold; border-color: #2EA043;")
         self.btn_connect.clicked.connect(self.toggle_connection)
         top_bar.addWidget(self.btn_connect)
 
-        # Status badge: Red when disconnected, Green when connected
+        # Status badge
         self.lbl_status = QtWidgets.QLabel("DISCONNECTED")
-        self.lbl_status.setStyleSheet("color: #FF1744; font-weight: bold; font-size: 11px; background-color: #26080E; border: 1px solid #FF1744; border-radius: 4px; padding: 4px 10px;")
+        self.lbl_status.setStyleSheet("color: #F85149; font-weight: bold; font-size: 11px; background-color: #211215; border: 1px solid #F85149; border-radius: 4px; padding: 4px 10px;")
         top_bar.addWidget(self.lbl_status)
         top_bar.addStretch()
 
         self.chk_realtime = QtWidgets.QCheckBox("Realtime (50Hz)")
         self.chk_realtime.setChecked(True)
-        self.chk_realtime.setStyleSheet("color: #00E676; font-weight: bold;")
+        self.chk_realtime.setStyleSheet("color: #38BDF8; font-weight: bold;")
         self.chk_realtime.stateChanged.connect(self.on_realtime_toggled)
         top_bar.addWidget(self.chk_realtime)
         main_layout.addLayout(top_bar)
@@ -1023,164 +1042,191 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         layout.addWidget(right_panel, stretch=1)
 
     # ---------------------------------------------------------------------------
-    # TAB 2: TRIPOD WALKING GAIT GENERATOR (On-Chip Kinematics Controller)
+    # TAB 2: TRIPOD WALKING GAIT GENERATOR (Compact Pro Design)
     # ---------------------------------------------------------------------------
     def init_tripod_tab(self):
         layout = QtWidgets.QHBoxLayout(self.tab_tripod)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(12)
 
-        box_params = QtWidgets.QGroupBox("Tripod Walking Gait Parameters & Amplitude")
+        # LEFT PANEL: Parameters & Discrete Buttons (Compact & Centered)
+        box_params = QtWidgets.QGroupBox("GAIT PARAMETERS & DIRECTION")
         param_layout = QtWidgets.QVBoxLayout(box_params)
-        param_layout.setContentsMargins(14, 18, 14, 14)
-        param_layout.setSpacing(10)
+        param_layout.setContentsMargins(12, 14, 12, 12)
+        param_layout.setSpacing(6)
+
+        slider_style = """
+            QSlider::groove:horizontal { height: 3px; background: #21262D; border-radius: 1px; }
+            QSlider::sub-page:horizontal { background: #38BDF8; border-radius: 1px; }
+            QSlider::handle:horizontal { background: #F0F6FC; width: 12px; height: 12px; margin-top: -5px; margin-bottom: -5px; border-radius: 6px; border: 1px solid #38BDF8; }
+        """
 
         # 1. Stride Amplitude Slider
         h_stride = QtWidgets.QHBoxLayout()
-        lbl_s_title = QtWidgets.QLabel("Stride Amplitude (Coxa Swing):")
-        lbl_s_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_s_title = QtWidgets.QLabel("Stride Amplitude:")
+        lbl_s_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_stride.addWidget(lbl_s_title)
+        h_stride.addStretch()
 
         self.lbl_tripod_stride_val = QtWidgets.QLabel("18 deg")
-        self.lbl_tripod_stride_val.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_tripod_stride_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_stride.addWidget(self.lbl_tripod_stride_val)
         param_layout.addLayout(h_stride)
 
         self.slider_tripod_stride = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_tripod_stride.setRange(5, 35)
         self.slider_tripod_stride.setValue(18)
-        self.slider_tripod_stride.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_stride.setStyleSheet(slider_style)
         self.slider_tripod_stride.valueChanged.connect(self.on_tripod_slider_changed)
         param_layout.addWidget(self.slider_tripod_stride)
 
         # 2. Lift Amplitude Slider
         h_lift = QtWidgets.QHBoxLayout()
-        lbl_l_title = QtWidgets.QLabel("Lift Amplitude (Femur Height):")
-        lbl_l_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_l_title = QtWidgets.QLabel("Lift Height:")
+        lbl_l_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_lift.addWidget(lbl_l_title)
+        h_lift.addStretch()
 
         self.lbl_tripod_lift_val = QtWidgets.QLabel("15 deg")
-        self.lbl_tripod_lift_val.setStyleSheet("color: #00E676; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_tripod_lift_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_lift.addWidget(self.lbl_tripod_lift_val)
         param_layout.addLayout(h_lift)
 
         self.slider_tripod_lift = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_tripod_lift.setRange(5, 30)
         self.slider_tripod_lift.setValue(15)
-        self.slider_tripod_lift.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E676; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_lift.setStyleSheet(slider_style)
         self.slider_tripod_lift.valueChanged.connect(self.on_tripod_slider_changed)
         param_layout.addWidget(self.slider_tripod_lift)
 
         # 3. Gait Frequency / Speed Slider
         h_speed = QtWidgets.QHBoxLayout()
-        lbl_sp_title = QtWidgets.QLabel("Step Frequency / Speed:")
-        lbl_sp_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_sp_title = QtWidgets.QLabel("Step Speed:")
+        lbl_sp_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_speed.addWidget(lbl_sp_title)
+        h_speed.addStretch()
 
         self.lbl_tripod_speed_val = QtWidgets.QLabel("1.0 Hz (1000ms)")
-        self.lbl_tripod_speed_val.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_tripod_speed_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_speed.addWidget(self.lbl_tripod_speed_val)
         param_layout.addLayout(h_speed)
 
         self.slider_tripod_speed = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
-        self.slider_tripod_speed.setRange(4, 25) # 0.4 Hz to 2.5 Hz (step 0.1)
+        self.slider_tripod_speed.setRange(4, 25)
         self.slider_tripod_speed.setValue(10)
-        self.slider_tripod_speed.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_speed.setStyleSheet(slider_style)
         self.slider_tripod_speed.valueChanged.connect(self.on_tripod_slider_changed)
         param_layout.addWidget(self.slider_tripod_speed)
 
+        param_layout.addSpacing(4)
+
         # Presets Bar
         preset_layout = QtWidgets.QHBoxLayout()
-        preset_layout.addWidget(QtWidgets.QLabel("Gait Presets:"))
+        lbl_p = QtWidgets.QLabel("Presets:")
+        lbl_p.setStyleSheet("color: #8B949E; font-weight: 600; font-size: 10px;")
+        preset_layout.addWidget(lbl_p)
 
-        btn_p_slow = QtWidgets.QPushButton("Slow Crawl (0.6Hz)")
-        btn_p_slow.setStyleSheet("background-color: #1C2030; color: #00E5FF; border: 1px solid #00E5FF; font-size: 10px; padding: 4px;")
-        btn_p_slow.clicked.connect(lambda: self.set_tripod_preset(12, 12, 6))
-        preset_layout.addWidget(btn_p_slow)
-
-        btn_p_norm = QtWidgets.QPushButton("Normal Walk (1.0Hz)")
-        btn_p_norm.setStyleSheet("background-color: #1C2030; color: #00E676; border: 1px solid #00E676; font-size: 10px; padding: 4px;")
-        btn_p_norm.clicked.connect(lambda: self.set_tripod_preset(18, 15, 10))
-        preset_layout.addWidget(btn_p_norm)
-
-        btn_p_fast = QtWidgets.QPushButton("Fast Trot (1.6Hz)")
-        btn_p_fast.setStyleSheet("background-color: #1C2030; color: #FF9100; border: 1px solid #FF9100; font-size: 10px; padding: 4px;")
-        btn_p_fast.clicked.connect(lambda: self.set_tripod_preset(24, 18, 16))
-        preset_layout.addWidget(btn_p_fast)
-
-        btn_p_high = QtWidgets.QPushButton("High Step (0.8Hz)")
-        btn_p_high.setStyleSheet("background-color: #1C2030; color: #E040FB; border: 1px solid #E040FB; font-size: 10px; padding: 4px;")
-        btn_p_high.clicked.connect(lambda: self.set_tripod_preset(14, 25, 8))
-        preset_layout.addWidget(btn_p_high)
+        chip_style = """
+            QPushButton { background-color: #21262D; color: #C9D1D9; border: 1px solid #30363D; border-radius: 3px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+            QPushButton:hover { background-color: #30363D; color: #F0F6FC; border-color: #8B949E; }
+        """
+        for name, s, l, f in [("Slow (0.6Hz)", 12, 12, 6), ("Normal (1.0Hz)", 18, 15, 10), ("Fast (1.6Hz)", 24, 18, 16), ("High Step (0.8Hz)", 14, 25, 8)]:
+            btn = QtWidgets.QPushButton(name)
+            btn.setStyleSheet(chip_style)
+            btn.clicked.connect(lambda _, st=s, li=l, fr=f: self.set_tripod_preset(st, li, fr))
+            preset_layout.addWidget(btn)
 
         preset_layout.addStretch()
         param_layout.addLayout(preset_layout)
 
-        # 4. Direction Control Pad
-        pad_group = QtWidgets.QGroupBox("Tripod Motion Direction Controls")
-        pad_layout = QtWidgets.QGridLayout(pad_group)
-        pad_layout.setContentsMargins(10, 14, 10, 10)
-        pad_layout.setSpacing(8)
+        param_layout.addSpacing(6)
 
-        self.btn_gait_fwd = QtWidgets.QPushButton("▲  WALK FORWARD")
-        self.btn_gait_fwd.setStyleSheet("background-color: #00E676; color: #0D0F17; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        # Direction Control Pad (3x3 Grid)
+        pad_group = QtWidgets.QGroupBox("DISCRETE DIRECTION CONTROLS")
+        pad_layout = QtWidgets.QGridLayout(pad_group)
+        pad_layout.setContentsMargins(8, 12, 8, 8)
+        pad_layout.setSpacing(6)
+
+        btn_dir_style = """
+            QPushButton { background-color: #21262D; color: #F0F6FC; border: 1px solid #30363D; font-size: 11px; font-weight: bold; padding: 7px; border-radius: 4px; }
+            QPushButton:hover { background-color: #30363D; border-color: #38BDF8; color: #38BDF8; }
+            QPushButton:pressed { background-color: #38BDF8; color: #0D1117; }
+        """
+        btn_stop_style = """
+            QPushButton { background-color: #211215; color: #F85149; border: 1px solid #F85149; font-size: 11px; font-weight: bold; padding: 7px; border-radius: 4px; }
+            QPushButton:hover { background-color: #3D1217; color: #FFA19B; }
+            QPushButton:pressed { background-color: #F85149; color: #FFFFFF; }
+        """
+
+        self.btn_gait_fwd = QtWidgets.QPushButton("▲  FORWARD")
+        self.btn_gait_fwd.setStyleSheet(btn_dir_style)
         self.btn_gait_fwd.clicked.connect(lambda: self.send_tripod_gait_cmd("FWD"))
         pad_layout.addWidget(self.btn_gait_fwd, 0, 1)
 
-        self.btn_gait_left = QtWidgets.QPushButton("◀  TURN LEFT (CCW)")
-        self.btn_gait_left.setStyleSheet("background-color: #FFC107; color: #0D0F17; font-size: 12px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_left = QtWidgets.QPushButton("◀  LEFT")
+        self.btn_gait_left.setStyleSheet(btn_dir_style)
         self.btn_gait_left.clicked.connect(lambda: self.send_tripod_gait_cmd("LEFT"))
         pad_layout.addWidget(self.btn_gait_left, 1, 0)
 
-        self.btn_gait_stop = QtWidgets.QPushButton("■  STOP / STAND")
-        self.btn_gait_stop.setStyleSheet("background-color: #FF1744; color: #FFFFFF; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_stop = QtWidgets.QPushButton("■  STOP")
+        self.btn_gait_stop.setStyleSheet(btn_stop_style)
         self.btn_gait_stop.clicked.connect(lambda: self.send_tripod_gait_cmd("STOP"))
         pad_layout.addWidget(self.btn_gait_stop, 1, 1)
 
-        self.btn_gait_right = QtWidgets.QPushButton("TURN RIGHT (CW)  ▶")
-        self.btn_gait_right.setStyleSheet("background-color: #FF9100; color: #0D0F17; font-size: 12px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_right = QtWidgets.QPushButton("RIGHT  ▶")
+        self.btn_gait_right.setStyleSheet(btn_dir_style)
         self.btn_gait_right.clicked.connect(lambda: self.send_tripod_gait_cmd("RIGHT"))
         pad_layout.addWidget(self.btn_gait_right, 1, 2)
 
-        self.btn_gait_back = QtWidgets.QPushButton("▼  WALK BACKWARD")
-        self.btn_gait_back.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_back = QtWidgets.QPushButton("▼  BACKWARD")
+        self.btn_gait_back.setStyleSheet(btn_dir_style)
         self.btn_gait_back.clicked.connect(lambda: self.send_tripod_gait_cmd("BACK"))
         pad_layout.addWidget(self.btn_gait_back, 2, 1)
 
         param_layout.addWidget(pad_group)
+        param_layout.addStretch(1)
+
         layout.addWidget(box_params, stretch=1)
 
-        # -----------------------------------------------------------------------
-        # RIGHT PANEL: 2D MOTION JOYSTICK CONTROLLER & LIVE STATUS
-        # -----------------------------------------------------------------------
-        box_joystick = QtWidgets.QGroupBox("2D Interactive Movement Joystick (Click & Drag)")
+        # RIGHT PANEL: Movement Joystick
+        box_joystick = QtWidgets.QGroupBox("MOVEMENT JOYSTICK")
         joy_layout = QtWidgets.QVBoxLayout(box_joystick)
-        joy_layout.setContentsMargins(14, 16, 14, 14)
-        joy_layout.setSpacing(10)
+        joy_layout.setContentsMargins(12, 14, 12, 12)
+        joy_layout.setSpacing(6)
 
-        # Joystick Header Badge
-        self.lbl_joy_status = QtWidgets.QLabel("JOYSTICK IDLE (NEUTRAL STAND)")
+        # Status Badge Pill
+        self.lbl_joy_status = QtWidgets.QLabel("IDLE  •  STANDING")
         self.lbl_joy_status.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+        self.lbl_joy_status.setStyleSheet("color: #8B949E; font-weight: bold; font-size: 11px; background-color: #21262D; border: 1px solid #30363D; border-radius: 4px; padding: 4px;")
         joy_layout.addWidget(self.lbl_joy_status)
 
-        # Virtual Joystick Canvas Widget
+        joy_layout.addSpacing(2)
+
+        # Centered Joystick Canvas
+        joy_center_layout = QtWidgets.QHBoxLayout()
+        joy_center_layout.addStretch()
         self.joystick_widget = VirtualJoystickWidget()
         self.joystick_widget.joystick_moved.connect(self.on_joystick_moved)
         self.joystick_widget.joystick_released.connect(self.on_joystick_released)
-        joy_layout.addWidget(self.joystick_widget, stretch=1)
+        joy_center_layout.addWidget(self.joystick_widget)
+        joy_center_layout.addStretch()
+        joy_layout.addLayout(joy_center_layout)
 
-        joy_hint = QtWidgets.QLabel("Drag puck in any direction to drive • Release mouse to Stand")
+        joy_hint = QtWidgets.QLabel("Drag to drive  •  Release mouse to stand")
         joy_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        joy_hint.setStyleSheet("color: #8E98B0; font-size: 10px; font-style: italic;")
+        joy_hint.setStyleSheet("color: #8B949E; font-size: 10px;")
         joy_layout.addWidget(joy_hint)
 
-        # Live Gait Command Console Output
+        joy_layout.addSpacing(2)
+
+        # Live Console Output
         self.txt_tripod_info = QtWidgets.QPlainTextEdit()
-        self.txt_tripod_info.setFixedHeight(85)
+        self.txt_tripod_info.setFixedHeight(55)
         self.txt_tripod_info.setReadOnly(True)
-        self.txt_tripod_info.setPlainText("Tripod Kinematics Ready.\nDrag Joystick or click direction buttons to begin walking.")
+        self.txt_tripod_info.setPlainText("Tripod kinematics ready.\nUse joystick or directional controls.")
         joy_layout.addWidget(self.txt_tripod_info)
+
+        joy_layout.addStretch(1)
 
         layout.addWidget(box_joystick, stretch=1)
 
@@ -1194,22 +1240,18 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         if direction != self.last_joystick_dir:
             self.last_joystick_dir = direction
             if direction == "IDLE":
-                self.lbl_joy_status.setText("JOYSTICK IDLE (NEUTRAL STAND)")
-                self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+                self.lbl_joy_status.setText("IDLE  •  STANDING")
+                self.lbl_joy_status.setStyleSheet("color: #8B949E; font-weight: bold; font-size: 11px; background-color: #21262D; border: 1px solid #30363D; border-radius: 4px; padding: 4px;")
                 self.send_tripod_gait_cmd("STOP")
             else:
-                color_map = {"FWD": "#00E676", "BACK": "#00E5FF", "LEFT": "#FFC107", "RIGHT": "#FF9100"}
-                bg_map = {"FWD": "#062417", "BACK": "#08202E", "LEFT": "#2E2408", "RIGHT": "#2E1908"}
-                col = color_map.get(direction, "#FFFFFF")
-                bg = bg_map.get(direction, "#141724")
-                self.lbl_joy_status.setText(f"DRIVING: {direction} (Stride={stride}°, Lift={lift}°, Speed={freq:.1f}Hz)")
-                self.lbl_joy_status.setStyleSheet(f"color: {col}; font-weight: 800; font-size: 11px; background-color: {bg}; border: 1px solid {col}; border-radius: 4px; padding: 5px;")
+                self.lbl_joy_status.setText(f"DRIVING: {direction} ({stride}° stride, {lift}° lift, {freq:.1f}Hz)")
+                self.lbl_joy_status.setStyleSheet("color: #38BDF8; font-weight: bold; font-size: 11px; background-color: #0C2133; border: 1px solid #38BDF8; border-radius: 4px; padding: 4px;")
                 self.send_tripod_gait_cmd(direction)
 
     def on_joystick_released(self):
         self.last_joystick_dir = "IDLE"
-        self.lbl_joy_status.setText("JOYSTICK IDLE (NEUTRAL STAND)")
-        self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+        self.lbl_joy_status.setText("IDLE  •  STANDING")
+        self.lbl_joy_status.setStyleSheet("color: #8B949E; font-weight: bold; font-size: 11px; background-color: #21262D; border: 1px solid #30363D; border-radius: 4px; padding: 4px;")
         self.send_tripod_gait_cmd("STOP")
 
     def on_tripod_slider_changed(self):
