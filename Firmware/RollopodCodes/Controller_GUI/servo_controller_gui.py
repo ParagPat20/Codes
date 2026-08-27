@@ -571,6 +571,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.init_dashboard_tab()
         self.tabs.addTab(self.tab_dashboard, "Master Control Dashboard")
 
+        self.tab_tripod = QtWidgets.QWidget()
+        self.init_tripod_tab()
+        self.tabs.addTab(self.tab_tripod, "Tripod Walking Gait")
+
         self.tab_waddling = QtWidgets.QWidget()
         self.init_waddling_tab()
         self.tabs.addTab(self.tab_waddling, "Waddling Gait Generator")
@@ -867,7 +871,180 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         layout.addWidget(right_panel, stretch=1)
 
     # ---------------------------------------------------------------------------
-    # TAB 2: WADDLING GAIT GENERATOR (Differential Sine Wave Motor Controller)
+    # TAB 2: TRIPOD WALKING GAIT GENERATOR (On-Chip Kinematics Controller)
+    # ---------------------------------------------------------------------------
+    def init_tripod_tab(self):
+        layout = QtWidgets.QHBoxLayout(self.tab_tripod)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(14)
+
+        box_params = QtWidgets.QGroupBox("Tripod Walking Gait Parameters & Amplitude")
+        param_layout = QtWidgets.QVBoxLayout(box_params)
+        param_layout.setContentsMargins(14, 18, 14, 14)
+        param_layout.setSpacing(10)
+
+        # 1. Stride Amplitude Slider
+        h_stride = QtWidgets.QHBoxLayout()
+        lbl_s_title = QtWidgets.QLabel("Stride Amplitude (Coxa Swing):")
+        lbl_s_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_stride.addWidget(lbl_s_title)
+
+        self.lbl_tripod_stride_val = QtWidgets.QLabel("18 deg")
+        self.lbl_tripod_stride_val.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_stride.addWidget(self.lbl_tripod_stride_val)
+        param_layout.addLayout(h_stride)
+
+        self.slider_tripod_stride = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_tripod_stride.setRange(5, 35)
+        self.slider_tripod_stride.setValue(18)
+        self.slider_tripod_stride.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_stride.valueChanged.connect(self.on_tripod_slider_changed)
+        param_layout.addWidget(self.slider_tripod_stride)
+
+        # 2. Lift Amplitude Slider
+        h_lift = QtWidgets.QHBoxLayout()
+        lbl_l_title = QtWidgets.QLabel("Lift Amplitude (Femur Height):")
+        lbl_l_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_lift.addWidget(lbl_l_title)
+
+        self.lbl_tripod_lift_val = QtWidgets.QLabel("15 deg")
+        self.lbl_tripod_lift_val.setStyleSheet("color: #00E676; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_lift.addWidget(self.lbl_tripod_lift_val)
+        param_layout.addLayout(h_lift)
+
+        self.slider_tripod_lift = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_tripod_lift.setRange(5, 30)
+        self.slider_tripod_lift.setValue(15)
+        self.slider_tripod_lift.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E676; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_lift.valueChanged.connect(self.on_tripod_slider_changed)
+        param_layout.addWidget(self.slider_tripod_lift)
+
+        # 3. Gait Frequency / Speed Slider
+        h_speed = QtWidgets.QHBoxLayout()
+        lbl_sp_title = QtWidgets.QLabel("Step Frequency / Speed:")
+        lbl_sp_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        h_speed.addWidget(lbl_sp_title)
+
+        self.lbl_tripod_speed_val = QtWidgets.QLabel("1.0 Hz (1000ms)")
+        self.lbl_tripod_speed_val.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        h_speed.addWidget(self.lbl_tripod_speed_val)
+        param_layout.addLayout(h_speed)
+
+        self.slider_tripod_speed = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
+        self.slider_tripod_speed.setRange(4, 25) # 0.4 Hz to 2.5 Hz (step 0.1)
+        self.slider_tripod_speed.setValue(10)
+        self.slider_tripod_speed.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_tripod_speed.valueChanged.connect(self.on_tripod_slider_changed)
+        param_layout.addWidget(self.slider_tripod_speed)
+
+        # Presets Bar
+        preset_layout = QtWidgets.QHBoxLayout()
+        preset_layout.addWidget(QtWidgets.QLabel("Gait Presets:"))
+
+        btn_p_slow = QtWidgets.QPushButton("Slow Crawl (0.6Hz)")
+        btn_p_slow.setStyleSheet("background-color: #1C2030; color: #00E5FF; border: 1px solid #00E5FF; font-size: 10px; padding: 4px;")
+        btn_p_slow.clicked.connect(lambda: self.set_tripod_preset(12, 12, 6))
+        preset_layout.addWidget(btn_p_slow)
+
+        btn_p_norm = QtWidgets.QPushButton("Normal Walk (1.0Hz)")
+        btn_p_norm.setStyleSheet("background-color: #1C2030; color: #00E676; border: 1px solid #00E676; font-size: 10px; padding: 4px;")
+        btn_p_norm.clicked.connect(lambda: self.set_tripod_preset(18, 15, 10))
+        preset_layout.addWidget(btn_p_norm)
+
+        btn_p_fast = QtWidgets.QPushButton("Fast Trot (1.6Hz)")
+        btn_p_fast.setStyleSheet("background-color: #1C2030; color: #FF9100; border: 1px solid #FF9100; font-size: 10px; padding: 4px;")
+        btn_p_fast.clicked.connect(lambda: self.set_tripod_preset(24, 18, 16))
+        preset_layout.addWidget(btn_p_fast)
+
+        btn_p_high = QtWidgets.QPushButton("High Step (0.8Hz)")
+        btn_p_high.setStyleSheet("background-color: #1C2030; color: #E040FB; border: 1px solid #E040FB; font-size: 10px; padding: 4px;")
+        btn_p_high.clicked.connect(lambda: self.set_tripod_preset(14, 25, 8))
+        preset_layout.addWidget(btn_p_high)
+
+        preset_layout.addStretch()
+        param_layout.addLayout(preset_layout)
+
+        # 4. Direction Control Pad
+        pad_group = QtWidgets.QGroupBox("Tripod Motion Direction Controls")
+        pad_layout = QtWidgets.QGridLayout(pad_group)
+        pad_layout.setContentsMargins(10, 14, 10, 10)
+        pad_layout.setSpacing(8)
+
+        self.btn_gait_fwd = QtWidgets.QPushButton("▲  WALK FORWARD")
+        self.btn_gait_fwd.setStyleSheet("background-color: #00E676; color: #0D0F17; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_fwd.clicked.connect(lambda: self.send_tripod_gait_cmd("FWD"))
+        pad_layout.addWidget(self.btn_gait_fwd, 0, 1)
+
+        self.btn_gait_left = QtWidgets.QPushButton("◀  TURN LEFT (CCW)")
+        self.btn_gait_left.setStyleSheet("background-color: #FFC107; color: #0D0F17; font-size: 12px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_left.clicked.connect(lambda: self.send_tripod_gait_cmd("LEFT"))
+        pad_layout.addWidget(self.btn_gait_left, 1, 0)
+
+        self.btn_gait_stop = QtWidgets.QPushButton("■  STOP / STAND")
+        self.btn_gait_stop.setStyleSheet("background-color: #FF1744; color: #FFFFFF; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_stop.clicked.connect(lambda: self.send_tripod_gait_cmd("STOP"))
+        pad_layout.addWidget(self.btn_gait_stop, 1, 1)
+
+        self.btn_gait_right = QtWidgets.QPushButton("TURN RIGHT (CW)  ▶")
+        self.btn_gait_right.setStyleSheet("background-color: #FF9100; color: #0D0F17; font-size: 12px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_right.clicked.connect(lambda: self.send_tripod_gait_cmd("RIGHT"))
+        pad_layout.addWidget(self.btn_gait_right, 1, 2)
+
+        self.btn_gait_back = QtWidgets.QPushButton("▼  WALK BACKWARD")
+        self.btn_gait_back.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-size: 13px; font-weight: bold; padding: 10px; border-radius: 4px;")
+        self.btn_gait_back.clicked.connect(lambda: self.send_tripod_gait_cmd("BACK"))
+        pad_layout.addWidget(self.btn_gait_back, 2, 1)
+
+        param_layout.addWidget(pad_group)
+        layout.addWidget(box_params, stretch=2)
+
+        # Info & Diagram Panel
+        box_diagram = QtWidgets.QGroupBox("Tripod Alternation Kinematics Monitor")
+        diag_layout = QtWidgets.QVBoxLayout(box_diagram)
+        diag_layout.setContentsMargins(14, 18, 14, 14)
+        diag_layout.setSpacing(10)
+
+        self.txt_tripod_info = QtWidgets.QPlainTextEdit()
+        self.txt_tripod_info.setReadOnly(True)
+        self.txt_tripod_info.setPlainText(
+            "=== ON-CHIP TRIPOD KINEMATICS ENGINE ===\n"
+            "50Hz high-speed on-chip trajectory execution across Left & Right Slaves.\n\n"
+            "• Group A: Left Front (LF) + Left Rear (LR) + Right Middle (RM)\n"
+            "• Group B: Right Front (RF) + Right Rear (RR) + Left Middle (LM)\n\n"
+            "Click 'WALK FORWARD' to begin synchronized walking.\n"
+            "Click 'STOP / STAND' to return all 20 servos to exact standing positions."
+        )
+        diag_layout.addWidget(self.txt_tripod_info)
+        layout.addWidget(box_diagram, stretch=1)
+
+    def on_tripod_slider_changed(self):
+        stride = self.slider_tripod_stride.value()
+        lift = self.slider_tripod_lift.value()
+        freq = self.slider_tripod_speed.value() / 10.0
+        ms = int(1000.0 / freq) if freq > 0 else 1000
+        self.lbl_tripod_stride_val.setText(f"{stride} deg")
+        self.lbl_tripod_lift_val.setText(f"{lift} deg")
+        self.lbl_tripod_speed_val.setText(f"{freq:.1f} Hz ({ms}ms)")
+
+    def set_tripod_preset(self, stride, lift, freq_val):
+        self.slider_tripod_stride.setValue(stride)
+        self.slider_tripod_lift.setValue(lift)
+        self.slider_tripod_speed.setValue(freq_val)
+
+    def send_tripod_gait_cmd(self, subcmd):
+        stride = self.slider_tripod_stride.value()
+        lift = self.slider_tripod_lift.value()
+        freq = self.slider_tripod_speed.value() / 10.0
+        if subcmd == "STOP":
+            self.send_command("B GAIT STOP")
+            self.txt_tripod_info.appendPlainText("[GAIT] Sent: B GAIT STOP (Standing Pose)")
+        else:
+            cmd = f"B GAIT {subcmd} {stride} {lift} {freq:.1f}"
+            self.send_command(cmd)
+            self.txt_tripod_info.appendPlainText(f"[GAIT] Sent: {cmd}")
+
+    # ---------------------------------------------------------------------------
+    # TAB 3: WADDLING GAIT GENERATOR (Differential Sine Wave Motor Controller)
     # ---------------------------------------------------------------------------
     def init_waddling_tab(self):
         layout = QtWidgets.QHBoxLayout(self.tab_waddling)

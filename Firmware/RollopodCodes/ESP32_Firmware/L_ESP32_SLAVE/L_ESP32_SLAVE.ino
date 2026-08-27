@@ -374,6 +374,111 @@ ServoConfig servoConfigs[16];
 uint16_t pwmFrequency = SERVO_FREQ_DEFAULT;
 String commandBuffer = "";
 
+// ============================================================
+// TRIPOD WALKING GAIT STATE & PARAMETERS (Left Slave)
+// ============================================================
+enum GaitState {
+  GAIT_IDLE,
+  GAIT_FORWARD,
+  GAIT_BACKWARD,
+  GAIT_TURN_LEFT,
+  GAIT_TURN_RIGHT
+};
+
+GaitState currentGaitState = GAIT_IDLE;
+float gaitStrideAmp = 18.0f;     // Default Coxa stride amplitude in degrees
+float gaitLiftAmp = 15.0f;       // Default Femur lift amplitude in degrees
+float gaitFreqHz = 1.0f;         // Default gait frequency in Hz (1.0 Hz = 1000ms cycle)
+unsigned long gaitStartTime = 0;
+unsigned long lastGaitUpdate = 0;
+
+void setGaitState(GaitState state, float stride = -1.0f, float lift = -1.0f, float freq = -1.0f) {
+  if (stride > 0.0f) gaitStrideAmp = constrain(stride, 2.0f, 40.0f);
+  if (lift > 0.0f)   gaitLiftAmp   = constrain(lift, 2.0f, 35.0f);
+  if (freq > 0.0f)   gaitFreqHz    = constrain(freq, 0.2f, 4.0f);
+
+  if (state == GAIT_IDLE) {
+    currentGaitState = GAIT_IDLE;
+    for (int i = 0; i < 16; i++) {
+      setServoAngle(i, DEFAULT_STANDING_ANGLES[i]);
+    }
+  } else {
+    currentGaitState = state;
+    gaitStartTime = millis();
+  }
+}
+
+void updateTripodGait() {
+  if (currentGaitState == GAIT_IDLE) return;
+
+  unsigned long now = millis();
+  if (now - lastGaitUpdate < 20) return; // 50Hz update rate
+  lastGaitUpdate = now;
+
+  float cycleDurationMs = 1000.0f / gaitFreqHz;
+  float elapsedMs = (float)((now - gaitStartTime) % (unsigned long)cycleDurationMs);
+  float normalizedPhase = (elapsedMs / cycleDurationMs) * 2.0f * PI; // 0 to 2*PI
+
+  // Direction multiplier for Left Side
+  float dirMult = 1.0f;
+  if (currentGaitState == GAIT_BACKWARD || currentGaitState == GAIT_TURN_LEFT) {
+    dirMult = -1.0f; // Left side moves backward for reverse or CCW left rotation
+  } else {
+    dirMult = 1.0f;  // Left side moves forward for forward or CW right rotation
+  }
+
+  // --- Helper lambda for leg trajectory calculation ---
+  auto computeLegPose = [&](float phaseOffset, float standCoxa, float coxaForwardSign,
+                            float standFemur, float femurLiftSign,
+                            float &outCoxa, float &outFemur) {
+    float phi = fmod(normalizedPhase + phaseOffset, 2.0f * PI);
+    if (phi < 0) phi += 2.0f * PI;
+
+    float swingFactor = 0.0f;
+    float liftFactor = 0.0f;
+
+    if (phi < PI) {
+      // SWING PHASE (in air: lift & swing forward)
+      liftFactor  = sin(phi);          // 0 -> 1 -> 0
+      swingFactor = -cos(phi);         // -1 (back) -> 0 -> +1 (forward)
+    } else {
+      // STANCE PHASE (on ground: push backward)
+      liftFactor  = 0.0f;              // Foot firmly on ground
+      swingFactor = cos(phi - PI);     // +1 (forward) -> 0 -> -1 (back)
+    }
+
+    outFemur = standFemur + (liftFactor * gaitLiftAmp * femurLiftSign);
+    outCoxa  = standCoxa  + (swingFactor * gaitStrideAmp * coxaForwardSign * dirMult);
+  };
+
+  // 1. Left Front Leg (LF) -> Group A (Phase Offset = 0)
+  // Coxa: CH 08 (stand 65°, forward sign = -1), Femur: CH 09 (stand 50°, lift sign = -1)
+  float lfCoxa, lfFemur;
+  computeLegPose(0.0f, DEFAULT_STANDING_ANGLES[8], -1.0f,
+                       DEFAULT_STANDING_ANGLES[9], -1.0f,
+                       lfCoxa, lfFemur);
+  setServoAngle(8, lfCoxa);
+  setServoAngle(9, lfFemur);
+
+  // 2. Left Rear Leg (LR) -> Group A (Phase Offset = 0)
+  // Coxa: CH 00 (stand 128°, forward sign = -1), Femur: CH 01 (stand 50°, lift sign = -1)
+  float lrCoxa, lrFemur;
+  computeLegPose(0.0f, DEFAULT_STANDING_ANGLES[0], -1.0f,
+                       DEFAULT_STANDING_ANGLES[1], -1.0f,
+                       lrCoxa, lrFemur);
+  setServoAngle(0, lrCoxa);
+  setServoAngle(1, lrFemur);
+
+  // 3. Left Middle Leg (LM) -> Group B (Phase Offset = PI)
+  // Coxa: CH 04 (stand 95°, forward sign = -1), Femur: CH 05 (stand 15°, lift sign = +1)
+  float lmCoxa, lmFemur;
+  computeLegPose(PI,   DEFAULT_STANDING_ANGLES[4], -1.0f,
+                       DEFAULT_STANDING_ANGLES[5], +1.0f,
+                       lmCoxa, lmFemur);
+  setServoAngle(4, lmCoxa);
+  setServoAngle(5, lmFemur);
+}
+
 void initESPNow();
 void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data,
                 int len);
@@ -476,6 +581,9 @@ void loop() {
 
   // Update Closed-Loop PID & Active Zero-Speed Position Hold Controller (50Hz)
   updateClosedLoopControl();
+
+  // Update On-Chip Tripod Walking Gait Controller (50Hz)
+  updateTripodGait();
 
   if (telemetryEnabled && hasMasterMac &&
       (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL)) {
@@ -604,10 +712,50 @@ void processCommand(String command, const uint8_t *senderMac) {
       }
     }
   } else if (command == "STAND" || command == "STAND_POSE" || command == "HOME") {
+    setGaitState(GAIT_IDLE);
     for (int i = 0; i < 16; i++) {
       setServoAngle(i, DEFAULT_STANDING_ANGLES[i]);
     }
     sendResponse("OK: Left Slave moved to Standing Pose\n", senderMac);
+  } else if (command.startsWith("GAIT ") || command.startsWith("WALK_") || command.startsWith("TURN_")) {
+    float stride = -1.0f, lift = -1.0f, speed = -1.0f;
+    char subCmd[32] = {0};
+    if (command.startsWith("GAIT ")) {
+      sscanf(command.c_str() + 5, "%s %f %f %f", subCmd, &stride, &lift, &speed);
+    } else {
+      sscanf(command.c_str(), "%s %f %f %f", subCmd, &stride, &lift, &speed);
+    }
+
+    String sub = String(subCmd);
+    sub.toUpperCase();
+
+    if (sub == "FWD" || sub == "FORWARD" || sub == "WALK_FWD") {
+      setGaitState(GAIT_FORWARD, stride, lift, speed);
+      sendResponse("OK: Tripod Gait FORWARD\n", senderMac);
+    } else if (sub == "BACK" || sub == "BACKWARD" || sub == "WALK_BACK") {
+      setGaitState(GAIT_BACKWARD, stride, lift, speed);
+      sendResponse("OK: Tripod Gait BACKWARD\n", senderMac);
+    } else if (sub == "LEFT" || sub == "TURN_LEFT") {
+      setGaitState(GAIT_TURN_LEFT, stride, lift, speed);
+      sendResponse("OK: Tripod Gait TURN LEFT\n", senderMac);
+    } else if (sub == "RIGHT" || sub == "TURN_RIGHT") {
+      setGaitState(GAIT_TURN_RIGHT, stride, lift, speed);
+      sendResponse("OK: Tripod Gait TURN RIGHT\n", senderMac);
+    } else if (sub == "STOP" || sub == "IDLE" || sub == "STAND") {
+      setGaitState(GAIT_IDLE);
+      sendResponse("OK: Tripod Gait STOP (Returned to Stand)\n", senderMac);
+    }
+  } else if (command.startsWith("GAIT_CONFIG ")) {
+    float stride = 18.0f, lift = 15.0f, freq = 1.0f;
+    if (sscanf(command.c_str() + 12, "%f %f %f", &stride, &lift, &freq) >= 1) {
+      if (stride > 0) gaitStrideAmp = constrain(stride, 2.0f, 40.0f);
+      if (lift > 0)   gaitLiftAmp   = constrain(lift, 2.0f, 35.0f);
+      if (freq > 0)   gaitFreqHz    = constrain(freq, 0.2f, 4.0f);
+      snprintf(responseBuffer, sizeof(responseBuffer),
+               "OK: Gait Config Stride=%.1f Lift=%.1f Freq=%.2fHz\n",
+               gaitStrideAmp, gaitLiftAmp, gaitFreqHz);
+      sendResponse(responseBuffer, senderMac);
+    }
   } else if (command.startsWith("MOTOR ") || command.startsWith("RPM ")) {
     int spaceIdx = command.indexOf(' ');
     int speed = command.substring(spaceIdx + 1).toInt();
