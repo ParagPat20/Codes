@@ -58,6 +58,158 @@ class NoWheelSlider(QtWidgets.QSlider):
     def wheelEvent(self, event):
         event.ignore()
 
+# -------------------------------------------------------------------------------
+# VIRTUAL 2D ANALOG JOYSTICK CONTROLLER WIDGET
+# -------------------------------------------------------------------------------
+class VirtualJoystickWidget(QtWidgets.QWidget):
+    joystick_moved = QtCore.pyqtSignal(float, float, str)  # (norm_x, norm_y, direction_str)
+    joystick_released = QtCore.pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(220, 220)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        self.puck_pos = QtCore.QPointF(0.0, 0.0)
+        self.is_dragging = False
+        self.current_direction = "IDLE"
+        self.deadzone = 0.15
+
+    def get_max_radius(self):
+        return min(self.width(), self.height()) / 2.0 - 24.0
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        cx = w / 2.0
+        cy = h / 2.0
+        max_r = max(10.0, self.get_max_radius())
+        puck_r = max(18.0, max_r * 0.28)
+
+        # 1. Dark Outer Background Disc with radial gradient
+        bg_grad = QtGui.QRadialGradient(cx, cy, max_r)
+        bg_grad.setColorAt(0.0, QtGui.QColor("#161A28"))
+        bg_grad.setColorAt(0.7, QtGui.QColor("#0F121C"))
+        bg_grad.setColorAt(1.0, QtGui.QColor("#080A10"))
+        painter.setBrush(QtGui.QBrush(bg_grad))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#222736"), 2))
+        painter.drawEllipse(QtCore.QPointF(cx, cy), max_r, max_r)
+
+        # 2. Concentric Guideline Rings (25%, 50%, 75%, 100%)
+        for r_pct in [0.25, 0.50, 0.75, 1.0]:
+            r = max_r * r_pct
+            pen_color = QtGui.QColor("#00E5FF") if r_pct == 1.0 else QtGui.QColor("#1E2434")
+            pen_width = 1.5 if r_pct == 1.0 else 1.0
+            painter.setPen(QtGui.QPen(pen_color, pen_width, QtCore.Qt.PenStyle.DashLine if r_pct < 1.0 else QtCore.Qt.PenStyle.SolidLine))
+            painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(QtCore.QPointF(cx, cy), r, r)
+
+        # 3. Crosshair Axis Lines
+        painter.setPen(QtGui.QPen(QtGui.QColor("#1E2434"), 1, QtCore.Qt.PenStyle.DashLine))
+        painter.drawLine(QtCore.QPointF(cx - max_r, cy), QtCore.QPointF(cx + max_r, cy))
+        painter.drawLine(QtCore.QPointF(cx, cy - max_r), QtCore.QPointF(cx, cy + max_r))
+
+        # 4. Directional Cardinal Labels & Active Highlight
+        painter.setFont(QtGui.QFont("Segoe UI", 10, QtGui.QFont.Weight.Bold))
+
+        # Top (FWD)
+        painter.setPen(QtGui.QColor("#00E676" if self.current_direction == "FWD" else "#8E98B0"))
+        painter.drawText(QtCore.QRectF(cx - 40, cy - max_r + 2, 80, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "▲ FWD")
+
+        # Bottom (BACK)
+        painter.setPen(QtGui.QColor("#00E5FF" if self.current_direction == "BACK" else "#8E98B0"))
+        painter.drawText(QtCore.QRectF(cx - 40, cy + max_r - 22, 80, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "▼ BACK")
+
+        # Left (LEFT)
+        painter.setPen(QtGui.QColor("#FFC107" if self.current_direction == "LEFT" else "#8E98B0"))
+        painter.drawText(QtCore.QRectF(cx - max_r + 4, cy - 10, 50, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "◀ LEFT")
+
+        # Right (RIGHT)
+        painter.setPen(QtGui.QColor("#FF9100" if self.current_direction == "RIGHT" else "#8E98B0"))
+        painter.drawText(QtCore.QRectF(cx + max_r - 54, cy - 10, 50, 20), QtCore.Qt.AlignmentFlag.AlignCenter, "RIGHT ▶")
+
+        # 5. Connecting Vector Line from Center to Puck
+        curr_puck_x = cx + self.puck_pos.x()
+        curr_puck_y = cy + self.puck_pos.y()
+        if self.puck_pos.manhattanLength() > 2:
+            glow_color = QtGui.QColor("#00E676") if self.current_direction == "FWD" else (
+                         QtGui.QColor("#00E5FF") if self.current_direction == "BACK" else (
+                         QtGui.QColor("#FFC107") if self.current_direction == "LEFT" else (
+                         QtGui.QColor("#FF9100") if self.current_direction == "RIGHT" else QtGui.QColor("#00E5FF"))))
+            painter.setPen(QtGui.QPen(glow_color, 2))
+            painter.drawLine(QtCore.QPointF(cx, cy), QtCore.QPointF(curr_puck_x, curr_puck_y))
+
+        # 6. Movable Metallic Puck / Joystick Handle
+        puck_grad = QtGui.QRadialGradient(curr_puck_x, curr_puck_y, puck_r)
+        if self.is_dragging:
+            puck_grad.setColorAt(0.0, QtGui.QColor("#FFFFFF"))
+            puck_grad.setColorAt(0.3, QtGui.QColor("#00E5FF"))
+            puck_grad.setColorAt(1.0, QtGui.QColor("#0A3A40"))
+            border_pen = QtGui.QPen(QtGui.QColor("#00E5FF"), 2)
+        else:
+            puck_grad.setColorAt(0.0, QtGui.QColor("#2C3246"))
+            puck_grad.setColorAt(0.7, QtGui.QColor("#181C28"))
+            puck_grad.setColorAt(1.0, QtGui.QColor("#0D0F17"))
+            border_pen = QtGui.QPen(QtGui.QColor("#3A425A"), 1.5)
+
+        painter.setBrush(QtGui.QBrush(puck_grad))
+        painter.setPen(border_pen)
+        painter.drawEllipse(QtCore.QPointF(curr_puck_x, curr_puck_y), puck_r, puck_r)
+
+        # Center dot on puck
+        painter.setBrush(QtGui.QBrush(QtGui.QColor("#FFFFFF" if self.is_dragging else "#00E5FF")))
+        painter.setPen(QtCore.Qt.PenStyle.NoPen)
+        painter.drawEllipse(QtCore.QPointF(curr_puck_x, curr_puck_y), 4.0, 4.0)
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.is_dragging = True
+            self.update_puck_from_event(event.position())
+
+    def mouseMoveEvent(self, event):
+        if self.is_dragging:
+            self.update_puck_from_event(event.position())
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.is_dragging = False
+            self.puck_pos = QtCore.QPointF(0.0, 0.0)
+            self.current_direction = "IDLE"
+            self.update()
+            self.joystick_released.emit()
+
+    def update_puck_from_event(self, pos):
+        cx = self.width() / 2.0
+        cy = self.height() / 2.0
+        dx = pos.x() - cx
+        dy = pos.y() - cy
+        dist = math.hypot(dx, dy)
+        max_r = max(10.0, self.get_max_radius())
+
+        if dist > max_r:
+            dx = (dx / dist) * max_r
+            dy = (dy / dist) * max_r
+            dist = max_r
+
+        self.puck_pos = QtCore.QPointF(dx, dy)
+
+        norm_x = dx / max_r
+        norm_y = -dy / max_r  # Up is Positive (+Y), Down is Negative (-Y)
+        mag = dist / max_r
+
+        new_dir = "IDLE"
+        if mag >= self.deadzone:
+            if abs(norm_y) >= abs(norm_x):
+                new_dir = "FWD" if norm_y > 0 else "BACK"
+            else:
+                new_dir = "RIGHT" if norm_x > 0 else "LEFT"
+
+        self.current_direction = new_dir
+        self.update()
+        self.joystick_moved.emit(norm_x, norm_y, new_dir)
+
 # AUTO-REFRESHING COM PORT COMBOBOX
 class ClickRefreshComboBox(QtWidgets.QComboBox):
     def __init__(self, parent=None):
@@ -996,26 +1148,69 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         pad_layout.addWidget(self.btn_gait_back, 2, 1)
 
         param_layout.addWidget(pad_group)
-        layout.addWidget(box_params, stretch=2)
+        layout.addWidget(box_params, stretch=1)
 
-        # Info & Diagram Panel
-        box_diagram = QtWidgets.QGroupBox("Tripod Alternation Kinematics Monitor")
-        diag_layout = QtWidgets.QVBoxLayout(box_diagram)
-        diag_layout.setContentsMargins(14, 18, 14, 14)
-        diag_layout.setSpacing(10)
+        # -----------------------------------------------------------------------
+        # RIGHT PANEL: 2D MOTION JOYSTICK CONTROLLER & LIVE STATUS
+        # -----------------------------------------------------------------------
+        box_joystick = QtWidgets.QGroupBox("2D Interactive Movement Joystick (Click & Drag)")
+        joy_layout = QtWidgets.QVBoxLayout(box_joystick)
+        joy_layout.setContentsMargins(14, 16, 14, 14)
+        joy_layout.setSpacing(10)
 
+        # Joystick Header Badge
+        self.lbl_joy_status = QtWidgets.QLabel("JOYSTICK IDLE (NEUTRAL STAND)")
+        self.lbl_joy_status.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+        joy_layout.addWidget(self.lbl_joy_status)
+
+        # Virtual Joystick Canvas Widget
+        self.joystick_widget = VirtualJoystickWidget()
+        self.joystick_widget.joystick_moved.connect(self.on_joystick_moved)
+        self.joystick_widget.joystick_released.connect(self.on_joystick_released)
+        joy_layout.addWidget(self.joystick_widget, stretch=1)
+
+        joy_hint = QtWidgets.QLabel("Drag puck in any direction to drive • Release mouse to Stand")
+        joy_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        joy_hint.setStyleSheet("color: #8E98B0; font-size: 10px; font-style: italic;")
+        joy_layout.addWidget(joy_hint)
+
+        # Live Gait Command Console Output
         self.txt_tripod_info = QtWidgets.QPlainTextEdit()
+        self.txt_tripod_info.setFixedHeight(85)
         self.txt_tripod_info.setReadOnly(True)
-        self.txt_tripod_info.setPlainText(
-            "=== ON-CHIP TRIPOD KINEMATICS ENGINE ===\n"
-            "50Hz high-speed on-chip trajectory execution across Left & Right Slaves.\n\n"
-            "• Group A: Left Front (LF) + Left Rear (LR) + Right Middle (RM)\n"
-            "• Group B: Right Front (RF) + Right Rear (RR) + Left Middle (LM)\n\n"
-            "Click 'WALK FORWARD' to begin synchronized walking.\n"
-            "Click 'STOP / STAND' to return all 20 servos to exact standing positions."
-        )
-        diag_layout.addWidget(self.txt_tripod_info)
-        layout.addWidget(box_diagram, stretch=1)
+        self.txt_tripod_info.setPlainText("Tripod Kinematics Ready.\nDrag Joystick or click direction buttons to begin walking.")
+        joy_layout.addWidget(self.txt_tripod_info)
+
+        layout.addWidget(box_joystick, stretch=1)
+
+        self.last_joystick_dir = "IDLE"
+
+    def on_joystick_moved(self, norm_x, norm_y, direction):
+        stride = self.slider_tripod_stride.value()
+        lift = self.slider_tripod_lift.value()
+        freq = self.slider_tripod_speed.value() / 10.0
+
+        if direction != self.last_joystick_dir:
+            self.last_joystick_dir = direction
+            if direction == "IDLE":
+                self.lbl_joy_status.setText("JOYSTICK IDLE (NEUTRAL STAND)")
+                self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+                self.send_tripod_gait_cmd("STOP")
+            else:
+                color_map = {"FWD": "#00E676", "BACK": "#00E5FF", "LEFT": "#FFC107", "RIGHT": "#FF9100"}
+                bg_map = {"FWD": "#062417", "BACK": "#08202E", "LEFT": "#2E2408", "RIGHT": "#2E1908"}
+                col = color_map.get(direction, "#FFFFFF")
+                bg = bg_map.get(direction, "#141724")
+                self.lbl_joy_status.setText(f"DRIVING: {direction} (Stride={stride}°, Lift={lift}°, Speed={freq:.1f}Hz)")
+                self.lbl_joy_status.setStyleSheet(f"color: {col}; font-weight: 800; font-size: 11px; background-color: {bg}; border: 1px solid {col}; border-radius: 4px; padding: 5px;")
+                self.send_tripod_gait_cmd(direction)
+
+    def on_joystick_released(self):
+        self.last_joystick_dir = "IDLE"
+        self.lbl_joy_status.setText("JOYSTICK IDLE (NEUTRAL STAND)")
+        self.lbl_joy_status.setStyleSheet("color: #00E676; font-weight: 800; font-size: 11px; background-color: #062417; border: 1px solid #00E676; border-radius: 4px; padding: 5px;")
+        self.send_tripod_gait_cmd("STOP")
 
     def on_tripod_slider_changed(self):
         stride = self.slider_tripod_stride.value()
