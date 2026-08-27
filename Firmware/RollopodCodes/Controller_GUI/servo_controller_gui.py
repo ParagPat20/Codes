@@ -1123,11 +1123,16 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.lbl_tripod_speed_val = QtWidgets.QLabel("1.0 Hz (1000ms)")
         self.lbl_tripod_speed_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_speed.addWidget(self.lbl_tripod_speed_val)
+
+        # Range hint label
+        lbl_sp_range = QtWidgets.QLabel("0.4 – 5.0 Hz")
+        lbl_sp_range.setStyleSheet("color: #484F58; font-size: 9px; font-family: 'Consolas';")
+        h_speed.addWidget(lbl_sp_range)
         param_layout.addLayout(h_speed)
 
         self.slider_tripod_speed = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
-        self.slider_tripod_speed.setRange(4, 25)
-        self.slider_tripod_speed.setValue(10)
+        self.slider_tripod_speed.setRange(4, 50)   # 4 = 0.4 Hz, 50 = 5.0 Hz  (value / 10.0)
+        self.slider_tripod_speed.setValue(10)       # default 1.0 Hz
         self.slider_tripod_speed.setStyleSheet(slider_style)
         self.slider_tripod_speed.valueChanged.connect(self.on_tripod_slider_changed)
         param_layout.addWidget(self.slider_tripod_speed)
@@ -1144,7 +1149,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             QPushButton { background-color: #21262D; color: #C9D1D9; border: 1px solid #30363D; border-radius: 3px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
             QPushButton:hover { background-color: #30363D; color: #F0F6FC; border-color: #8B949E; }
         """
-        for name, s, l, f in [("Slow (0.6Hz)", 12, 12, 6), ("Normal (1.0Hz)", 18, 15, 10), ("Fast (1.6Hz)", 24, 18, 16), ("High Step (0.8Hz)", 14, 25, 8)]:
+        for name, s, l, f in [("Slow (0.4Hz)", 12, 12, 4), ("Normal (1.0Hz)", 18, 15, 10), ("Fast (2.0Hz)", 24, 18, 20), ("Turbo (3.5Hz)", 28, 20, 35), ("Max (5.0Hz)", 30, 22, 50)]:
             btn = QtWidgets.QPushButton(name)
             btn.setStyleSheet(chip_style)
             btn.clicked.connect(lambda _, st=s, li=l, fr=f: self.set_tripod_preset(st, li, fr))

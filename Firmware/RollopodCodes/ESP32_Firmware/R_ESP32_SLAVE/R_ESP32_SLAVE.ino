@@ -368,6 +368,34 @@ uint16_t pwmFrequency = SERVO_FREQ_DEFAULT;
 String commandBuffer = "";
 
 // ============================================================
+// FORWARD DECLARATIONS
+// ============================================================
+void initESPNow();
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len);
+#else
+void onDataRecv(const uint8_t *srcMac, const uint8_t *data, int len);
+#endif
+void sendResponse(const char *response, const uint8_t *mac_addr);
+void printMacAddress();
+void setServoPWM(uint8_t channel, uint16_t tickValue);
+void setServoAngle(uint8_t channel, float angle);
+void setPWMFrequency(uint16_t freq);
+void setCalibration(uint8_t channel, uint16_t minTick, uint16_t maxTick);
+void setAllCalibrations(uint16_t minTick, uint16_t maxTick);
+void getCalibration(uint8_t channel, const uint8_t *senderMac);
+void getAllCalibrations(const uint8_t *senderMac);
+void resetToDefaults();
+void printInfo(const uint8_t *senderMac);
+void processCommand(String command, const uint8_t *senderMac);
+
+bool initMPU6050();
+void updateMPU();
+void setMotorSpeed(int speed);
+void setTorque(int state);
+void sendTelemetry();
+
+// ============================================================
 // TRIPOD WALKING GAIT STATE & PARAMETERS (Right Slave)
 // ============================================================
 enum GaitState {
@@ -474,27 +502,6 @@ void updateTripodGait() {
   setServoAngle(8, rrCoxa);
   setServoAngle(9, rrFemur);
 }
-
-void initESPNow();
-void onDataRecv(const esp_now_recv_info *recvInfo, const uint8_t *data, int len);
-void sendResponse(const char *response, const uint8_t *mac_addr);
-void printMacAddress();
-void setServoPWM(uint8_t channel, uint16_t tickValue);
-void setServoAngle(uint8_t channel, float angle);
-void setPWMFrequency(uint16_t freq);
-void setCalibration(uint8_t channel, uint16_t minTick, uint16_t maxTick);
-void setAllCalibrations(uint16_t minTick, uint16_t maxTick);
-void getCalibration(uint8_t channel, const uint8_t *senderMac);
-void getAllCalibrations(const uint8_t *senderMac);
-void resetToDefaults();
-void printInfo(const uint8_t *senderMac);
-void processCommand(String command, const uint8_t *senderMac);
-
-bool initMPU6050();
-void updateMPU();
-void setMotorSpeed(int speed);
-void setTorque(int state);
-void sendTelemetry();
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
