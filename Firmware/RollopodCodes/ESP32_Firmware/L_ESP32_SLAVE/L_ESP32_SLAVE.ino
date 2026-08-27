@@ -326,7 +326,7 @@ unsigned long lastMpuUpdate = 0;
 
 uint8_t masterMac[6];
 bool hasMasterMac = false;
-bool telemetryEnabled = false;
+bool telemetryEnabled = true;
 unsigned long lastTelemetryTime = 0;
 const unsigned long TELEMETRY_INTERVAL = 100;
 

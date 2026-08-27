@@ -604,7 +604,21 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         self.realtime_enabled = True
         self.telemetry_active = False
 
+        # Locate rollopod_servo_profile.json
+        gui_dir = os.path.dirname(os.path.abspath(__file__))
+        codes_dir = os.path.dirname(os.path.dirname(os.path.dirname(gui_dir)))
+        candidate_paths = [
+            os.path.join(gui_dir, "rollopod_servo_profile.json"),
+            os.path.join(codes_dir, "rollopod_servo_profile.json"),
+            r"f:\Rollopod\Codes\rollopod_servo_profile.json",
+            "rollopod_servo_profile.json"
+        ]
         self.settings_file = "rollopod_servo_profile.json"
+        for p in candidate_paths:
+            if os.path.exists(p):
+                self.settings_file = p
+                break
+
         self.cards = []
         self.dashboard_view_mode = "Leg Control"
 
@@ -1285,163 +1299,196 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
     # ---------------------------------------------------------------------------
     def init_waddling_tab(self):
         layout = QtWidgets.QHBoxLayout(self.tab_waddling)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(12)
 
-        box_ctrl = QtWidgets.QGroupBox("Waddling Gait Parameters & Differential Sine Generator")
+        box_ctrl = QtWidgets.QGroupBox("WADDLING GAIT PARAMETERS")
         ctrl_layout = QtWidgets.QVBoxLayout(box_ctrl)
-        ctrl_layout.setContentsMargins(14, 18, 14, 14)
-        ctrl_layout.setSpacing(10)
+        ctrl_layout.setContentsMargins(12, 14, 12, 12)
+        ctrl_layout.setSpacing(6)
 
+        slider_style = """
+            QSlider::groove:horizontal { height: 3px; background: #21262D; border-radius: 1px; }
+            QSlider::sub-page:horizontal { background: #38BDF8; border-radius: 1px; }
+            QSlider::handle:horizontal { background: #F0F6FC; width: 12px; height: 12px; margin-top: -5px; margin-bottom: -5px; border-radius: 6px; border: 1px solid #38BDF8; }
+        """
+
+        # 1. Base Speed Slider
         h_base = QtWidgets.QHBoxLayout()
         lbl_b_title = QtWidgets.QLabel("Base Speed (V_base):")
-        lbl_b_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_b_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_base.addWidget(lbl_b_title)
+        h_base.addStretch()
 
         self.lbl_w_base_val = QtWidgets.QLabel("120")
-        self.lbl_w_base_val.setStyleSheet("color: #00E676; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_w_base_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_base.addWidget(self.lbl_w_base_val)
         ctrl_layout.addLayout(h_base)
 
         self.slider_w_base = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_w_base.setRange(-255, 255)
         self.slider_w_base.setValue(120)
-        self.slider_w_base.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E676; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_w_base.setStyleSheet(slider_style)
         self.slider_w_base.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_base)
 
+        # 2. Frequency Slider
         h_freq = QtWidgets.QHBoxLayout()
-        lbl_f_title = QtWidgets.QLabel("Differential Frequency (Hz):")
-        lbl_f_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_f_title = QtWidgets.QLabel("Differential Frequency:")
+        lbl_f_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_freq.addWidget(lbl_f_title)
+        h_freq.addStretch()
 
         self.lbl_w_freq_val = QtWidgets.QLabel("2.0 Hz")
-        self.lbl_w_freq_val.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_w_freq_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_freq.addWidget(self.lbl_w_freq_val)
         ctrl_layout.addLayout(h_freq)
 
         self.slider_w_freq = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_w_freq.setRange(1, 50)
         self.slider_w_freq.setValue(20)
-        self.slider_w_freq.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #00E5FF; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_w_freq.setStyleSheet(slider_style)
         self.slider_w_freq.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_freq)
 
+        # Freq Presets
         freq_btn_layout = QtWidgets.QHBoxLayout()
-        freq_btn_layout.addWidget(QtWidgets.QLabel("Freq Presets:"))
+        lbl_fp = QtWidgets.QLabel("Freq Presets:")
+        lbl_fp.setStyleSheet("color: #8B949E; font-weight: 600; font-size: 10px;")
+        freq_btn_layout.addWidget(lbl_fp)
+        chip_style = """
+            QPushButton { background-color: #21262D; color: #C9D1D9; border: 1px solid #30363D; border-radius: 3px; padding: 3px 8px; font-size: 10px; font-weight: 600; }
+            QPushButton:hover { background-color: #30363D; color: #F0F6FC; border-color: #8B949E; }
+        """
         for hz in [1, 2, 3, 4, 5]:
             btn_hz = QtWidgets.QPushButton(f"{hz} Hz")
-            btn_hz.setFixedWidth(48)
-            btn_hz.setStyleSheet("background-color: #1C2030; color: #00E5FF; border: 1px solid #00E5FF; font-weight: bold; font-size: 10px; padding: 3px;")
+            btn_hz.setStyleSheet(chip_style)
             btn_hz.clicked.connect(lambda _, h=hz: self.set_waddle_freq_preset(h))
             freq_btn_layout.addWidget(btn_hz)
         freq_btn_layout.addStretch()
         ctrl_layout.addLayout(freq_btn_layout)
 
+        # 3. Amplitude Slider
         h_amp = QtWidgets.QHBoxLayout()
-        lbl_a_title = QtWidgets.QLabel("Differential Amplitude (%):")
-        lbl_a_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_a_title = QtWidgets.QLabel("Differential Amplitude:")
+        lbl_a_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_amp.addWidget(lbl_a_title)
+        h_amp.addStretch()
 
         self.lbl_w_amp_val = QtWidgets.QLabel("50%")
-        self.lbl_w_amp_val.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_w_amp_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_amp.addWidget(self.lbl_w_amp_val)
         ctrl_layout.addLayout(h_amp)
 
         self.slider_w_amp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_w_amp.setRange(0, 100)
         self.slider_w_amp.setValue(50)
-        self.slider_w_amp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #FF9100; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_w_amp.setStyleSheet(slider_style)
         self.slider_w_amp.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_amp)
 
+        # 4. Ramp Duration Slider
         h_ramp = QtWidgets.QHBoxLayout()
-        lbl_r_title = QtWidgets.QLabel("Acceleration Ramp Duration (s):")
-        lbl_r_title.setStyleSheet("font-weight: bold; font-size: 12px; color: #FFFFFF;")
+        lbl_r_title = QtWidgets.QLabel("Ramp Duration:")
+        lbl_r_title.setStyleSheet("font-weight: 600; color: #F0F6FC; font-size: 11px;")
         h_ramp.addWidget(lbl_r_title)
+        h_ramp.addStretch()
 
         self.lbl_w_ramp_val = QtWidgets.QLabel("1.0 s")
-        self.lbl_w_ramp_val.setStyleSheet("color: #E040FB; font-weight: bold; font-size: 13px; font-family: 'Consolas';")
+        self.lbl_w_ramp_val.setStyleSheet("color: #38BDF8; font-weight: bold; font-family: 'Consolas'; font-size: 11px;")
         h_ramp.addWidget(self.lbl_w_ramp_val)
         ctrl_layout.addLayout(h_ramp)
 
         self.slider_w_ramp = NoWheelSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider_w_ramp.setRange(1, 50)
         self.slider_w_ramp.setValue(10)
-        self.slider_w_ramp.setStyleSheet("QSlider::groove:horizontal { height: 6px; background: #0A0C12; border-radius: 3px; } QSlider::sub-page:horizontal { background: #E040FB; border-radius: 3px; } QSlider::handle:horizontal { background: #FFFFFF; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }")
+        self.slider_w_ramp.setStyleSheet(slider_style)
         self.slider_w_ramp.valueChanged.connect(self.on_waddle_param_changed)
         ctrl_layout.addWidget(self.slider_w_ramp)
 
+        # Ramp Presets
         ramp_btn_layout = QtWidgets.QHBoxLayout()
-        ramp_btn_layout.addWidget(QtWidgets.QLabel("Ramp Presets:"))
+        lbl_rp = QtWidgets.QLabel("Ramp Presets:")
+        lbl_rp.setStyleSheet("color: #8B949E; font-weight: 600; font-size: 10px;")
+        ramp_btn_layout.addWidget(lbl_rp)
         for r_sec in [0.5, 1.0, 2.0, 3.0]:
             btn_r = QtWidgets.QPushButton(f"{r_sec}s")
-            btn_r.setFixedWidth(48)
-            btn_r.setStyleSheet("background-color: #1C2030; color: #E040FB; border: 1px solid #E040FB; font-weight: bold; font-size: 10px; padding: 3px;")
+            btn_r.setStyleSheet(chip_style)
             btn_r.clicked.connect(lambda _, s=r_sec: self.set_waddle_ramp_preset(s))
             ramp_btn_layout.addWidget(btn_r)
         ramp_btn_layout.addStretch()
         ctrl_layout.addLayout(ramp_btn_layout)
 
+        ctrl_layout.addSpacing(6)
+
         gait_action_layout = QtWidgets.QHBoxLayout()
-        # Start: Green, Pause: Yellow/Amber, Stop: Red
-        self.btn_start_waddle = QtWidgets.QPushButton("START WADDLING GAIT")
-        self.btn_start_waddle.setStyleSheet("background-color: #00E676; color: #0D0F17; font-size: 13px; font-weight: bold; padding: 10px;")
+        self.btn_start_waddle = QtWidgets.QPushButton("▶  START WADDLING GAIT")
+        self.btn_start_waddle.setStyleSheet("background-color: #238636; color: #FFFFFF; font-size: 11px; font-weight: bold; padding: 8px; border: 1px solid #2EA043; border-radius: 4px;")
         self.btn_start_waddle.clicked.connect(self.toggle_waddling_gait)
         gait_action_layout.addWidget(self.btn_start_waddle)
 
-        btn_stop_waddle = QtWidgets.QPushButton("STOP GAIT")
-        btn_stop_waddle.setStyleSheet("background-color: #FF1744; color: #FFFFFF; font-size: 13px; font-weight: bold; padding: 10px;")
+        btn_stop_waddle = QtWidgets.QPushButton("■  STOP GAIT")
+        btn_stop_waddle.setStyleSheet("background-color: #211215; color: #F85149; font-size: 11px; font-weight: bold; padding: 8px; border: 1px solid #F85149; border-radius: 4px;")
         btn_stop_waddle.clicked.connect(self.stop_waddling_gait)
         gait_action_layout.addWidget(btn_stop_waddle)
         ctrl_layout.addLayout(gait_action_layout)
 
-        layout.addWidget(box_ctrl, stretch=2)
+        ctrl_layout.addStretch(1)
+        layout.addWidget(box_ctrl, stretch=1)
 
-        box_vis = QtWidgets.QGroupBox("Realtime Closed-Loop Differential Speed Meters")
+        # RIGHT PANEL: Meters & Output
+        box_vis = QtWidgets.QGroupBox("DIFFERENTIAL SPEED METERS")
         vis_layout = QtWidgets.QVBoxLayout(box_vis)
-        vis_layout.setContentsMargins(14, 18, 14, 14)
-        vis_layout.setSpacing(12)
+        vis_layout.setContentsMargins(12, 14, 12, 12)
+        vis_layout.setSpacing(6)
 
-        vis_layout.addWidget(QtWidgets.QLabel("LEFT MOTOR POWER SINE WAVE:"))
+        lbl_l_hdr = QtWidgets.QLabel("LEFT MOTOR POWER SINE WAVE:")
+        lbl_l_hdr.setStyleSheet("color: #38BDF8; font-weight: bold; font-size: 10px;")
+        vis_layout.addWidget(lbl_l_hdr)
+
         self.bar_l_motor = QtWidgets.QProgressBar()
         self.bar_l_motor.setRange(-255, 255)
         self.bar_l_motor.setValue(0)
         self.bar_l_motor.setTextVisible(True)
-        self.bar_l_motor.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 4px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 12px; background-color: #0A0C12; height: 28px; } QProgressBar::chunk { background-color: #00E5FF; border-radius: 3px; }")
+        self.bar_l_motor.setStyleSheet("QProgressBar { border: 1px solid #30363D; border-radius: 3px; text-align: center; color: #F0F6FC; font-weight: bold; font-size: 11px; background-color: #21262D; height: 20px; } QProgressBar::chunk { background-color: #38BDF8; }")
         vis_layout.addWidget(self.bar_l_motor)
 
-        vis_layout.addWidget(QtWidgets.QLabel("RIGHT MOTOR POWER SINE WAVE:"))
+        lbl_r_hdr = QtWidgets.QLabel("RIGHT MOTOR POWER SINE WAVE:")
+        lbl_r_hdr.setStyleSheet("color: #F59E0B; font-weight: bold; font-size: 10px;")
+        vis_layout.addWidget(lbl_r_hdr)
+
         self.bar_r_motor = QtWidgets.QProgressBar()
         self.bar_r_motor.setRange(-255, 255)
         self.bar_r_motor.setValue(0)
         self.bar_r_motor.setTextVisible(True)
-        self.bar_r_motor.setStyleSheet("QProgressBar { border: 1px solid #FF9100; border-radius: 4px; text-align: center; color: #FFFFFF; font-weight: bold; font-size: 12px; background-color: #0A0C12; height: 28px; } QProgressBar::chunk { background-color: #FF9100; border-radius: 3px; }")
+        self.bar_r_motor.setStyleSheet("QProgressBar { border: 1px solid #30363D; border-radius: 3px; text-align: center; color: #F0F6FC; font-weight: bold; font-size: 11px; background-color: #21262D; height: 20px; } QProgressBar::chunk { background-color: #F59E0B; }")
         vis_layout.addWidget(self.bar_r_motor)
 
         self.txt_waddle_info = QtWidgets.QPlainTextEdit()
+        self.txt_waddle_info.setFixedHeight(80)
         self.txt_waddle_info.setReadOnly(True)
         self.txt_waddle_info.setPlainText("Waddling Gait Generator Idle.\nPress 'START WADDLING GAIT' to begin closed-loop differential sine oscillation.")
         vis_layout.addWidget(self.txt_waddle_info)
 
+        vis_layout.addStretch(1)
         layout.addWidget(box_vis, stretch=1)
 
     # ---------------------------------------------------------------------------
-    # TAB 3: ENCODER PID TUNING & POSITION HOLD CONTROL
+    # TAB 4: ENCODER PID TUNING & POSITION HOLD CONTROL (Clean Pro Design)
     # ---------------------------------------------------------------------------
     def init_pid_tab(self):
         layout = QtWidgets.QHBoxLayout(self.tab_pid_tuning)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(12)
 
         # PID GAIN TUNING BOX
-        box_pid = QtWidgets.QGroupBox("Closed-Loop PID Parameters & Encoder Calibration")
+        box_pid = QtWidgets.QGroupBox("CLOSED-LOOP PID & ENCODER CALIBRATION")
         pid_layout = QtWidgets.QVBoxLayout(box_pid)
-        pid_layout.setContentsMargins(14, 18, 14, 14)
-        pid_layout.setSpacing(10)
+        pid_layout.setContentsMargins(12, 14, 12, 12)
+        pid_layout.setSpacing(6)
 
         grid_pid = QtWidgets.QGridLayout()
-        grid_pid.setSpacing(8)
+        grid_pid.setSpacing(6)
 
         grid_pid.addWidget(QtWidgets.QLabel("Proportional Gain (Kp):"), 0, 0)
         self.spn_kp = QtWidgets.QDoubleSpinBox()
@@ -1464,74 +1511,76 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         grid_pid.addWidget(self.spn_cpr, 3, 1)
 
         pid_layout.addLayout(grid_pid)
+        pid_layout.addSpacing(6)
 
-        # Action Buttons with Semantic Colors
+        # Action Buttons
         btn_send_pid = QtWidgets.QPushButton("Send PID & CPR to Both Slaves")
-        btn_send_pid.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-weight: bold; padding: 8px;")
+        btn_send_pid.setStyleSheet("background-color: #21262D; color: #F0F6FC; border: 1px solid #30363D; font-weight: bold; padding: 7px; border-radius: 4px;")
         btn_send_pid.clicked.connect(self.send_pid_params)
         pid_layout.addWidget(btn_send_pid)
 
         btn_toggle_cl = QtWidgets.QPushButton("Toggle Closed-Loop PID (ON/OFF)")
-        btn_toggle_cl.setStyleSheet("background-color: #1C2030; color: #00E676; border: 1px solid #00E676; font-weight: bold; padding: 8px;")
+        btn_toggle_cl.setStyleSheet("background-color: #21262D; color: #34D399; border: 1px solid #30363D; font-weight: bold; padding: 7px; border-radius: 4px;")
         btn_toggle_cl.clicked.connect(self.toggle_closed_loop_mode)
         pid_layout.addWidget(btn_toggle_cl)
 
         btn_reset_enc = QtWidgets.QPushButton("Reset Encoder Ticks to 0")
-        btn_reset_enc.setStyleSheet("background-color: #1C2030; color: #FFC107; border: 1px solid #FFC107; font-weight: bold; padding: 8px;")
+        btn_reset_enc.setStyleSheet("background-color: #211215; color: #F85149; border: 1px solid #F85149; font-weight: bold; padding: 7px; border-radius: 4px;")
         btn_reset_enc.clicked.connect(lambda: self.send_command("B ENCODER_RESET"))
         pid_layout.addWidget(btn_reset_enc)
 
-        pid_layout.addStretch()
+        pid_layout.addStretch(1)
         layout.addWidget(box_pid, stretch=1)
 
-        # ENCODER & MOTOR DRIVER PWM REAL-TIME MONITORING BOX
-        box_mon = QtWidgets.QGroupBox("Live Dual Encoder & Motor Driver PWM Power Monitor")
+        # ENCODER & MOTOR DRIVER PWM POWER MONITOR
+        box_mon = QtWidgets.QGroupBox("DUAL ENCODER & MOTOR PWM MONITOR")
         mon_layout = QtWidgets.QVBoxLayout(box_mon)
-        mon_layout.setContentsMargins(14, 18, 14, 14)
-        mon_layout.setSpacing(10)
+        mon_layout.setContentsMargins(12, 14, 12, 12)
+        mon_layout.setSpacing(6)
 
-        # Real-time Driver PWM Gauges
         pwm_grid = QtWidgets.QGridLayout()
-        pwm_grid.setSpacing(8)
+        pwm_grid.setSpacing(6)
 
         lbl_l_pwm_hdr = QtWidgets.QLabel("LEFT MOTOR DRIVER PWM:")
-        lbl_l_pwm_hdr.setStyleSheet("color: #00E5FF; font-weight: bold; font-size: 11px;")
+        lbl_l_pwm_hdr.setStyleSheet("color: #38BDF8; font-weight: bold; font-size: 10px;")
         pwm_grid.addWidget(lbl_l_pwm_hdr, 0, 0)
 
         self.lbl_l_pwm_val = QtWidgets.QLabel("+0 / ±255 (0.0% Power)")
-        self.lbl_l_pwm_val.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: 'Consolas';")
+        self.lbl_l_pwm_val.setStyleSheet("color: #F0F6FC; font-weight: bold; font-family: 'Consolas'; font-size: 10px;")
         pwm_grid.addWidget(self.lbl_l_pwm_val, 0, 1)
 
         self.bar_l_driver_pwm = QtWidgets.QProgressBar()
         self.bar_l_driver_pwm.setRange(0, 255)
         self.bar_l_driver_pwm.setValue(0)
         self.bar_l_driver_pwm.setTextVisible(False)
-        self.bar_l_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 3px; background-color: #0A0C12; height: 16px; } QProgressBar::chunk { background-color: #00E5FF; }")
+        self.bar_l_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #30363D; border-radius: 3px; background-color: #21262D; height: 12px; } QProgressBar::chunk { background-color: #38BDF8; }")
         pwm_grid.addWidget(self.bar_l_driver_pwm, 1, 0, 1, 2)
 
         lbl_r_pwm_hdr = QtWidgets.QLabel("RIGHT MOTOR DRIVER PWM:")
-        lbl_r_pwm_hdr.setStyleSheet("color: #FF9100; font-weight: bold; font-size: 11px;")
+        lbl_r_pwm_hdr.setStyleSheet("color: #F59E0B; font-weight: bold; font-size: 10px;")
         pwm_grid.addWidget(lbl_r_pwm_hdr, 2, 0)
 
         self.lbl_r_pwm_val = QtWidgets.QLabel("+0 / ±255 (0.0% Power)")
-        self.lbl_r_pwm_val.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: 'Consolas';")
+        self.lbl_r_pwm_val.setStyleSheet("color: #F0F6FC; font-weight: bold; font-family: 'Consolas'; font-size: 10px;")
         pwm_grid.addWidget(self.lbl_r_pwm_val, 2, 1)
 
         self.bar_r_driver_pwm = QtWidgets.QProgressBar()
         self.bar_r_driver_pwm.setRange(0, 255)
         self.bar_r_driver_pwm.setValue(0)
         self.bar_r_driver_pwm.setTextVisible(False)
-        self.bar_r_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #FF9100; border-radius: 3px; background-color: #0A0C12; height: 16px; } QProgressBar::chunk { background-color: #FF9100; }")
+        self.bar_r_driver_pwm.setStyleSheet("QProgressBar { border: 1px solid #30363D; border-radius: 3px; background-color: #21262D; height: 12px; } QProgressBar::chunk { background-color: #F59E0B; }")
         pwm_grid.addWidget(self.bar_r_driver_pwm, 3, 0, 1, 2)
 
         mon_layout.addLayout(pwm_grid)
 
         self.txt_pid_mon = QtWidgets.QPlainTextEdit()
+        self.txt_pid_mon.setFixedHeight(90)
         self.txt_pid_mon.setReadOnly(True)
         self.txt_pid_mon.setPlainText("Live Dual Encoder PID Feedback\nConnecting to slaves to stream Driver PWM, Quadrature Ticks & Measured RPM...")
         mon_layout.addWidget(self.txt_pid_mon)
 
-        layout.addWidget(box_mon, stretch=2)
+        mon_layout.addStretch(1)
+        layout.addWidget(box_mon, stretch=1)
 
     def send_pid_params(self):
         kp = self.spn_kp.value()
@@ -1733,9 +1782,9 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
 
-        box_leg_map = QtWidgets.QGroupBox("20 Leg Servos Dual-Board Assignment")
+        box_leg_map = QtWidgets.QGroupBox("20 LEG SERVOS ASSIGNMENT")
         leg_layout = QtWidgets.QVBoxLayout(box_leg_map)
-        leg_layout.setContentsMargins(10, 16, 10, 10)
+        leg_layout.setContentsMargins(10, 14, 10, 10)
         leg_layout.setSpacing(6)
 
         all_channels_list = (
@@ -1750,28 +1799,28 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
         assign_widget = QtWidgets.QWidget()
         grid_leg = QtWidgets.QGridLayout(assign_widget)
-        grid_leg.setSpacing(6)
+        grid_leg.setSpacing(4)
 
         for i, servo_name in enumerate(LEG_SERVOS):
             row = i // 2
             col_offset = (i % 2) * 2
 
             lbl = QtWidgets.QLabel(f"{servo_name}:")
-            lbl_color = "#00E5FF" if "Left" in servo_name else "#FF9100"
-            lbl.setStyleSheet(f"font-weight: bold; color: {lbl_color}; font-size: 11px;")
+            lbl_color = "#38BDF8" if "Left" in servo_name else "#F59E0B"
+            lbl.setStyleSheet(f"font-weight: 600; color: {lbl_color}; font-size: 10px;")
             grid_leg.addWidget(lbl, row, col_offset)
 
             cmb = QtWidgets.QComboBox()
             cmb.addItems(all_channels_list)
             cmb.setStyleSheet("""
                 QComboBox {
-                    background-color: #0A0C12;
-                    color: #00E676;
-                    font-weight: bold;
-                    font-size: 11px;
-                    border: 1px solid #1E2333;
+                    background-color: #21262D;
+                    color: #F0F6FC;
+                    font-weight: 600;
+                    font-size: 10px;
+                    border: 1px solid #30363D;
                     border-radius: 3px;
-                    padding: 2px 5px;
+                    padding: 2px 4px;
                 }
             """)
             cmb.currentTextChanged.connect(lambda text, s=servo_name: self.on_leg_map_combo_changed(s, text))
@@ -1784,40 +1833,39 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         btn_box = QtWidgets.QHBoxLayout()
 
         btn_auto_left = QtWidgets.QPushButton("Auto-Assign Left (L:00-09)")
-        btn_auto_left.setStyleSheet("background-color: #1C2030; color: #00E5FF; border-color: #00E5FF; font-weight: bold; padding: 5px;")
+        btn_auto_left.setStyleSheet("background-color: #21262D; color: #38BDF8; border: 1px solid #30363D; font-weight: bold; padding: 6px; font-size: 10px;")
         btn_auto_left.clicked.connect(self.auto_assign_left_channels)
         btn_box.addWidget(btn_auto_left)
 
         btn_auto_right = QtWidgets.QPushButton("Auto-Assign Right (R:00-09)")
-        btn_auto_right.setStyleSheet("background-color: #1C2030; color: #FF9100; border-color: #FF9100; font-weight: bold; padding: 5px;")
+        btn_auto_right.setStyleSheet("background-color: #21262D; color: #F59E0B; border: 1px solid #30363D; font-weight: bold; padding: 6px; font-size: 10px;")
         btn_auto_right.clicked.connect(self.auto_assign_right_channels)
         btn_box.addWidget(btn_auto_right)
 
         btn_auto_all = QtWidgets.QPushButton("Auto-Assign All (L and R)")
-        btn_auto_all.setStyleSheet("background-color: #00E676; color: #0D0F17; font-weight: bold; padding: 5px;")
+        btn_auto_all.setStyleSheet("background-color: #21262D; color: #34D399; border: 1px solid #30363D; font-weight: bold; padding: 6px; font-size: 10px;")
         btn_auto_all.clicked.connect(self.auto_assign_all_channels)
         btn_box.addWidget(btn_auto_all)
 
         leg_layout.addLayout(btn_box)
         layout.addWidget(box_leg_map, stretch=2)
 
-        box_prof = QtWidgets.QGroupBox("JSON Profile Management")
+        box_prof = QtWidgets.QGroupBox("PROFILE MANAGEMENT")
         prof_layout = QtWidgets.QVBoxLayout(box_prof)
-        prof_layout.setContentsMargins(12, 16, 12, 12)
-        prof_layout.setSpacing(10)
-        prof_layout.addWidget(QtWidgets.QLabel("PROFILE MANAGEMENT:"))
+        prof_layout.setContentsMargins(12, 14, 12, 12)
+        prof_layout.setSpacing(6)
 
         btn_save = QtWidgets.QPushButton("Save Profile JSON")
-        btn_save.setStyleSheet("background-color: #00E676; color: #0D0F17; font-weight: bold; padding: 6px;")
+        btn_save.setStyleSheet("background-color: #238636; color: #FFFFFF; font-weight: bold; padding: 7px; border: 1px solid #2EA043; border-radius: 4px;")
         btn_save.clicked.connect(self.save_profile)
         prof_layout.addWidget(btn_save)
 
         btn_load = QtWidgets.QPushButton("Load Profile JSON")
-        btn_load.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-weight: bold; padding: 6px;")
+        btn_load.setStyleSheet("background-color: #21262D; color: #F0F6FC; font-weight: bold; padding: 7px; border: 1px solid #30363D; border-radius: 4px;")
         btn_load.clicked.connect(self.load_profile_dialog)
         prof_layout.addWidget(btn_load)
 
-        prof_layout.addStretch()
+        prof_layout.addStretch(1)
         layout.addWidget(box_prof, stretch=1)
 
     def scan_ports(self):
@@ -2251,12 +2299,22 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
 
     def load_profile(self):
         if not os.path.exists(self.settings_file):
-            for card in self.cards:
-                cid = card.get_card_id()
-                if cid in DEFAULT_ROLLING_POSE:
-                    card.set_angle(DEFAULT_ROLLING_POSE[cid], emit_signal=False)
+            gui_dir = os.path.dirname(os.path.abspath(__file__))
+            codes_dir = os.path.dirname(os.path.dirname(os.path.dirname(gui_dir)))
+            candidate_paths = [
+                os.path.join(gui_dir, "rollopod_servo_profile.json"),
+                os.path.join(codes_dir, "rollopod_servo_profile.json"),
+                r"f:\Rollopod\Codes\rollopod_servo_profile.json"
+            ]
+            for p in candidate_paths:
+                if os.path.exists(p):
+                    self.settings_file = p
+                    break
+
+        if not os.path.exists(self.settings_file):
             self.sync_leg_channel_ui()
             return
+
         try:
             with open(self.settings_file, "r") as f:
                 data = json.load(f)
@@ -2266,12 +2324,10 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
                 for card in self.cards:
                     cid = card.get_card_id()
                     if cid in data["standing_angles"]:
-                        card.stand_angle = float(data["standing_angles"][cid])
-                        card.btn_save_stand.setToolTip(f"Standing position saved: {int(card.stand_angle)} deg")
-            for card in self.cards:
-                cid = card.get_card_id()
-                if cid in DEFAULT_ROLLING_POSE:
-                    card.set_angle(DEFAULT_ROLLING_POSE[cid], emit_signal=False)
+                        stand_val = float(data["standing_angles"][cid])
+                        card.stand_angle = stand_val
+                        card.set_angle(stand_val, emit_signal=False)
+                        card.btn_save_stand.setToolTip(f"Standing position saved: {int(stand_val)} deg")
             if "invert_left_motor" in data:
                 self.chk_invert_l_motor.setChecked(data["invert_left_motor"])
             if "invert_right_motor" in data:
@@ -2283,7 +2339,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             if "kd" in data: self.spn_kd.setValue(data["kd"])
             if "cpr" in data: self.spn_cpr.setValue(data["cpr"])
             self.sync_leg_channel_ui()
-            self.log_console(f"[PROFILE] Loaded profile from {self.settings_file}")
+            self.log_console(f"[PROFILE] Loaded standing profile angles from {self.settings_file}")
         except Exception as e:
             print(f"Error loading profile: {e}")
 
@@ -2294,24 +2350,23 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
             self.load_profile()
 
     # ---------------------------------------------------------------------------
-    # TAB 5: WIRELESS ARDUINOTA FIRMWARE FLASHER (Wi-Fi: MIBEE)
+    # TAB 6: WIRELESS ARDUINOTA FIRMWARE FLASHER (Wi-Fi: MIBEE)
     # ---------------------------------------------------------------------------
     def init_ota_tab(self):
         layout = QtWidgets.QVBoxLayout(self.tab_ota)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
-        box_ota = QtWidgets.QGroupBox("Wireless Over-The-Air (OTA) Firmware Flasher (Wi-Fi: MIBEE)")
-        box_ota.setStyleSheet("QGroupBox { font-weight: bold; color: #00E5FF; font-size: 13px; }")
+        box_ota = QtWidgets.QGroupBox("WIRELESS OVER-THE-AIR (OTA) FIRMWARE FLASHER")
         ota_layout = QtWidgets.QVBoxLayout(box_ota)
-        ota_layout.setContentsMargins(14, 18, 14, 14)
-        ota_layout.setSpacing(12)
+        ota_layout.setContentsMargins(12, 14, 12, 12)
+        ota_layout.setSpacing(8)
 
         grid = QtWidgets.QGridLayout()
-        grid.setSpacing(10)
+        grid.setSpacing(8)
 
         lbl_target = QtWidgets.QLabel("Target Slave Board:")
-        lbl_target.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        lbl_target.setStyleSheet("font-weight: 600; color: #F0F6FC;")
         grid.addWidget(lbl_target, 0, 0)
 
         self.cmb_ota_target = QtWidgets.QComboBox()
@@ -2324,7 +2379,7 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         grid.addWidget(self.cmb_ota_target, 0, 1)
 
         lbl_host = QtWidgets.QLabel("Target IP Address:")
-        lbl_host.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        lbl_host.setStyleSheet("font-weight: 600; color: #F0F6FC;")
         grid.addWidget(lbl_host, 1, 0)
 
         host_row = QtWidgets.QHBoxLayout()
@@ -2333,57 +2388,60 @@ class RollopodMainWindow(QtWidgets.QMainWindow):
         host_row.addWidget(self.txt_ota_host)
 
         self.btn_scan_ota = QtWidgets.QPushButton("🔍 Scan Network")
-        self.btn_scan_ota.setStyleSheet("background-color: #1C2030; color: #00E676; border: 1px solid #00E676; font-weight: bold; padding: 4px 10px;")
+        self.btn_scan_ota.setStyleSheet("background-color: #21262D; color: #38BDF8; border: 1px solid #30363D; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
         self.btn_scan_ota.setToolTip("Scan current subnet for ESP32s with OTA port 3232 open")
         self.btn_scan_ota.clicked.connect(self.scan_network_for_esp32)
         host_row.addWidget(self.btn_scan_ota)
         grid.addLayout(host_row, 1, 1)
 
         lbl_file = QtWidgets.QLabel("Firmware Binary (.bin):")
-        lbl_file.setStyleSheet("font-weight: bold; color: #E1E4EC;")
+        lbl_file.setStyleSheet("font-weight: 600; color: #F0F6FC;")
         grid.addWidget(lbl_file, 2, 0)
 
         file_box = QtWidgets.QHBoxLayout()
         self.txt_ota_file = QtWidgets.QLineEdit()
         self.txt_ota_file.setPlaceholderText("Select compiled firmware binary (.bin file)...")
         btn_browse_bin = QtWidgets.QPushButton("Browse File...")
-        btn_browse_bin.setStyleSheet("background-color: #1C2030; color: #00E5FF; border: 1px solid #00E5FF; font-weight: bold; padding: 4px 12px;")
+        btn_browse_bin.setStyleSheet("background-color: #21262D; color: #F0F6FC; border: 1px solid #30363D; font-weight: bold; padding: 4px 12px; border-radius: 4px;")
         btn_browse_bin.clicked.connect(self.browse_ota_binary)
         file_box.addWidget(self.txt_ota_file)
         file_box.addWidget(btn_browse_bin)
         grid.addLayout(file_box, 2, 1)
 
         ota_layout.addLayout(grid)
+        ota_layout.addSpacing(4)
 
-        # Enable OTA Mode Button (Orange / Amber)
+        # Enable OTA Mode Button
         self.btn_enable_ota_mode = QtWidgets.QPushButton("1. ENABLE OTA MODE ON SLAVES (Fast 15Hz LED Blink)")
-        self.btn_enable_ota_mode.setStyleSheet("background-color: #FF9100; color: #0D0F17; font-weight: 900; font-size: 13px; padding: 10px; border-radius: 4px;")
+        self.btn_enable_ota_mode.setStyleSheet("background-color: #21262D; color: #F59E0B; font-weight: bold; font-size: 11px; padding: 8px; border: 1px solid #30363D; border-radius: 4px;")
         self.btn_enable_ota_mode.clicked.connect(self.trigger_ota_mode_command)
         ota_layout.addWidget(self.btn_enable_ota_mode)
 
         # Flash Action Button
         self.btn_flash_ota = QtWidgets.QPushButton("2. START WIRELESS OTA FLASHING")
-        self.btn_flash_ota.setStyleSheet("background-color: #00E5FF; color: #0D0F17; font-weight: 900; font-size: 13px; padding: 10px; border-radius: 4px;")
+        self.btn_flash_ota.setStyleSheet("background-color: #238636; color: #FFFFFF; font-weight: bold; font-size: 11px; padding: 8px; border: 1px solid #2EA043; border-radius: 4px;")
         self.btn_flash_ota.clicked.connect(self.start_wireless_ota_flash)
         ota_layout.addWidget(self.btn_flash_ota)
 
         # Progress Bar
         self.bar_ota_progress = QtWidgets.QProgressBar()
         self.bar_ota_progress.setValue(0)
-        self.bar_ota_progress.setStyleSheet("QProgressBar { border: 1px solid #00E5FF; border-radius: 4px; text-align: center; color: #FFFFFF; font-weight: bold; background-color: #0A0C12; height: 24px; } QProgressBar::chunk { background-color: #00E676; }")
+        self.bar_ota_progress.setStyleSheet("QProgressBar { border: 1px solid #30363D; border-radius: 3px; text-align: center; color: #F0F6FC; font-weight: bold; background-color: #21262D; height: 16px; font-size: 10px; } QProgressBar::chunk { background-color: #38BDF8; }")
         ota_layout.addWidget(self.bar_ota_progress)
 
         # OTA Log Output
         self.txt_ota_log = QtWidgets.QPlainTextEdit()
+        self.txt_ota_log.setFixedHeight(120)
         self.txt_ota_log.setReadOnly(True)
         self.txt_ota_log.setPlainText("Wireless OTA Flasher Ready.\nEnsure your Laptop is connected to Wi-Fi 'MIBEE'.\nSelect target slave and compiled binary (.bin), then click 'START WIRELESS OTA FLASHING'.")
         ota_layout.addWidget(self.txt_ota_log)
+
+        ota_layout.addStretch(1)
 
         # Auto-populate initial binary path for Left Slave
         initial_bin = self.auto_find_firmware_bin("left")
         if initial_bin:
             self.txt_ota_file.setText(initial_bin)
-        # Set initial placeholder
         self.txt_ota_host.setPlaceholderText("Left Slave IP — click 🔍 Scan to find")
 
         layout.addWidget(box_ota)
